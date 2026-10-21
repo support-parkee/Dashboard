@@ -69,7 +69,7 @@
               </svg>
               <span>Server Specification</span>
             </div>
-            <span class="badge-pill" id="badgeTotalServers">1,982</span>
+            <span class="badge-pill" id="badgeTotalServers">964</span>
           </button>
 
           <!-- 3. Client Specification -->
@@ -82,7 +82,7 @@
               </svg>
               <span>Client Specification</span>
             </div>
-            <span class="badge-pill" id="badgeTotalClients">5,536</span>
+            <span class="badge-pill" id="badgeTotalClients">6,554</span>
           </button>
 
           <!-- 4. Storage (Server Only) -->
@@ -326,7 +326,7 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Status Server:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-server-filter="all">Semua Server (1,982)</button>
+                  <button class="filter-pill active" data-server-filter="all">Semua Server (964)</button>
                   <button class="filter-pill hazard" data-server-filter="overheat">🔥 Overheat (≥80°C)</button>
                   <button class="filter-pill hazard" data-server-filter="low_ssd">⚠️ Low SSD Health (&lt;70%)</button>
                   <button class="filter-pill hazard" data-server-filter="full_storage">🚨 Storage Kritis (≥85%)</button>
@@ -341,7 +341,7 @@
                 </div>
 
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="serverResultCountLabel">
-                  Menampilkan 1,982 Server
+                  Menampilkan 964 Server
                 </div>
               </div>
 
@@ -499,10 +499,10 @@
                     <h3 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin: 0;">
                       Client All Location
                     </h3>
-                    <span class="badge-pill" id="allClientsCountBadge">5,536 Unit</span>
+                    <span class="badge-pill" id="allClientsCountBadge">6,554 Unit</span>
                   </div>
                   <p style="font-size: 0.75rem; color: var(--text-muted); margin: 2px 0 0 0;">
-                    Database seluruh gerbang, dispenser, & kasir (961 lokasi)
+                    Database seluruh gerbang, dispenser, kasir, & admin (961 lokasi)
                   </p>
                 </div>
                 <button class="btn btn-outline" id="exportAllClientsBtn" style="font-size: 0.72rem; padding: 4px 10px;">
@@ -535,6 +535,7 @@
                     <option value="all">Semua</option>
                     <option value="gate">Gate/Kiosk</option>
                     <option value="cashier">Cashier</option>
+                    <option value="admin">Admin BO</option>
                     <option value="other">Other</option>
                   </select>
                 </div>
@@ -802,14 +803,14 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Storage:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-storage-filter="all">Semua Server Storage (1,982)</button>
+                  <button class="filter-pill active" data-storage-filter="all">Semua Server Storage (964)</button>
                   <button class="filter-pill hazard" data-storage-filter="critical_usage">🚨 Kritis Usage (≥85%)</button>
                   <button class="filter-pill hazard" data-storage-filter="critical_health">⚠️ Health Rendah (&lt;70%)</button>
                   <button class="filter-pill" data-storage-filter="nvme">🚀 NVMe Saja</button>
                   <button class="filter-pill" data-storage-filter="sata">💾 SATA Saja</button>
                 </div>
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="storageResultCountLabel">
-                  Menampilkan 1,982 Server
+                  Menampilkan 964 Server
                 </div>
               </div>
 
