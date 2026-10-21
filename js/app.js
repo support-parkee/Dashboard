@@ -34,6 +34,7 @@ const App = {
     ram: 'all',
     ssdType: 'all',
     ssdBrand: 'all',
+    ssdSize: 'all',
     tempRange: 'all',
     healthRange: 'all',
     usageRange: 'all',
@@ -382,19 +383,19 @@ const App = {
             ${item.last_sync || '-'}
           </td>
           <td>
-            <span class="version-code-tag">${item.agent ? item.agent.split('-')[0] : '-'}</span>
+            <span class="version-code-tag">${this.formatVersion(item.agent)}</span>
           </td>
           <td>
-            <span class="version-code-tag">${item.fisherman ? item.fisherman.split('-')[0] : '-'}</span>
+            <span class="version-code-tag">${this.formatVersion(item.fisherman)}</span>
           </td>
           <td>
-            <span class="version-code-tag">${item.watersheep ? item.watersheep.split('-')[0] : '-'}</span>
+            <span class="version-code-tag">${this.formatVersion(item.watersheep)}</span>
           </td>
           <td>
-            <span class="version-code-tag">${item.wbo || '-'}</span>
+            <span class="version-code-tag">${this.formatVersion(item.wbo)}</span>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.os}">
-            ${item.os ? item.os.split('(')[0].trim() : '-'}
+          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.os || ''}">
+            ${this.formatOs(item.os)}
           </td>
           <td>
             <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.72rem; white-space: nowrap;" onclick="App.jumpToClientSpec('${item.loc.replace(/'/g, "\\'")}')">
@@ -471,6 +472,20 @@ const App = {
     if (this.serverState.ssdBrand !== 'all') {
       const qBrand = this.serverState.ssdBrand.toLowerCase();
       list = list.filter(d => d.ssd_brand && d.ssd_brand.toLowerCase().includes(qBrand));
+    }
+
+    // Specific Filter: SSD Size
+    if (this.serverState.ssdSize !== 'all') {
+      const qSize = this.serverState.ssdSize;
+      list = list.filter(d => {
+        const sz = (d.ssd_size || '').toLowerCase();
+        if (qSize === '128') return sz.includes('120') || sz.includes('128') || sz.includes('119');
+        if (qSize === '256') return sz.includes('240') || sz.includes('250') || sz.includes('256') || sz.includes('238');
+        if (qSize === '512') return sz.includes('480') || sz.includes('500') || sz.includes('512') || sz.includes('476') || sz.includes('465');
+        if (qSize === '1t') return sz.includes('931') || sz.includes('960') || sz.includes('1000') || sz.includes('1t') || sz.includes('1.0t') || sz.includes('1tb');
+        if (qSize === '2t') return sz.includes('1.8') || sz.includes('1.9') || sz.includes('2000') || sz.includes('2t') || sz.includes('2tb');
+        return true;
+      });
     }
 
     // Specific Filter: Temp Range
@@ -557,7 +572,7 @@ const App = {
     if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.serverState.pageSize, list.length)} dari ${list.length.toLocaleString()} server`;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada server yang cocok.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada server yang cocok.</td></tr>`;
       return;
     }
 
@@ -575,6 +590,10 @@ const App = {
       let healthClass = 'health-good';
       if (d.ssd_health !== null && d.ssd_health < 70) healthClass = 'health-bad';
       else if (d.ssd_health !== null && d.ssd_health < 80) healthClass = 'health-warn';
+
+      const ssdBrandFormatted = this.formatBrand(d.ssd_brand);
+      const ssdSizeFormatted = this.formatSize(d.ssd_size);
+      const ssdTypeTag = (d.ssd_type && d.ssd_type !== '-') ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.ssd_type}</span>` : '';
 
       return `
         <tr>
@@ -599,32 +618,29 @@ const App = {
             ${this.formatCpu(d.cpu)}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
-            ${d.ram || '-'} <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 400;">(${d.ram_brand || '-'})</span>
+            ${this.formatRam(d.ram, d.ram_brand)}
           </td>
           <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.mb || ''}">
             ${this.formatMb(d.mb, d.mb_brand)}
           </td>
           <td>
-            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${d.ssd_brand} ${d.ssd_size || ''}</div>
-            <span class="version-code-tag" style="font-size: 0.65rem;">${d.ssd_type}</span>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${ssdBrandFormatted}</div>
+            ${ssdBrandFormatted !== '-' ? ssdTypeTag : ''}
+          </td>
+          <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
+            ${ssdSizeFormatted}
           </td>
           <td>
-            <span class="temp-badge ${tempClass}" style="font-weight: 700;">
-              ${d.temp !== null ? d.temp + '°C' : '-'}
-            </span>
+            ${d.temp !== null ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${d.temp}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            <span class="ssd-health-pill ${healthClass}">
-              ${d.ssd_health !== null ? d.ssd_health + '%' : '-'}
-            </span>
+            ${d.ssd_health !== null ? `<span class="ssd-health-pill ${healthClass}">${d.ssd_health}%</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            <div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">
-              ${d.ssd_usage !== null ? d.ssd_usage + '%' : '-'}
-            </div>
+            ${d.ssd_usage !== null ? `<div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">${d.ssd_usage}%</div>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
-          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.os}">
-            ${d.os ? d.os.split('(')[0].trim() : '-'}
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.os || ''}">
+            ${this.formatOs(d.os)}
           </td>
           <td>
             <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;" onclick="App.openServerDetailModal('${d.host}')">
@@ -650,11 +666,11 @@ const App = {
       body.innerHTML = `
         <div class="modal-spec-item">
           <span class="modal-spec-label">Nama Lokasi</span>
-          <span class="modal-spec-val">${dev.loc}</span>
+          <span class="modal-spec-val">${dev.loc || '-'}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Kode Unik / Tier</span>
-          <span class="modal-spec-val">${dev.code} · ${dev.tier}</span>
+          <span class="modal-spec-val">${dev.code || '-'} · ${dev.tier || 'Standard'}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">IP Local</span>
@@ -670,7 +686,7 @@ const App = {
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Memori RAM</span>
-          <span class="modal-spec-val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
+          <span class="modal-spec-val">${this.formatRam(dev.ram, dev.ram_brand)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Motherboard</span>
@@ -678,19 +694,19 @@ const App = {
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Storage SSD</span>
-          <span class="modal-spec-val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size} · Health: ${dev.ssd_health}% · Usage: ${dev.ssd_usage}%</span>
+          <span class="modal-spec-val">${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)} · Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Usage: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Suhu Operasional</span>
-          <span class="modal-spec-val ${dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null ? dev.temp + '°C' : '-'}</span>
+          <span class="modal-spec-val ${dev.temp !== null && dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null ? dev.temp + '°C' : '-'}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Sistem Operasi (OS)</span>
-          <span class="modal-spec-val">${dev.os || '-'}</span>
+          <span class="modal-spec-val">${this.formatOs(dev.os)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Versi Agent</span>
-          <span class="modal-spec-val mono">${dev.agent || '-'}</span>
+          <span class="modal-spec-val mono">${this.formatVersion(dev.agent)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Last Telemetry Sync</span>
@@ -868,9 +884,11 @@ const App = {
             ${d.ip || '-'}
           </td>
           <td>
-            <span class="temp-badge ${tempClass}" style="font-weight: 700; font-size: 0.72rem; padding: 2px 6px;">
-              ${d.temp !== null ? d.temp + '°C' : '-'}
-            </span>
+            ${d.temp !== null ? `
+              <span class="temp-badge ${tempClass}" style="font-weight: 700; font-size: 0.72rem; padding: 2px 6px;">
+                ${d.temp}°C
+              </span>
+            ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-size: 0.74rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu || ''}">
             ${this.formatCpu(d.cpu)}
@@ -1001,7 +1019,7 @@ const App = {
                       </div>
                       <div class="client-spec-cell">
                         <span class="lbl">RAM</span>
-                        <span class="val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
+                        <span class="val">${this.formatRam(dev.ram, dev.ram_brand)}</span>
                       </div>
                       <div class="client-spec-cell">
                         <span class="lbl">Motherboard</span>
@@ -1009,11 +1027,11 @@ const App = {
                       </div>
                       <div class="client-spec-cell">
                         <span class="lbl">Storage SSD</span>
-                        <span class="val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</span>
+                        <span class="val">${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)}</span>
                       </div>
                       <div class="client-spec-cell">
                         <span class="lbl">SSD Health / Usage</span>
-                        <span class="val">Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
+                        <span class="val">${dev.ssd_health !== null || dev.ssd_usage !== null ? `Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}` : '-'}</span>
                       </div>
                       <div class="client-spec-cell">
                         <span class="lbl">IP Local / ZT</span>
@@ -1023,8 +1041,8 @@ const App = {
 
                     <!-- Footer -->
                     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-size: 0.7rem; color: var(--text-muted);">
-                      <span>OS: ${dev.os ? dev.os.split('(')[0].trim() : '-'}</span>
-                      <span>Sync: ${dev.sync}</span>
+                      <span>OS: ${this.formatOs(dev.os)}</span>
+                      <span>Sync: ${dev.sync || '-'}</span>
                     </div>
                   </div>
                 `;
@@ -1264,45 +1282,53 @@ const App = {
             </div>
           </td>
           <td>
-            <span style="font-weight: 600; color: var(--text-main); font-size: 0.825rem;">${d.ssd_brand || '-'}</span>
+            <span style="font-weight: 600; color: var(--text-main); font-size: 0.825rem;">${this.formatBrand(d.ssd_brand)}</span>
           </td>
           <td>
-            <span class="version-code-tag" style="font-weight: 700; color: ${d.ssd_type === 'NVMe' ? 'var(--accent-primary)' : 'var(--text-secondary)'};">
-              ${d.ssd_type}
-            </span>
+            ${d.ssd_type && d.ssd_type !== '-' ? `
+              <span class="version-code-tag" style="font-weight: 700; color: ${d.ssd_type === 'NVMe' ? 'var(--accent-primary)' : 'var(--text-secondary)'};">
+                ${d.ssd_type}
+              </span>
+            ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-family: var(--font-mono); font-size: 0.825rem; font-weight: 600;">
-            ${d.ssd_size || '-'}
+            ${this.formatSize(d.ssd_size)}
           </td>
           <td>
-            <div class="storage-bar-wrap">
-              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${healthColor};">
-                <span>Health</span>
-                <span>${d.ssd_health !== null ? d.ssd_health + '%' : '-'}</span>
+            ${d.ssd_health !== null ? `
+              <div class="storage-bar-wrap">
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${healthColor};">
+                  <span>Health</span>
+                  <span>${d.ssd_health}%</span>
+                </div>
+                <div class="storage-bar-track">
+                  <div class="storage-bar-fill" style="width: ${d.ssd_health}%; background: ${healthColor};"></div>
+                </div>
               </div>
-              <div class="storage-bar-track">
-                <div class="storage-bar-fill" style="width: ${d.ssd_health || 0}%; background: ${healthColor};"></div>
-              </div>
-            </div>
+            ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            <div class="storage-bar-wrap">
-              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${usageColor};">
-                <span>Usage</span>
-                <span>${d.ssd_usage !== null ? d.ssd_usage + '%' : '-'}</span>
+            ${d.ssd_usage !== null ? `
+              <div class="storage-bar-wrap">
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${usageColor};">
+                  <span>Usage</span>
+                  <span>${d.ssd_usage}%</span>
+                </div>
+                <div class="storage-bar-track">
+                  <div class="storage-bar-fill" style="width: ${d.ssd_usage}%; background: ${usageColor};"></div>
+                </div>
               </div>
-              <div class="storage-bar-track">
-                <div class="storage-bar-fill" style="width: ${d.ssd_usage || 0}%; background: ${usageColor};"></div>
-              </div>
-            </div>
+            ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            <span class="temp-badge ${d.temp >= 80 ? 'temp-hot' : 'temp-cool'}" style="font-weight: 700;">
-              ${d.temp !== null ? d.temp + '°C' : '-'}
-            </span>
+            ${d.temp !== null ? `
+              <span class="temp-badge ${d.temp >= 80 ? 'temp-hot' : 'temp-cool'}" style="font-weight: 700;">
+                ${d.temp}°C
+              </span>
+            ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;">
-            ${d.sync}
+            ${d.sync || '-'}
           </td>
           <td style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">
             <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: var(--surface-hover); border: 1px solid var(--border-subtle);">
@@ -1505,6 +1531,15 @@ const App = {
       });
     }
 
+    const serverSsdSizeFilter = document.getElementById('serverSsdSizeFilter');
+    if (serverSsdSizeFilter) {
+      serverSsdSizeFilter.addEventListener('change', (e) => {
+        this.serverState.ssdSize = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
     const serverTempFilter = document.getElementById('serverTempFilter');
     if (serverTempFilter) {
       serverTempFilter.addEventListener('change', (e) => {
@@ -1554,6 +1589,7 @@ const App = {
         if (serverRamFilter) serverRamFilter.value = 'all';
         if (serverSsdTypeFilter) serverSsdTypeFilter.value = 'all';
         if (serverSsdBrandFilter) serverSsdBrandFilter.value = 'all';
+        if (serverSsdSizeFilter) serverSsdSizeFilter.value = 'all';
         if (serverTempFilter) serverTempFilter.value = 'all';
         if (serverHealthFilter) serverHealthFilter.value = 'all';
         if (serverUsageFilter) serverUsageFilter.value = 'all';
@@ -1694,6 +1730,45 @@ const App = {
           this.allClientsState.sortDir = 'asc';
         }
         this.renderAllClientsNationwideTable();
+      });
+    });
+
+    document.querySelectorAll('[data-loc-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.locSort;
+        if (this.locState.sortCol === col) {
+          this.locState.sortDir = this.locState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.locState.sortCol = col;
+          this.locState.sortDir = 'asc';
+        }
+        this.renderLocationsTable();
+      });
+    });
+
+    document.querySelectorAll('[data-srv-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.srvSort;
+        if (this.serverState.sortCol === col) {
+          this.serverState.sortDir = this.serverState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.serverState.sortCol = col;
+          this.serverState.sortDir = 'asc';
+        }
+        this.renderServersTable();
+      });
+    });
+
+    document.querySelectorAll('[data-st-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.stSort;
+        if (this.storageState.sortCol === col) {
+          this.storageState.sortDir = this.storageState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.storageState.sortCol = col;
+          this.storageState.sortDir = 'asc';
+        }
+        this.renderStorageTable();
       });
     });
 
@@ -1968,7 +2043,7 @@ const App = {
   },
 
   formatCpu(raw) {
-    if (!raw) return '-';
+    if (!raw || raw === '-' || raw.toLowerCase() === 'other cpu' || raw.toLowerCase() === 'other') return '-';
     let s = String(raw)
       .replace(/\((?:R|TM)\)/gi, '')
       .replace(/\bCPU\b/g, '')
@@ -1977,9 +2052,34 @@ const App = {
     return s || '-';
   },
 
+  formatRam(raw, brand) {
+    if (!raw || raw === '-' || raw === '0') return '-';
+    let s = String(raw).trim();
+    if (s.toLowerCase() === 'other' || s.toLowerCase() === 'other brand' || s === '-' || s.toLowerCase() === '- (other)') return '-';
+    
+    // Check if brand is meaningful
+    let b = (brand || '').trim();
+    const isBrandValid = b && 
+      b !== '-' && 
+      b.toLowerCase() !== 'other' && 
+      b.toLowerCase() !== 'other brand' && 
+      !b.toLowerCase().startsWith('0x') && 
+      !b.toLowerCase().includes('unknown');
+
+    return isBrandValid ? `${s} (${b})` : s;
+  },
+
   formatMb(raw, brand) {
-    if (!raw || raw.toLowerCase().includes('default string')) {
-      return (brand && brand !== 'Other Brand') ? brand : '-';
+    let b = (brand || '').trim();
+    const isBrandValid = b && 
+      b !== '-' && 
+      b.toLowerCase() !== 'other' && 
+      b.toLowerCase() !== 'other brand' && 
+      b.toLowerCase() !== 'default string';
+    const cleanBrand = isBrandValid ? b : '';
+
+    if (!raw || raw.toLowerCase().includes('default string') || raw.toLowerCase() === 'other' || raw.toLowerCase() === 'other brand' || raw === '-') {
+      return cleanBrand || '-';
     }
     let s = String(raw)
       .replace(/ASUSTeK COMPUTER INC\./gi, 'ASUS')
@@ -1991,7 +2091,45 @@ const App = {
       .replace(/Hewlett-Packard/gi, 'HP')
       .replace(/\s+/g, ' ')
       .trim();
-    return s || brand || '-';
+    if (s.toLowerCase() === 'other' || s.toLowerCase() === 'other brand' || s === '-' || s.toLowerCase().includes('default string')) {
+      return cleanBrand || '-';
+    }
+    return s || cleanBrand || '-';
+  },
+
+  formatBrand(brand) {
+    if (!brand || brand === '-' || brand.toLowerCase() === 'other' || brand.toLowerCase() === 'other brand') return '-';
+    return brand.trim();
+  },
+
+  formatSize(size) {
+    if (!size || size === '-' || size === '0' || size === '0B' || size.toLowerCase() === 'other') return '-';
+    return size.trim();
+  },
+
+  formatOs(raw) {
+    if (!raw || raw === '-' || raw.toLowerCase() === 'other' || raw.toLowerCase() === 'other os') return '-';
+    let s = String(raw).trim();
+    if (s.startsWith('-')) return '-';
+    return s.split('(')[0].trim() || '-';
+  },
+
+  formatVersion(raw) {
+    if (!raw || raw === '-' || raw.toLowerCase() === 'none' || raw.toLowerCase() === 'unset') return '-';
+    const s = String(raw).trim();
+    if (s.startsWith('-')) return '-';
+    return s.split('-')[0].trim() || s;
+  },
+
+  formatStorageSummary(brand, type, size) {
+    const b = this.formatBrand(brand);
+    const s = this.formatSize(size);
+    const t = (type && type !== '-' && type !== 'Other') ? type : '';
+    const parts = [];
+    if (b !== '-') parts.push(b);
+    if (t) parts.push(`(${t})`);
+    if (s !== '-') parts.push(s);
+    return parts.length > 0 ? parts.join(' ') : '-';
   },
 
   copyToClipboard(text) {

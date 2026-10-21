@@ -69,10 +69,10 @@ for r in raw_rows:
     tier = r.get("Tier", "").strip() or loc_tiers.get(loc, "Standard / Unset")
 
     ssd_type_raw = r.get("Type SSD (SATA/NVME)", "").strip().upper()
-    ssd_type = "NVMe" if "NVME" in ssd_type_raw else ("SATA" if "SATA" in ssd_type_raw else (ssd_type_raw if ssd_type_raw else "-"))
+    ssd_type = "NVMe" if "NVME" in ssd_type_raw else ("SATA" if "SATA" in ssd_type_raw else "")
 
     ssd_brand_raw = r.get("Merk SSD", "").strip().lower()
-    ssd_brand = "Other"
+    ssd_brand = ""
     if "samsung" in ssd_brand_raw: ssd_brand = "Samsung"
     elif "kingston" in ssd_brand_raw: ssd_brand = "Kingston"
     elif "v-gen" in ssd_brand_raw or "vgen" in ssd_brand_raw: ssd_brand = "V-Gen"
@@ -82,10 +82,13 @@ for r in raw_rows:
     elif "sandisk" in ssd_brand_raw: ssd_brand = "SanDisk"
     elif "crucial" in ssd_brand_raw: ssd_brand = "Crucial"
     elif "adata" in ssd_brand_raw: ssd_brand = "ADATA"
-    elif ssd_brand_raw: ssd_brand = "Other Brand"
+    elif ssd_brand_raw and ssd_brand_raw not in ["other", "other brand", "-"]: ssd_brand = r.get("Merk SSD", "").strip()
+
+    ssd_size_raw = r.get("Size SSD", "").strip()
+    ssd_size = "" if ssd_size_raw.lower() in ["0", "-", "0b", "other", "other brand", "none"] else ssd_size_raw
 
     ram_raw = r.get("Merek Ram", "").strip().lower()
-    ram_brand = "Other"
+    ram_brand = ""
     if "samsung" in ram_raw: ram_brand = "Samsung"
     elif "kingston" in ram_raw: ram_brand = "Kingston"
     elif "corsair" in ram_raw or "cmk" in ram_raw: ram_brand = "Corsair"
@@ -93,10 +96,13 @@ for r in raw_rows:
     elif "hynix" in ram_raw: ram_brand = "SK Hynix"
     elif "crucial" in ram_raw or "micron" in ram_raw: ram_brand = "Micron/Crucial"
     elif "klevv" in ram_raw: ram_brand = "Klevv"
-    elif ram_raw: ram_brand = "Other Brand"
+    elif ram_raw and ram_raw not in ["other", "other brand", "-"] and not ram_raw.startswith("0x") and "unknown" not in ram_raw: ram_brand = r.get("Merek Ram", "").strip()
+
+    ram_val_raw = r.get("Total Ram", "").strip()
+    ram_val = "" if ram_val_raw.lower() in ["0", "-", "other", "other brand", "- (other)", "none"] else ram_val_raw
 
     mb_raw = r.get("Merek Motherboard", "").strip().lower()
-    mb_brand = "Other"
+    mb_brand = ""
     if "asus" in mb_raw: mb_brand = "ASUS"
     elif "gigabyte" in mb_raw: mb_brand = "Gigabyte"
     elif "msi" in mb_raw or "micro-star" in mb_raw: mb_brand = "MSI"
@@ -104,10 +110,16 @@ for r in raw_rows:
     elif "ecs" in mb_raw: mb_brand = "ECS"
     elif "biostar" in mb_raw: mb_brand = "Biostar"
     elif "intel" in mb_raw: mb_brand = "Intel"
-    elif mb_raw: mb_brand = "Other Brand"
+    elif mb_raw and mb_raw not in ["other", "other brand", "-", "default string", "none"]: mb_brand = r.get("Merek Motherboard", "").strip()
 
-    cpu_raw = r.get("Processor", "").strip().lower()
-    cpu_family = "Other CPU"
+    mb_val_raw = r.get("Merek Motherboard", "").strip()
+    mb_val = "" if mb_val_raw.lower() in ["other", "other brand", "-", "default string", "none"] else mb_val_raw
+
+    cpu_val_raw = r.get("Processor", "").strip()
+    cpu_val = "" if cpu_val_raw.lower() in ["-", "other", "other cpu", "none"] else cpu_val_raw
+    cpu_raw = cpu_val.lower()
+
+    cpu_family = ""
     if "core(tm) i7" in cpu_raw: cpu_family = "Intel Core i7"
     elif "core(tm) i5" in cpu_raw: cpu_family = "Intel Core i5"
     elif "core(tm) i3" in cpu_raw: cpu_family = "Intel Core i3"
@@ -116,6 +128,9 @@ for r in raw_rows:
     elif "ryzen" in cpu_raw: cpu_family = "AMD Ryzen"
     elif "xeon" in cpu_raw: cpu_family = "Intel Xeon"
     elif cpu_raw: cpu_family = "Other x86/ARM"
+
+    os_val_raw = r.get("OS Version", "").strip()
+    os_val = "" if os_val_raw.lower() in ["-", "other", "none"] else os_val_raw
 
     # Strict server criteria: hostname must start with "server"
     is_server = h_lower.startswith("server")
@@ -136,19 +151,19 @@ for r in raw_rows:
         "wbo": r.get("WBO Version", "").strip(),
         "reader_ver": r.get("Versi Reader", "").strip(),
         "reader_sn": r.get("SN Reader", "").strip(),
-        "cpu": r.get("Processor", "").strip(),
+        "cpu": cpu_val,
         "cpu_family": cpu_family,
-        "ram": r.get("Total Ram", "").strip(),
+        "ram": ram_val,
         "ram_brand": ram_brand,
-        "mb": r.get("Merek Motherboard", "").strip(),
+        "mb": mb_val,
         "mb_brand": mb_brand,
         "ssd_brand": ssd_brand,
         "ssd_type": ssd_type,
-        "ssd_size": r.get("Size SSD", "").strip(),
+        "ssd_size": ssd_size,
         "ssd_health": ssd_h,
         "ssd_usage": ssd_u,
         "temp": temp_val,
-        "os": r.get("OS Version", "").strip()
+        "os": os_val
     })
 
 print(f"Processed {len(records)} records")
