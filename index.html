@@ -355,28 +355,105 @@
         <!-- =========================================================================
              VIEW 3: Client Specification (Master-Detail Lokasi & Reader Lapangan)
              ========================================================================= -->
+        <!-- =========================================================================
+             VIEW 3: Client Specification (50:50 Layout: All Clients & Location Dropdown)
+             ========================================================================= -->
         <section id="view-clients" class="view-section">
           <div class="client-master-detail">
             
-            <!-- Left Panel: Location Selector List -->
-            <div class="loc-picker-panel">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">
-                  Pilih Lokasi
-                </h3>
-                <span class="badge-pill" id="pickerCountBadge">961 Sites</span>
+            <!-- SISI KIRI (50%): Seluruh Klien Nasional (All Locations) -->
+            <div class="client-half-panel" id="panelAllClients">
+              <div class="client-panel-header">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin: 0;">
+                      Client All Location
+                    </h3>
+                    <span class="badge-pill" id="allClientsCountBadge">5,536 Unit</span>
+                  </div>
+                  <p style="font-size: 0.75rem; color: var(--text-muted); margin: 2px 0 0 0;">
+                    Database seluruh gerbang, dispenser, & kasir (961 lokasi)
+                  </p>
+                </div>
+                <button class="btn btn-outline" id="exportAllClientsBtn" style="font-size: 0.72rem; padding: 4px 10px;">
+                  ⬇ Ekspor CSV
+                </button>
               </div>
 
-              <!-- Search Input inside Picker -->
+              <!-- Search Bar Klien Global -->
               <div class="search-input-wrap" style="width: 100%;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="pickerSearchInput" class="search-input" placeholder="Cari nama lokasi / kode...">
+                <input type="text" id="allClientsSearchInput" class="search-input" placeholder="Cari hostname, nama lokasi, kode, SN reader, IP, CPU...">
               </div>
 
-              <!-- Filter Tier Pills inside Picker -->
+              <!-- Filter Pills Sisi Kiri -->
+              <div class="filter-pills-group" style="width: 100%;">
+                <button class="filter-pill active" data-client-filter="all" style="font-size: 0.7rem; padding: 2px 8px;">Semua</button>
+                <button class="filter-pill" data-client-filter="reader" style="font-size: 0.7rem; padding: 2px 8px;">Ada Reader RFID</button>
+                <button class="filter-pill" data-client-filter="warm" style="font-size: 0.7rem; padding: 2px 8px;">Suhu ≥ 70°C</button>
+                <button class="filter-pill" data-client-filter="hot" style="font-size: 0.7rem; padding: 2px 8px;">🔥 Panas ≥ 80°C</button>
+              </div>
+
+              <!-- Tabel Ringkas Seluruh Klien -->
+              <div class="client-table-wrap">
+                <table class="fleet-table client-table-compact">
+                  <thead>
+                    <tr>
+                      <th class="sortable" data-cl-sort="loc">Lokasi ⇅</th>
+                      <th class="sortable" data-cl-sort="host">Hostname ⇅</th>
+                      <th>Reader Telemetry</th>
+                      <th>IP Local</th>
+                      <th class="sortable" data-cl-sort="temp">Suhu ⇅</th>
+                      <th>Processor</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="allClientsTableBody">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination Sisi Kiri -->
+              <div class="table-pagination" style="margin-top: auto; padding-top: 6px;">
+                <span id="allClientsCountLabel" style="font-size: 0.75rem; color: var(--text-muted);">Memuat klien...</span>
+                <div class="pagination-btn-group">
+                  <button id="allClientsPrevBtn" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">◀</button>
+                  <span id="allClientsPageLabel" style="font-size: 0.75rem; font-weight: 600; padding: 0 6px;">Halaman 1</span>
+                  <button id="allClientsNextBtn" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">▶</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- SISI KANAN (50%): List Nama Lokasi dengan Accordion Dropdown -->
+            <div class="client-half-panel" id="panelLocAccordion">
+              <div class="client-panel-header">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin: 0;">
+                      Daftar Lokasi (Dropdown)
+                    </h3>
+                    <span class="badge-pill" id="pickerCountBadge">961 Sites</span>
+                  </div>
+                  <p style="font-size: 0.75rem; color: var(--text-muted); margin: 2px 0 0 0;">
+                    Klik nama lokasi untuk membuka dropdown rincian perangkat klien & reader
+                  </p>
+                </div>
+              </div>
+
+              <!-- Search Bar Lokasi -->
+              <div class="search-input-wrap" style="width: 100%;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="pickerSearchInput" class="search-input" placeholder="Cari nama lokasi atau kode unik...">
+              </div>
+
+              <!-- Filter Tier Pills Sisi Kanan -->
               <div class="filter-pills-group" style="width: 100%;">
                 <button class="filter-pill active" data-picker-tier="all" style="font-size: 0.7rem; padding: 2px 8px;">Semua</button>
                 <button class="filter-pill" data-picker-tier="diamond" style="font-size: 0.7rem; padding: 2px 8px;">Diamond</button>
@@ -384,104 +461,12 @@
                 <button class="filter-pill" data-picker-tier="silver" style="font-size: 0.7rem; padding: 2px 8px;">Silver</button>
               </div>
 
-              <!-- Location List -->
-              <div class="loc-picker-list" id="clientLocPickerList">
+              <!-- Accordion List Lokasi (Dropdown) -->
+              <div class="loc-accordion-list" id="clientLocAccordionList">
                 <!-- Rendered dynamically -->
               </div>
             </div>
 
-            <!-- Right Panel: Selected Location Clients & Readers -->
-            <div class="client-content-panel">
-              
-              <!-- Location Header Card -->
-              <div class="client-loc-header" id="selectedLocHeader">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <h2 id="clientLocName" style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: var(--text-main); margin: 0;">
-                      Ancol Mansion
-                    </h2>
-                    <span id="clientLocTierBadge" class="tier-tag tier-silver">Silver</span>
-                    <span id="clientLocCodeBadge" class="version-code-tag">Kode: 001</span>
-                  </div>
-                  <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap;">
-                    <span>IP ZT: <strong id="clientLocZt">-</strong></span>
-                    <span>Last Sync: <strong id="clientLocSync">-</strong></span>
-                  </div>
-                </div>
-
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <div class="glass-panel" style="padding: 6px 12px; font-size: 0.8rem;">
-                    Total Klien: <strong id="clientCountBadge" style="color: var(--accent-primary);">3 Unit</strong>
-                  </div>
-                  <div class="glass-panel" style="padding: 6px 12px; font-size: 0.8rem;">
-                    RFID Reader: <strong id="readerCountBadge" style="color: var(--color-success);">1 Terpasang</strong>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Search within Clients Toolbar -->
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <div class="search-input-wrap" style="flex: 1; max-width: 400px;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                  <input type="text" id="clientFilterInput" class="search-input" placeholder="Cari di klien lokasi ini (hostname, SN Reader, IP)...">
-                </div>
-
-                <div style="display: flex; gap: 8px;">
-                  <button id="toggleMasterClientTableBtn" class="btn btn-outline" style="font-size: 0.78rem;">
-                    📋 Tampilkan Semua 5,536 Klien Nasional
-                  </button>
-                </div>
-              </div>
-
-              <!-- Clients Cards Grid -->
-              <div class="client-grid" id="clientCardsGrid">
-                <!-- Rendered dynamically -->
-              </div>
-
-              <!-- Master Full Clients Table Container (Hidden by default, can be toggled) -->
-              <div class="glass-panel table-card" id="allClientsTableCard" style="display: none; margin-top: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
-                  <div>
-                    <h3 style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0;">
-                      Master Database Seluruh Klien Lapangan (5,536 Unit)
-                    </h3>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 0 0;">
-                      Pencarian komprehensif seluruh perangkat gerbang, dispenser, kasir, dan serial number reader di 961 lokasi
-                    </p>
-                  </div>
-                  <button class="btn btn-outline" id="closeMasterClientTableBtn" style="font-size: 0.78rem;">
-                    ✕ Tutup Tampilan Master
-                  </button>
-                </div>
-
-                <div class="table-responsive">
-                  <table class="fleet-table">
-                    <thead>
-                      <tr>
-                        <th>Nama Lokasi</th>
-                        <th>Kode</th>
-                        <th>Hostname Klien</th>
-                        <th>Versi Reader</th>
-                        <th>SN Reader</th>
-                        <th>IP Local / ZT</th>
-                        <th>Suhu</th>
-                        <th>Processor (CPU)</th>
-                        <th>RAM</th>
-                        <th>SSD</th>
-                        <th>OS Version</th>
-                      </tr>
-                    </thead>
-                    <tbody id="allClientsTbody">
-                      <!-- Rendered dynamically -->
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
           </div>
         </section>
 
