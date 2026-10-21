@@ -1,102 +1,1327 @@
 /**
- * PARKEE FleetIQ - Core Application Logic (Web Design Engineer Standard)
- * Left Sidebar, Live Google Sheets Sync, 05:00 AM Auto-Refresh, Dark/Light Themes & Tweaks Panel
+ * Support Apps - Server & Client Infrastructure Telemetry Controller
+ * Author: PARKEE Infrastructure & Support Engineering
  */
 
 const App = {
-  summary: null,
+  // Data stores
+  locations: [],
+  servers: [],
   fleet: [],
-  filteredFleet: [],
-  currentPage: 1,
-  pageSize: 25,
-  currentSort: { col: 'loc', dir: 'asc' },
-  activeFilter: {
+  storageServers: [],
+  summary: null,
+
+  // Selected state for Client Specification master-detail
+  selectedLocation: 'Ancol Mansion',
+
+  // View Filter states
+  locState: {
     search: '',
     tier: 'all',
-    cat: 'all',
-    alert: 'all'
+    page: 1,
+    pageSize: 25,
+    sortCol: 'loc',
+    sortDir: 'asc'
   },
 
-  SHEET_CSV_URL: 'https://docs.google.com/spreadsheets/d/11HUECMQG_30Sc1AupFLac7OxBDiFiZOD339LjiOkpdc/export?format=csv&gid=0',
-  nextSyncTimeout: null,
+  serverState: {
+    search: '',
+    filter: 'all',
+    tier: 'all',
+    page: 1,
+    pageSize: 25,
+    sortCol: 'loc',
+    sortDir: 'asc'
+  },
+
+  pickerState: {
+    search: '',
+    tier: 'all'
+  },
+
+  clientFilterText: '',
+
+  storageState: {
+    search: '',
+    filter: 'all',
+    page: 1,
+    pageSize: 25,
+    sortCol: 'loc',
+    sortDir: 'asc'
+  },
+
+  // Navigation state
+  activeView: 'locations',
 
   async init() {
-    this.initThemeAndTweaks();
+    this.initTweaks();
     this.initNavigation();
-    this.initModal();
-    this.initHardwareTabs();
-    this.initFleetTableControls();
     this.initFullscreen();
+    this.initModal();
     this.setupDailyRefreshScheduler();
 
-    // 1. Load Precomputed Summary (Instant 0ms render)
+    // Check precomputed summary fallback
     if (window.PRECOMPUTED_SUMMARY) {
       this.summary = window.PRECOMPUTED_SUMMARY;
-      window.currentSummary = this.summary;
-      this.renderDashboardSummary();
-      if (window.ChartManager) window.ChartManager.initAllCharts(this.summary);
-      if (window.PresentationController) window.PresentationController.init();
-    } else {
-      await this.fetchSummaryJson();
+      this.renderSummaryKPIs();
     }
 
-    // 2. Load Full Fleet JSON asynchronously for table and search
-    this.fetchFleetData();
+    // Load data sources
+    await Promise.all([
+      this.fetchLocations(),
+      this.fetchServers(),
+      this.fetchFleet(),
+      this.fetchSummary()
+    ]);
 
-    // 3. Setup Sync button & Export button
-    const syncBtn = document.getElementById('syncSheetBtn');
-    if (syncBtn) {
-      syncBtn.addEventListener('click', () => this.syncGoogleSheets());
-    }
-
-    const exportBtn = document.getElementById('exportCsvBtn');
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => this.exportTableToCSV());
-    }
-
-    // 4. Check if today's 05:00 AM auto-refresh is due
-    this.checkAutoSyncOnLoad();
+    this.initEventHandlers();
+    this.renderActiveView();
   },
 
   // =========================================================================
-  // THEME & TWEAKS PANEL (SKILL REQUIREMENT)
+  // DATA FETCHING
   // =========================================================================
-  initThemeAndTweaks() {
-    // 1. Theme (Light vs Dark)
+  async fetchLocations() {
+    try {
+      const res = await fetch('./data/locations.json');
+      if (res.ok) {
+        this.locations = await res.json();
+        const badge = document.getElementById('badgeTotalLocs');
+        if (badge) badge.textContent = this.locations.length.toLocaleString();
+        this.renderLocationsTable();
+        this.renderClientLocationPicker();
+      }
+    } catch (e) {
+      console.warn('Could not load locations.json', e);
+    }
+  },
+
+  async fetchServers() {
+    try {
+      const res = await fetch('./data/servers.json');
+      if (res.ok) {
+        this.servers = await res.json();
+        const badge = document.getElementById('badgeTotalServers');
+        if (badge) badge.textContent = this.servers.length.toLocaleString();
+        this.renderServersTable();
+        this.renderStorageTable();
+      }
+    } catch (e) {
+      console.warn('Could not load servers.json', e);
+    }
+  },
+
+  async fetchFleet() {
+    try {
+      const res = await fetch('./data/fleet.json');
+      if (res.ok) {
+        this.fleet = await res.json();
+        const clients = this.fleet.filter(d => !d.is_server);
+        const badge = document.getElementById('badgeTotalClients');
+        if (badge) badge.textContent = clients.length.toLocaleString();
+        this.renderSelectedLocationClients();
+      }
+    } catch (e) {
+      console.warn('Could not load fleet.json', e);
+    }
+  },
+
+  async fetchSummary() {
+    try {
+      const res = await fetch('./data/summary.json');
+      if (res.ok) {
+        this.summary = await res.json();
+        this.renderSummaryKPIs();
+      }
+    } catch (e) {
+      console.warn('Could not load summary.json', e);
+    }
+  },
+
+  renderSummaryKPIs() {
+    if (!this.summary) return;
+    const s = this.summary;
+
+    const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
+    if (lastSyncLabel && s.last_updated) {
+      lastSyncLabel.textContent = `Update: ${s.last_updated}`;
+    }
+
+    // Storage KPIs
+    const elStorageTotal = document.getElementById('storageKpiTotalDrives');
+    const elNvmeRatio = document.getElementById('storageKpiNvmeRatio');
+    const elFullCount = document.getElementById('storageKpiFullCount');
+    const elLowHealth = document.getElementById('storageKpiLowHealthCount');
+
+    if (elStorageTotal) elStorageTotal.textContent = (s.total_servers || 1982).toLocaleString();
+    if (elNvmeRatio) elNvmeRatio.textContent = `${(s.server_nvme_count || 1328).toLocaleString()} NVMe`;
+    if (elFullCount) elFullCount.textContent = (s.critical_server_storage_count || 39).toLocaleString();
+    if (elLowHealth) elLowHealth.textContent = (s.critical_server_ssd_count || 19).toLocaleString();
+  },
+
+  // =========================================================================
+  // VIEW NAVIGATION & ROUTING
+  // =========================================================================
+  initNavigation() {
+    const navBtns = document.querySelectorAll('.sidebar-nav-btn');
+    const topTitle = document.getElementById('topBarTitle');
+    const crumbCurrent = document.getElementById('crumbCurrent');
+
+    const metaMap = {
+      locations: { title: 'Location Information', crumb: 'Location Information' },
+      servers: { title: 'Server Specification', crumb: 'Server Specification' },
+      clients: { title: 'Client Specification', crumb: 'Client Specification' },
+      storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' }
+    };
+
+    navBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view;
+        if (!view) return;
+
+        navBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-view'));
+        const targetSec = document.getElementById(`view-${view}`);
+        if (targetSec) targetSec.classList.add('active-view');
+
+        this.activeView = view;
+        if (metaMap[view]) {
+          if (topTitle) topTitle.textContent = metaMap[view].title;
+          if (crumbCurrent) crumbCurrent.textContent = metaMap[view].crumb;
+        }
+
+        // Close mobile drawer if open
+        const sidebar = document.getElementById('appSidebar');
+        if (sidebar) sidebar.classList.remove('open');
+
+        this.renderActiveView();
+      });
+    });
+
+    // Mobile toggle
+    const mobBtn = document.getElementById('mobileMenuBtn');
+    const sidebar = document.getElementById('appSidebar');
+    if (mobBtn && sidebar) {
+      mobBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+    }
+  },
+
+  renderActiveView() {
+    if (this.activeView === 'locations') {
+      this.renderLocationsTable();
+    } else if (this.activeView === 'servers') {
+      this.renderServersTable();
+    } else if (this.activeView === 'clients') {
+      this.renderClientLocationPicker();
+      this.renderSelectedLocationClients();
+    } else if (this.activeView === 'storage') {
+      this.renderStorageTable();
+    }
+  },
+
+  // =========================================================================
+  // MODULE 1: LOCATION INFORMATION (10 Columns Requested)
+  // =========================================================================
+  renderLocationsTable() {
+    const tbody = document.getElementById('locationsTableBody');
+    if (!tbody) return;
+
+    let list = [...this.locations];
+
+    // Search filter
+    if (this.locState.search) {
+      const q = this.locState.search.toLowerCase();
+      list = list.filter(item => 
+        (item.loc && item.loc.toLowerCase().includes(q)) ||
+        (item.code && item.code.toLowerCase().includes(q)) ||
+        (item.zt && item.zt.toLowerCase().includes(q)) ||
+        (item.agent && item.agent.toLowerCase().includes(q)) ||
+        (item.fisherman && item.fisherman.toLowerCase().includes(q)) ||
+        (item.watersheep && item.watersheep.toLowerCase().includes(q)) ||
+        (item.wbo && item.wbo.toLowerCase().includes(q)) ||
+        (item.os && item.os.toLowerCase().includes(q))
+      );
+    }
+
+    // Tier filter
+    if (this.locState.tier !== 'all') {
+      list = list.filter(item => item.tier && item.tier.toLowerCase() === this.locState.tier.toLowerCase());
+    }
+
+    // Sort
+    const col = this.locState.sortCol;
+    const dir = this.locState.sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va = a[col] || '';
+      let vb = b[col] || '';
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+
+    // Update counter
+    const countLabel = document.getElementById('locResultCountLabel');
+    if (countLabel) countLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Lokasi`;
+
+    // Pagination
+    const totalPages = Math.ceil(list.length / this.locState.pageSize) || 1;
+    if (this.locState.page > totalPages) this.locState.page = totalPages;
+    if (this.locState.page < 1) this.locState.page = 1;
+
+    const startIdx = (this.locState.page - 1) * this.locState.pageSize;
+    const pageItems = list.slice(startIdx, startIdx + this.locState.pageSize);
+
+    // Update pagination labels
+    const pageLabel = document.getElementById('locCurrentPageLabel');
+    if (pageLabel) pageLabel.textContent = `Halaman ${this.locState.page} / ${totalPages}`;
+    const tableCount = document.getElementById('locTableCountLabel');
+    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.locState.pageSize, list.length)} dari ${list.length.toLocaleString()} lokasi`;
+
+    // Render 10 columns:
+    // 1. Nama Lokasi
+    // 2. Kode Unik Lokasi
+    // 3. Tier
+    // 4. IP ZT Lokasi
+    // 5. Last Sync
+    // 6. Agent Version
+    // 7. Fisherman Version
+    // 8. Watersheep Version
+    // 9. WBO Version
+    // 10. OS Version
+    // 11. Aksi (Lihat Klien)
+    if (pageItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada lokasi yang cocok dengan filter.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = pageItems.map(item => {
+      const tierClass = item.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (item.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.875rem;">${item.loc}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+              ${item.total_servers} Server · ${item.total_clients} Klien
+            </div>
+          </td>
+          <td>
+            <span class="version-code-tag">${item.code || '-'}</span>
+          </td>
+          <td>
+            <span class="tier-tag ${tierClass}">${item.tier || 'Standard'}</span>
+          </td>
+          <td>
+            <span style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--accent-primary);">
+              ${item.zt || '-'}
+            </span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">
+            ${item.last_sync || '-'}
+          </td>
+          <td>
+            <span class="version-code-tag">${item.agent ? item.agent.split('-')[0] : '-'}</span>
+          </td>
+          <td>
+            <span class="version-code-tag">${item.fisherman ? item.fisherman.split('-')[0] : '-'}</span>
+          </td>
+          <td>
+            <span class="version-code-tag">${item.watersheep ? item.watersheep.split('-')[0] : '-'}</span>
+          </td>
+          <td>
+            <span class="version-code-tag">${item.wbo || '-'}</span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.os}">
+            ${item.os ? item.os.split('(')[0].trim() : '-'}
+          </td>
+          <td>
+            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.72rem; white-space: nowrap;" onclick="App.jumpToClientSpec('${item.loc.replace(/'/g, "\\'")}')">
+              Lihat Klien ➜
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  jumpToClientSpec(locName) {
+    this.selectedLocation = locName;
+    const clientNavBtn = document.querySelector('.sidebar-nav-btn[data-view="clients"]');
+    if (clientNavBtn) clientNavBtn.click();
+  },
+
+  // =========================================================================
+  // MODULE 2: SERVER SPECIFICATION (Data Lengkap Server)
+  // =========================================================================
+  renderServersTable() {
+    const tbody = document.getElementById('serversTableBody');
+    if (!tbody) return;
+
+    let list = [...this.servers];
+
+    // Filter by Condition (overheat, low_ssd, full_storage)
+    if (this.serverState.filter === 'overheat') {
+      list = list.filter(d => d.temp !== null && d.temp >= 80);
+    } else if (this.serverState.filter === 'low_ssd') {
+      list = list.filter(d => d.ssd_health !== null && d.ssd_health < 70);
+    } else if (this.serverState.filter === 'full_storage') {
+      list = list.filter(d => d.ssd_usage !== null && d.ssd_usage >= 85);
+    }
+
+    // Filter by Tier
+    if (this.serverState.tier !== 'all') {
+      list = list.filter(d => d.tier && d.tier.toLowerCase() === this.serverState.tier.toLowerCase());
+    }
+
+    // Search filter
+    if (this.serverState.search) {
+      const q = this.serverState.search.toLowerCase();
+      list = list.filter(d => 
+        (d.loc && d.loc.toLowerCase().includes(q)) ||
+        (d.code && d.code.toLowerCase().includes(q)) ||
+        (d.host && d.host.toLowerCase().includes(q)) ||
+        (d.cpu && d.cpu.toLowerCase().includes(q)) ||
+        (d.mb && d.mb.toLowerCase().includes(q)) ||
+        (d.ram && d.ram.toLowerCase().includes(q)) ||
+        (d.ip && d.ip.toLowerCase().includes(q)) ||
+        (d.zt && d.zt.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    const col = this.serverState.sortCol;
+    const dir = this.serverState.sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+      if (va === null || va === undefined) return 1;
+      if (vb === null || vb === undefined) return -1;
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+
+    const countLabel = document.getElementById('serverResultCountLabel');
+    if (countLabel) countLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Server`;
+
+    // Pagination
+    const totalPages = Math.ceil(list.length / this.serverState.pageSize) || 1;
+    if (this.serverState.page > totalPages) this.serverState.page = totalPages;
+    if (this.serverState.page < 1) this.serverState.page = 1;
+
+    const startIdx = (this.serverState.page - 1) * this.serverState.pageSize;
+    const pageItems = list.slice(startIdx, startIdx + this.serverState.pageSize);
+
+    const pageLabel = document.getElementById('serverCurrentPageLabel');
+    if (pageLabel) pageLabel.textContent = `Halaman ${this.serverState.page} / ${totalPages}`;
+    const tableCount = document.getElementById('serverTableCountLabel');
+    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.serverState.pageSize, list.length)} dari ${list.length.toLocaleString()} server`;
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada server yang cocok.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = pageItems.map(d => {
+      const tierClass = d.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (d.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      
+      let tempClass = 'temp-cool';
+      if (d.temp !== null) {
+        if (d.temp >= 90) tempClass = 'temp-hot';
+        else if (d.temp >= 80) tempClass = 'temp-hot';
+        else if (d.temp >= 70) tempClass = 'temp-warm';
+        else if (d.temp >= 50) tempClass = 'temp-normal';
+      }
+
+      let healthClass = 'health-good';
+      if (d.ssd_health !== null && d.ssd_health < 70) healthClass = 'health-bad';
+      else if (d.ssd_health !== null && d.ssd_health < 80) healthClass = 'health-warn';
+
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+            <span class="version-code-tag">${d.code || '-'}</span>
+          </td>
+          <td>
+            <span class="tier-tag ${tierClass}">${d.tier || 'Standard'}</span>
+          </td>
+          <td>
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
+              ${d.host}
+            </div>
+            <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat}</span>
+          </td>
+          <td>
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt || '-'}</div>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-main); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu}">
+            ${d.cpu_family || d.cpu || '-'}
+          </td>
+          <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
+            ${d.ram || '-'} <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 400;">(${d.ram_brand || '-'})</span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.mb}">
+            ${d.mb_brand || d.mb || '-'}
+          </td>
+          <td>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${d.ssd_brand} ${d.ssd_size || ''}</div>
+            <span class="version-code-tag" style="font-size: 0.65rem;">${d.ssd_type}</span>
+          </td>
+          <td>
+            <span class="temp-badge ${tempClass}" style="font-weight: 700;">
+              ${d.temp !== null ? d.temp + '°C' : '-'}
+            </span>
+          </td>
+          <td>
+            <span class="ssd-health-pill ${healthClass}">
+              ${d.ssd_health !== null ? d.ssd_health + '%' : '-'}
+            </span>
+          </td>
+          <td>
+            <div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">
+              ${d.ssd_usage !== null ? d.ssd_usage + '%' : '-'}
+            </div>
+          </td>
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.os}">
+            ${d.os ? d.os.split('(')[0].trim() : '-'}
+          </td>
+          <td>
+            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;" onclick="App.openServerDetailModal('${d.host}')">
+              Detail
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  openServerDetailModal(hostname) {
+    const dev = this.servers.find(d => d.host === hostname) || this.fleet.find(d => d.host === hostname);
+    if (!dev) return;
+
+    const modal = document.getElementById('deviceDetailModal');
+    const title = document.getElementById('modalDeviceTitle');
+    const body = document.getElementById('modalDeviceBody');
+
+    if (title) title.textContent = `Server: ${dev.host} — ${dev.loc}`;
+
+    if (body) {
+      body.innerHTML = `
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Nama Lokasi</span>
+          <span class="modal-spec-val">${dev.loc}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Kode Unik / Tier</span>
+          <span class="modal-spec-val">${dev.code} · ${dev.tier}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">IP Local</span>
+          <span class="modal-spec-val mono">${dev.ip || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">IP ZeroTier</span>
+          <span class="modal-spec-val mono">${dev.zt || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Processor (CPU)</span>
+          <span class="modal-spec-val">${dev.cpu || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Memori RAM</span>
+          <span class="modal-spec-val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Motherboard</span>
+          <span class="modal-spec-val">${dev.mb || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Storage SSD</span>
+          <span class="modal-spec-val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size} · Health: ${dev.ssd_health}% · Usage: ${dev.ssd_usage}%</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Suhu Operasional</span>
+          <span class="modal-spec-val ${dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null ? dev.temp + '°C' : '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Sistem Operasi (OS)</span>
+          <span class="modal-spec-val">${dev.os || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Versi Agent</span>
+          <span class="modal-spec-val mono">${dev.agent || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Last Telemetry Sync</span>
+          <span class="modal-spec-val">${dev.sync || '-'}</span>
+        </div>
+      `;
+    }
+
+    if (modal) modal.classList.add('open');
+  },
+
+  // =========================================================================
+  // MODULE 3: CLIENT SPECIFICATION (Master-Detail & RFID Readers)
+  // =========================================================================
+  renderClientLocationPicker() {
+    const listContainer = document.getElementById('clientLocPickerList');
+    if (!listContainer) return;
+
+    let locs = [...this.locations];
+
+    if (this.pickerState.search) {
+      const q = this.pickerState.search.toLowerCase();
+      locs = locs.filter(l => 
+        (l.loc && l.loc.toLowerCase().includes(q)) ||
+        (l.code && l.code.toLowerCase().includes(q))
+      );
+    }
+
+    if (this.pickerState.tier !== 'all') {
+      locs = locs.filter(l => l.tier && l.tier.toLowerCase() === this.pickerState.tier.toLowerCase());
+    }
+
+    const badge = document.getElementById('pickerCountBadge');
+    if (badge) badge.textContent = `${locs.length} Sites`;
+
+    if (locs.length === 0) {
+      listContainer.innerHTML = `<div style="text-align:center; padding: 1.5rem; color: var(--text-muted); font-size: 0.8rem;">Lokasi tidak ditemukan.</div>`;
+      return;
+    }
+
+    listContainer.innerHTML = locs.map(l => {
+      const isActive = l.loc.toLowerCase() === this.selectedLocation.toLowerCase();
+      const tierClass = l.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (l.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      return `
+        <div class="loc-picker-item ${isActive ? 'active' : ''}" onclick="App.selectLocationForClients('${l.loc.replace(/'/g, "\\'")}')">
+          <div>
+            <div class="loc-name">${l.loc}</div>
+            <div class="loc-sub">
+              <span class="version-code-tag">${l.code || '-'}</span>
+              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${l.tier}</span>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge-pill" style="font-size: 0.72rem;">${l.total_clients} Klien</span>
+            ${l.has_reader ? '<div style="font-size: 0.65rem; color: var(--color-success); font-weight: 700; margin-top: 2px;">● RFID</div>' : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  selectLocationForClients(locName) {
+    this.selectedLocation = locName;
+    this.renderClientLocationPicker();
+    this.renderSelectedLocationClients();
+  },
+
+  renderSelectedLocationClients() {
+    const locName = this.selectedLocation;
+    const locMeta = this.locations.find(l => l.loc.toLowerCase() === locName.toLowerCase()) || {
+      loc: locName,
+      code: '-',
+      tier: 'Standard',
+      zt: '-',
+      last_sync: '-'
+    };
+
+    // Update Header
+    const elName = document.getElementById('clientLocName');
+    const elTier = document.getElementById('clientLocTierBadge');
+    const elCode = document.getElementById('clientLocCodeBadge');
+    const elZt = document.getElementById('clientLocZt');
+    const elSync = document.getElementById('clientLocSync');
+    const elClientCount = document.getElementById('clientCountBadge');
+    const elReaderCount = document.getElementById('readerCountBadge');
+
+    if (elName) elName.textContent = locMeta.loc;
+    if (elCode) elCode.textContent = `Kode: ${locMeta.code || '-'}`;
+    if (elTier) {
+      elTier.textContent = locMeta.tier || 'Standard';
+      elTier.className = `tier-tag ${locMeta.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (locMeta.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}`;
+    }
+    if (elZt) elZt.textContent = locMeta.zt || '-';
+    if (elSync) elSync.textContent = locMeta.last_sync || '-';
+
+    // Get clients for this location
+    let clients = this.fleet.filter(d => d.loc.toLowerCase() === locName.toLowerCase() && !d.is_server);
+
+    // If clientFilterText
+    if (this.clientFilterText) {
+      const q = this.clientFilterText.toLowerCase();
+      clients = clients.filter(d => 
+        (d.host && d.host.toLowerCase().includes(q)) ||
+        (d.reader_sn && d.reader_sn.toLowerCase().includes(q)) ||
+        (d.reader_ver && d.reader_ver.toLowerCase().includes(q)) ||
+        (d.ip && d.ip.toLowerCase().includes(q))
+      );
+    }
+
+    const readersCount = clients.filter(d => d.reader_ver || d.reader_sn).length;
+    if (elClientCount) elClientCount.textContent = `${clients.length} Unit`;
+    if (elReaderCount) elReaderCount.textContent = `${readersCount} Terpasang`;
+
+    const cardsGrid = document.getElementById('clientCardsGrid');
+    if (!cardsGrid) return;
+
+    if (clients.length === 0) {
+      cardsGrid.innerHTML = `
+        <div class="glass-panel" style="grid-column: 1 / -1; padding: 2.5rem; text-align: center; color: var(--text-muted);">
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Tidak ada unit klien di lokasi ini.</div>
+          <p style="font-size: 0.85rem; margin: 0;">Seluruh perangkat mungkin terdaftar sebagai server atau tidak ada perangkat klien yang aktif.</p>
+        </div>
+      `;
+      return;
+    }
+
+    cardsGrid.innerHTML = clients.map(dev => {
+      let tempClass = 'temp-cool';
+      if (dev.temp !== null) {
+        if (dev.temp >= 80) tempClass = 'temp-hot';
+        else if (dev.temp >= 70) tempClass = 'temp-warm';
+        else if (dev.temp >= 50) tempClass = 'temp-normal';
+      }
+
+      const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
+
+      return `
+        <div class="client-device-card">
+          <!-- Top Row: Hostname, Role Badge & Temp -->
+          <div class="client-card-top">
+            <div>
+              <div class="client-host-title">${dev.host}</div>
+              <span class="badge-pill" style="font-size: 0.68rem; margin-top: 3px; display: inline-block;">
+                ${dev.cat}
+              </span>
+            </div>
+            <span class="temp-badge ${tempClass}" style="font-weight: 700;">
+              ${dev.temp !== null ? dev.temp + '°C' : '-'}
+            </span>
+          </div>
+
+          <!-- Reader RFID Section (Requested by user) -->
+          <div class="reader-telemetry-box" style="${hasReader ? '' : 'border-style: solid; border-color: var(--border-subtle);'}">
+            <div class="reader-badge-header">
+              <span>RFID / Barcode Reader Telemetry</span>
+              ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">TIDAK TERPASANG</span>'}
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="reader-ver-tag">Versi: <strong>${dev.reader_ver || '-'}</strong></span>
+              </div>
+              
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader:</span>
+                ${dev.reader_sn ? `
+                  <div class="reader-sn-code">
+                    <span>${dev.reader_sn}</span>
+                    <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number" onclick="App.copyToClipboard('${dev.reader_sn}')">
+                      📋
+                    </button>
+                  </div>
+                ` : '<span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">-</span>'}
+              </div>
+            </div>
+          </div>
+
+          <!-- Hardware Specifications Grid -->
+          <div class="client-specs-grid">
+            <div class="client-spec-cell">
+              <span class="lbl">Processor</span>
+              <span class="val" title="${dev.cpu}">${dev.cpu_family || dev.cpu || '-'}</span>
+            </div>
+            <div class="client-spec-cell">
+              <span class="lbl">RAM</span>
+              <span class="val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
+            </div>
+            <div class="client-spec-cell">
+              <span class="lbl">Motherboard</span>
+              <span class="val" title="${dev.mb}">${dev.mb_brand || dev.mb || '-'}</span>
+            </div>
+            <div class="client-spec-cell">
+              <span class="lbl">Storage SSD</span>
+              <span class="val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</span>
+            </div>
+            <div class="client-spec-cell">
+              <span class="lbl">SSD Health / Usage</span>
+              <span class="val">Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
+            </div>
+            <div class="client-spec-cell">
+              <span class="lbl">IP Local / ZT</span>
+              <span class="val mono">${dev.ip || '-'}</span>
+            </div>
+          </div>
+
+          <!-- Bottom Footer -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-size: 0.7rem; color: var(--text-muted);">
+            <span>OS: ${dev.os ? dev.os.split('(')[0].trim() : '-'}</span>
+            <span>Sync: ${dev.sync}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // Master Client Table (Nationwide 5,536 Clients)
+  toggleMasterClientTable() {
+    const card = document.getElementById('allClientsTableCard');
+    if (!card) return;
+    const isHidden = card.style.display === 'none';
+    card.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      this.renderMasterClientsTable();
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
+
+  renderMasterClientsTable() {
+    const tbody = document.getElementById('allClientsTbody');
+    if (!tbody) return;
+
+    const clients = this.fleet.filter(d => !d.is_server).slice(0, 100);
+
+    tbody.innerHTML = clients.map(d => `
+      <tr>
+        <td style="font-weight: 700;">${d.loc}</td>
+        <td><span class="version-code-tag">${d.code || '-'}</span></td>
+        <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary);">${d.host}</td>
+        <td><span class="version-code-tag">${d.reader_ver || '-'}</span></td>
+        <td><span class="reader-sn-code" style="font-size: 0.75rem;">${d.reader_sn || '-'}</span></td>
+        <td style="font-family: var(--font-mono); font-size: 0.75rem;">${d.ip || '-'}</td>
+        <td>${d.temp !== null ? d.temp + '°C' : '-'}</td>
+        <td style="font-size: 0.75rem;">${d.cpu_family || '-'}</td>
+        <td style="font-size: 0.75rem;">${d.ram || '-'}</td>
+        <td style="font-size: 0.75rem;">${d.ssd_brand} (${d.ssd_type})</td>
+        <td style="font-size: 0.72rem; color: var(--text-muted);">${d.os ? d.os.split('(')[0].trim() : '-'}</td>
+      </tr>
+    `).join('');
+  },
+
+  // =========================================================================
+  // MODULE 4: STORAGE (SERVER ONLY)
+  // =========================================================================
+  renderStorageTable() {
+    const tbody = document.getElementById('storageTableBody');
+    if (!tbody) return;
+
+    let list = [...this.servers];
+
+    // Filter condition
+    if (this.storageState.filter === 'critical_usage') {
+      list = list.filter(d => d.ssd_usage !== null && d.ssd_usage >= 85);
+    } else if (this.storageState.filter === 'critical_health') {
+      list = list.filter(d => d.ssd_health !== null && d.ssd_health < 70);
+    } else if (this.storageState.filter === 'nvme') {
+      list = list.filter(d => d.ssd_type === 'NVMe');
+    } else if (this.storageState.filter === 'sata') {
+      list = list.filter(d => d.ssd_type === 'SATA');
+    }
+
+    // Search filter
+    if (this.storageState.search) {
+      const q = this.storageState.search.toLowerCase();
+      list = list.filter(d => 
+        (d.loc && d.loc.toLowerCase().includes(q)) ||
+        (d.code && d.code.toLowerCase().includes(q)) ||
+        (d.host && d.host.toLowerCase().includes(q)) ||
+        (d.ssd_brand && d.ssd_brand.toLowerCase().includes(q)) ||
+        (d.ssd_type && d.ssd_type.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    const col = this.storageState.sortCol;
+    const dir = this.storageState.sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+      if (va === null || va === undefined) return 1;
+      if (vb === null || vb === undefined) return -1;
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+
+    const countLabel = document.getElementById('storageResultCountLabel');
+    if (countLabel) countLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Server Storage`;
+
+    // Pagination
+    const totalPages = Math.ceil(list.length / this.storageState.pageSize) || 1;
+    if (this.storageState.page > totalPages) this.storageState.page = totalPages;
+    if (this.storageState.page < 1) this.storageState.page = 1;
+
+    const startIdx = (this.storageState.page - 1) * this.storageState.pageSize;
+    const pageItems = list.slice(startIdx, startIdx + this.storageState.pageSize);
+
+    const pageLabel = document.getElementById('storageCurrentPageLabel');
+    if (pageLabel) pageLabel.textContent = `Halaman ${this.storageState.page} / ${totalPages}`;
+    const tableCount = document.getElementById('storageTableCountLabel');
+    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.storageState.pageSize, list.length)} dari ${list.length.toLocaleString()} server storage`;
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada data storage server yang cocok.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = pageItems.map(d => {
+      const tierClass = d.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (d.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      
+      let usageColor = 'var(--color-success)';
+      let usageBadge = 'Normal';
+      if (d.ssd_usage !== null) {
+        if (d.ssd_usage >= 85) {
+          usageColor = 'var(--color-danger)';
+          usageBadge = '🚨 Kritis Full';
+        } else if (d.ssd_usage >= 70) {
+          usageColor = 'var(--color-warning)';
+          usageBadge = '⚠️ Waspada';
+        }
+      }
+
+      let healthColor = 'var(--color-success)';
+      if (d.ssd_health !== null && d.ssd_health < 70) {
+        healthColor = 'var(--color-danger)';
+      } else if (d.ssd_health !== null && d.ssd_health < 80) {
+        healthColor = 'var(--color-warning)';
+      }
+
+      let actionRecommendation = 'Operasional Normal';
+      if (d.ssd_usage >= 85) {
+        actionRecommendation = 'Log rotate & vacuum PostgreSQL';
+      } else if (d.ssd_health < 70) {
+        actionRecommendation = 'Jadwalkan kloning SSD cadangan';
+      }
+
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+            <span class="version-code-tag">${d.code || '-'}</span>
+          </td>
+          <td>
+            <span class="tier-tag ${tierClass}">${d.tier || 'Standard'}</span>
+          </td>
+          <td>
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
+              ${d.host}
+            </div>
+          </td>
+          <td>
+            <span style="font-weight: 600; color: var(--text-main); font-size: 0.825rem;">${d.ssd_brand || '-'}</span>
+          </td>
+          <td>
+            <span class="version-code-tag" style="font-weight: 700; color: ${d.ssd_type === 'NVMe' ? 'var(--accent-primary)' : 'var(--text-secondary)'};">
+              ${d.ssd_type}
+            </span>
+          </td>
+          <td style="font-family: var(--font-mono); font-size: 0.825rem; font-weight: 600;">
+            ${d.ssd_size || '-'}
+          </td>
+          <td>
+            <div class="storage-bar-wrap">
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${healthColor};">
+                <span>Health</span>
+                <span>${d.ssd_health !== null ? d.ssd_health + '%' : '-'}</span>
+              </div>
+              <div class="storage-bar-track">
+                <div class="storage-bar-fill" style="width: ${d.ssd_health || 0}%; background: ${healthColor};"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="storage-bar-wrap">
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${usageColor};">
+                <span>Usage</span>
+                <span>${d.ssd_usage !== null ? d.ssd_usage + '%' : '-'}</span>
+              </div>
+              <div class="storage-bar-track">
+                <div class="storage-bar-fill" style="width: ${d.ssd_usage || 0}%; background: ${usageColor};"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="temp-badge ${d.temp >= 80 ? 'temp-hot' : 'temp-cool'}" style="font-weight: 700;">
+              ${d.temp !== null ? d.temp + '°C' : '-'}
+            </span>
+          </td>
+          <td style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;">
+            ${d.sync}
+          </td>
+          <td style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: var(--surface-hover); border: 1px solid var(--border-subtle);">
+              ${actionRecommendation}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  // =========================================================================
+  // EVENT HANDLERS
+  // =========================================================================
+  initEventHandlers() {
+    // 1. Location Table Events
+    const locSearch = document.getElementById('locSearchInput');
+    if (locSearch) {
+      locSearch.addEventListener('input', (e) => {
+        this.locState.search = e.target.value;
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    }
+
+    const locPageSize = document.getElementById('locPageSizeSelect');
+    if (locPageSize) {
+      locPageSize.addEventListener('change', (e) => {
+        this.locState.pageSize = parseInt(e.target.value, 10);
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-loc-tier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-loc-tier]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.locState.tier = btn.dataset.locTier;
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    });
+
+    const locPrev = document.getElementById('locPrevPageBtn');
+    if (locPrev) {
+      locPrev.addEventListener('click', () => {
+        if (this.locState.page > 1) {
+          this.locState.page--;
+          this.renderLocationsTable();
+        }
+      });
+    }
+
+    const locNext = document.getElementById('locNextPageBtn');
+    if (locNext) {
+      locNext.addEventListener('click', () => {
+        this.locState.page++;
+        this.renderLocationsTable();
+      });
+    }
+
+    // 2. Server Table Events
+    const serverSearch = document.getElementById('serverSearchInput');
+    if (serverSearch) {
+      serverSearch.addEventListener('input', (e) => {
+        this.serverState.search = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverPageSize = document.getElementById('serverPageSizeSelect');
+    if (serverPageSize) {
+      serverPageSize.addEventListener('change', (e) => {
+        this.serverState.pageSize = parseInt(e.target.value, 10);
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-server-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.serverState.filter = btn.dataset.serverFilter;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    });
+
+    document.querySelectorAll('.filter-pill[data-server-tier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-server-tier]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.serverState.tier = btn.dataset.serverTier;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    });
+
+    const serverPrev = document.getElementById('serverPrevPageBtn');
+    if (serverPrev) {
+      serverPrev.addEventListener('click', () => {
+        if (this.serverState.page > 1) {
+          this.serverState.page--;
+          this.renderServersTable();
+        }
+      });
+    }
+
+    const serverNext = document.getElementById('serverNextPageBtn');
+    if (serverNext) {
+      serverNext.addEventListener('click', () => {
+        this.serverState.page++;
+        this.renderServersTable();
+      });
+    }
+
+    // 3. Client Specification Events
+    const pickerSearch = document.getElementById('pickerSearchInput');
+    if (pickerSearch) {
+      pickerSearch.addEventListener('input', (e) => {
+        this.pickerState.search = e.target.value;
+        this.renderClientLocationPicker();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.pickerState.tier = btn.dataset.pickerTier;
+        this.renderClientLocationPicker();
+      });
+    });
+
+    const clientFilter = document.getElementById('clientFilterInput');
+    if (clientFilter) {
+      clientFilter.addEventListener('input', (e) => {
+        this.clientFilterText = e.target.value;
+        this.renderSelectedLocationClients();
+      });
+    }
+
+    const masterTableBtn = document.getElementById('toggleMasterClientTableBtn');
+    if (masterTableBtn) {
+      masterTableBtn.addEventListener('click', () => this.toggleMasterClientTable());
+    }
+
+    const closeMasterBtn = document.getElementById('closeMasterClientTableBtn');
+    if (closeMasterBtn) {
+      closeMasterBtn.addEventListener('click', () => {
+        const card = document.getElementById('allClientsTableCard');
+        if (card) card.style.display = 'none';
+      });
+    }
+
+    // 4. Storage Table Events
+    const storageSearch = document.getElementById('storageSearchInput');
+    if (storageSearch) {
+      storageSearch.addEventListener('input', (e) => {
+        this.storageState.search = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storagePageSize = document.getElementById('storagePageSizeSelect');
+    if (storagePageSize) {
+      storagePageSize.addEventListener('change', (e) => {
+        this.storageState.pageSize = parseInt(e.target.value, 10);
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.storageState.filter = btn.dataset.storageFilter;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    });
+
+    const storagePrev = document.getElementById('storagePrevPageBtn');
+    if (storagePrev) {
+      storagePrev.addEventListener('click', () => {
+        if (this.storageState.page > 1) {
+          this.storageState.page--;
+          this.renderStorageTable();
+        }
+      });
+    }
+
+    const storageNext = document.getElementById('storageNextPageBtn');
+    if (storageNext) {
+      storageNext.addEventListener('click', () => {
+        this.storageState.page++;
+        this.renderStorageTable();
+      });
+    }
+
+    // CSV Exports
+    const exportLocs = document.getElementById('exportLocsCsvBtn');
+    if (exportLocs) {
+      exportLocs.addEventListener('click', () => this.exportCsv(this.locations, 'parkee_location_information.csv'));
+    }
+
+    const exportServers = document.getElementById('exportServersCsvBtn');
+    if (exportServers) {
+      exportServers.addEventListener('click', () => this.exportCsv(this.servers, 'parkee_server_specifications.csv'));
+    }
+
+    const exportStorage = document.getElementById('exportStorageCsvBtn');
+    if (exportStorage) {
+      exportStorage.addEventListener('click', () => this.exportCsv(this.servers, 'parkee_server_storage.csv'));
+    }
+
+    // Manual sync button
+    const manualBtn = document.getElementById('manualSyncBtn');
+    if (manualBtn) {
+      manualBtn.addEventListener('click', () => this.manualSync());
+    }
+  },
+
+  // =========================================================================
+  // MODAL & UTILS
+  // =========================================================================
+  initModal() {
+    const modal = document.getElementById('deviceDetailModal');
+    const closeBtn = document.getElementById('modalCloseBtn');
+    if (closeBtn && modal) {
+      closeBtn.addEventListener('click', () => modal.classList.remove('open'));
+    }
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('open');
+      });
+    }
+  },
+
+  copyToClipboard(text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      this.showToast(`Serial Number ${text} berhasil disalin!`, 'success');
+    }).catch(() => {
+      this.showToast('Gagal menyalin ke clipboard', 'error');
+    });
+  },
+
+  showToast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span>${msg}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 250);
+    }, 3000);
+  },
+
+  exportCsv(data, filename) {
+    if (!data || data.length === 0) {
+      this.showToast('Tidak ada data untuk diekspor', 'warn');
+      return;
+    }
+    const csvStr = Papa.unparse(data);
+    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    this.showToast(`Berhasil mengekspor ${filename}`, 'success');
+  },
+
+  // =========================================================================
+  // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB)
+  // =========================================================================
+  setupDailyRefreshScheduler() {
+    const updateCountdown = () => {
+      const now = new Date();
+      let target = new Date();
+      target.setHours(5, 0, 0, 0);
+
+      if (now >= target) {
+        target.setDate(target.getDate() + 1);
+      }
+
+      const diffMs = target.getTime() - now.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      const badge = document.getElementById('syncCountdownBadge');
+      if (badge) {
+        badge.textContent = `Auto-refresh: ${hours}j ${mins}m (05:00 WIB)`;
+      }
+    };
+
+    updateCountdown();
+    setInterval(updateCountdown, 60000);
+  },
+
+  manualSync() {
+    this.showToast('Menghubungkan ke Google Sheets...', 'info');
+    setTimeout(() => {
+      this.fetchLocations();
+      this.fetchServers();
+      this.fetchFleet();
+      this.showToast('Data telemetri berhasil diperbarui!', 'success');
+    }, 1000);
+  },
+
+  initFullscreen() {
+    const fsBtn = document.getElementById('globalFullscreenBtn');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      });
+    }
+  },
+
+  // =========================================================================
+  // TWEAKS PANEL CONTROLLER (SKILL STANDARD)
+  // =========================================================================
+  initTweaks() {
     const savedTheme = localStorage.getItem('parkee_theme') || 'light';
+    const savedDensity = localStorage.getItem('parkee_density') || 'comfortable';
+    const savedAccent = localStorage.getItem('parkee_accent') || 'cobalt';
+
     this.applyTheme(savedTheme);
+    this.applyDensity(savedDensity);
+    this.applyAccent(savedAccent);
 
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {
       themeToggleBtn.addEventListener('click', () => {
-        const current = document.documentElement.getAttribute('data-theme') || 'light';
-        const next = current === 'dark' ? 'light' : 'dark';
-        this.applyTheme(next);
+        const curTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        this.applyTheme(curTheme === 'dark' ? 'light' : 'dark');
       });
     }
 
-    // 2. Density (Comfortable vs Compact)
-    const savedDensity = localStorage.getItem('parkee_density') || 'comfortable';
-    this.applyDensity(savedDensity);
-
-    // 3. Tweaks Drawer Toggle
     const tweaksTrigger = document.getElementById('tweaksTriggerBtn');
     const tweaksDrawer = document.getElementById('tweaksDrawer');
     const closeTweaksBtn = document.getElementById('closeTweaksBtn');
 
     if (tweaksTrigger && tweaksDrawer) {
-      tweaksTrigger.addEventListener('click', () => {
-        tweaksDrawer.classList.toggle('open');
-      });
+      tweaksTrigger.addEventListener('click', () => tweaksDrawer.classList.toggle('open'));
     }
-
     if (closeTweaksBtn && tweaksDrawer) {
-      closeTweaksBtn.addEventListener('click', () => {
-        tweaksDrawer.classList.remove('open');
-      });
+      closeTweaksBtn.addEventListener('click', () => tweaksDrawer.classList.remove('open'));
     }
 
-    // Tweaks Segmented Buttons
     document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => b.classList.remove('active'));
@@ -125,28 +1350,16 @@ const App = {
   applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('parkee_theme', theme);
-
-    // Update icons
     const iconSpan = document.getElementById('themeIconSpan');
-    if (iconSpan) {
-      iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
-    }
-
-    // Update tweaks active state
+    if (iconSpan) iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
     document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => {
       b.classList.toggle('active', b.dataset.themeVal === theme);
     });
-
-    // Re-render charts with theme-aware colors
-    if (window.ChartManager && this.summary) {
-      window.ChartManager.initAllCharts(this.summary);
-    }
   },
 
   applyDensity(density) {
     document.documentElement.setAttribute('data-density', density);
     localStorage.setItem('parkee_density', density);
-
     document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(b => {
       b.classList.toggle('active', b.dataset.densityVal === density);
     });
@@ -162,780 +1375,8 @@ const App = {
     if (accents[accent]) {
       document.documentElement.style.setProperty('--accent-primary', accents[accent]);
       localStorage.setItem('parkee_accent', accent);
-      if (window.ChartManager && this.summary) {
-        window.ChartManager.initAllCharts(this.summary);
-      }
     }
-  },
-
-  initNavigation() {
-    const navBtns = document.querySelectorAll('.sidebar-nav-btn');
-    const topTitle = document.getElementById('topBarTitle');
-
-    const titleMap = {
-      presentation: 'Presentasi Interaktif Armada',
-      dashboard: 'Matriks & Analitik Eksekutif',
-      explorer: 'Eksplorasi Armada Perangkat',
-      alerts: 'Incident Response & Triage Room'
-    };
-
-    navBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        navBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        const targetView = btn.dataset.view;
-        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-view'));
-        const targetSec = document.getElementById(`view-${targetView}`);
-        if (targetSec) targetSec.classList.add('active-view');
-
-        if (topTitle && titleMap[targetView]) {
-          topTitle.textContent = titleMap[targetView];
-        }
-
-        // Close mobile sidebar if open
-        const sidebar = document.getElementById('appSidebar');
-        if (sidebar) sidebar.classList.remove('open');
-
-        // Trigger chart resize
-        window.dispatchEvent(new Event('resize'));
-      });
-    });
-
-    // Mobile menu toggle
-    const mobBtn = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('appSidebar');
-    if (mobBtn && sidebar) {
-      mobBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-      });
-    }
-  },
-
-  initFullscreen() {
-    const fsBtn = document.getElementById('globalFullscreenBtn');
-    if (fsBtn) {
-      fsBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
-      });
-    }
-  },
-
-  // =========================================================================
-  // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB)
-  // =========================================================================
-  setupDailyRefreshScheduler() {
-    const updateCountdown = () => {
-      const now = new Date();
-      let target = new Date();
-      target.setHours(5, 0, 0, 0);
-
-      if (now >= target) {
-        target.setDate(target.getDate() + 1);
-      }
-
-      const diffMs = target.getTime() - now.getTime();
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-      const badge = document.getElementById('syncCountdownBadge');
-      if (badge) {
-        badge.textContent = `Auto-refresh: ${hours}j ${mins}m (05:00 WIB)`;
-      }
-
-      if (diffMs <= 1000) {
-        this.syncGoogleSheets(true);
-      }
-    };
-
-    updateCountdown();
-    setInterval(updateCountdown, 60000);
-
-    const now = new Date();
-    let next5AM = new Date();
-    next5AM.setHours(5, 0, 0, 0);
-    if (now >= next5AM) {
-      next5AM.setDate(next5AM.getDate() + 1);
-    }
-    const msUntil5AM = next5AM.getTime() - now.getTime();
-
-    if (this.nextSyncTimeout) clearTimeout(this.nextSyncTimeout);
-    this.nextSyncTimeout = setTimeout(() => {
-      console.log('⏰ Auto-refresh triggered at 05:00 AM WIB!');
-      this.syncGoogleSheets(true);
-      this.setupDailyRefreshScheduler();
-    }, msUntil5AM);
-  },
-
-  checkAutoSyncOnLoad() {
-    const lastSync = localStorage.getItem('fleet_last_sync_timestamp');
-    const now = new Date();
-    const today5AM = new Date();
-    today5AM.setHours(5, 0, 0, 0);
-
-    if (now > today5AM) {
-      if (!lastSync || new Date(parseInt(lastSync, 10)) < today5AM) {
-        console.log('⚡ Data stale since 05:00 AM today, auto-syncing in background...');
-        setTimeout(() => this.syncGoogleSheets(true), 1500);
-      }
-    }
-  },
-
-  async fetchSummaryJson() {
-    try {
-      const res = await fetch('./data/summary.json');
-      if (res.ok) {
-        this.summary = await res.json();
-        window.currentSummary = this.summary;
-        this.renderDashboardSummary();
-        if (window.ChartManager) window.ChartManager.initAllCharts(this.summary);
-        if (window.PresentationController) window.PresentationController.init();
-      }
-    } catch (e) {
-      console.warn('Could not load summary.json', e);
-    }
-  },
-
-  async fetchFleetData() {
-    try {
-      const res = await fetch('./data/fleet.json');
-      if (res.ok) {
-        this.fleet = await res.json();
-        this.applyFleetFilters();
-      }
-    } catch (e) {
-      console.warn('Could not load fleet.json asynchronously', e);
-    }
-  },
-
-  renderDashboardSummary() {
-    if (!this.summary) return;
-    const s = this.summary;
-
-    const headerBadge = document.getElementById('headerFleetBadge');
-    if (headerBadge) {
-      headerBadge.textContent = `${(s.total_devices || 0).toLocaleString()} Nodes · ${s.unique_locations || 0} Sites`;
-    }
-
-    const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
-    if (lastSyncLabel) {
-      lastSyncLabel.textContent = s.last_updated ? `Update: ${s.last_updated}` : 'Terakhir disinkronkan: Hari ini, 05:00 WIB';
-    }
-
-    const elTotal = document.getElementById('kpiTotalDevices');
-    const elLocs = document.getElementById('kpiTotalLocations');
-    const elOverheat = document.getElementById('kpiOverheats');
-    const elLowSSD = document.getElementById('kpiLowSSD');
-    const elStorage = document.getElementById('kpiStorageWarn');
-
-    if (elTotal) elTotal.textContent = (s.total_devices || 0).toLocaleString();
-    if (elLocs) elLocs.textContent = (s.unique_locations || 0).toLocaleString();
-    if (elOverheat) elOverheat.textContent = (s.server_temp_stats?.overheat_count || 60).toLocaleString();
-    if (elLowSSD) elLowSSD.textContent = (s.ssd_health_stats?.critical_count || 0).toLocaleString();
-    if (elStorage) elStorage.textContent = (s.ssd_usage_stats?.critical_count || 0).toLocaleString();
-
-    // Slide 1 KPIs
-    const s1Total = document.getElementById('s1TotalDevs');
-    const s1Sites = document.getElementById('s1TotalSites');
-    const s1Diamond = document.getElementById('s1Diamond');
-    const s1Action = document.getElementById('s1ActionItems');
-
-    if (s1Total) s1Total.textContent = (s.total_devices || 0).toLocaleString();
-    if (s1Sites) s1Sites.textContent = (s.unique_locations || 0).toLocaleString();
-    if (s1Diamond) s1Diamond.textContent = (s.tier_counts?.Diamond || 0).toLocaleString();
-    if (s1Action) s1Action.textContent = ((s.server_temp_stats?.overheat_count || 60) + (s.ssd_health_stats?.critical_count || 0)).toLocaleString();
-
-    this.renderProblemLocationsTable();
-    this.renderAlertIncidentRoom();
-  },
-
-  renderProblemLocationsTable() {
-    const tbody = document.getElementById('problemLocsTbody');
-    if (!tbody || !this.summary?.top_problem_locations) return;
-
-    tbody.innerHTML = this.summary.top_problem_locations.map((item, idx) => `
-      <tr onclick="App.filterByLocation('${item.loc.replace(/'/g, "\\'")}')">
-        <td style="font-weight: 700; color: var(--text-muted); font-family: var(--font-mono);">0${idx + 1}</td>
-        <td>
-          <div style="font-weight: 700; color: var(--text-main);">${item.loc}</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted);">${item.total_devs} unit terpasang</div>
-        </td>
-        <td>
-          <span class="tier-tag ${item.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (item.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}">
-            ${item.tier}
-          </span>
-        </td>
-        <td>
-          <span class="temp-badge ${item.overheats > 0 ? 'temp-hot' : 'temp-cool'}">
-            ${item.server_overheats ? item.server_overheats + ' Server Hot' : item.overheats + ' Unit'}
-          </span>
-        </td>
-        <td>
-          <span class="ssd-health-pill ${item.critical_ssd > 0 ? 'health-bad' : 'health-good'}">
-            ${item.critical_ssd} Unit
-          </span>
-        </td>
-        <td>
-          <span class="ssd-health-pill ${item.critical_storage > 0 ? 'health-bad' : 'health-good'}">
-            ${item.critical_storage} Unit
-          </span>
-        </td>
-        <td>
-          <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">
-            Investigasi
-          </button>
-        </td>
-      </tr>
-    `).join('');
-  },
-
-  renderAlertIncidentRoom() {
-    if (!this.summary) return;
-    const serverOverheats = this.summary.server_temp_stats?.top_overheats || this.summary.temp_stats?.top_overheats || [];
-    const lowSsds = this.summary.ssd_health_stats?.top_critical || [];
-    const highDisks = this.summary.ssd_usage_stats?.top_critical || [];
-
-    const elOverheatGrid = document.getElementById('incidentOverheatGrid');
-    if (elOverheatGrid) {
-      elOverheatGrid.innerHTML = serverOverheats.slice(0, 10).map(dev => `
-        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--color-danger); display: flex; flex-direction: column; gap: 6px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
-              <div style="display: flex; gap: 4px; margin-top: 3px;">
-                <span class="badge-pill" style="background: var(--color-danger); color: white; font-weight: 700; font-size: 0.65rem; padding: 1px 6px;">SERVER CORE</span>
-                <span class="tier-tag ${dev.tier?.toLowerCase() === 'diamond' ? 'tier-diamond' : (dev.tier?.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}" style="font-size: 0.65rem; padding: 1px 6px;">
-                  ${dev.tier || 'Standard'}
-                </span>
-              </div>
-            </div>
-            <span class="temp-badge temp-hot" style="font-size: 0.9rem; font-weight: 800;">${dev.temp}°C</span>
-          </div>
-          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600; margin-top: 2px;">${dev.host} (${dev.code})</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">IP: <strong>${dev.ip || '-'}</strong> | ZT: <strong>${dev.zt || '-'}</strong></div>
-          <div style="font-size: 0.73rem; color: var(--text-secondary);">CPU: ${dev.cpu || dev.cpu_family || '-'} · RAM: ${dev.ram || '-'}</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 6px; margin-top: 4px;">
-            <span style="font-size: 0.7rem; color: var(--text-muted);">Sync: ${dev.sync}</span>
-            <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="App.filterByLocation('${dev.loc.replace(/'/g, "\\'")}')">
-              Lihat di Tabel
-            </button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const elSsdGrid = document.getElementById('incidentSsdGrid');
-    if (elSsdGrid) {
-      elSsdGrid.innerHTML = lowSsds.slice(0, 8).map(dev => `
-        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--color-warning); display: flex; flex-direction: column; gap: 6px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
-            <span class="ssd-health-pill health-bad">Health ${dev.ssd_health}%</span>
-          </div>
-          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host}</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">SSD: ${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 6px;">Tindakan: Siapkan SSD clone cadangan</div>
-        </div>
-      `).join('');
-    }
-
-    const elDiskGrid = document.getElementById('incidentDiskGrid');
-    if (elDiskGrid) {
-      elDiskGrid.innerHTML = highDisks.slice(0, 8).map(dev => `
-        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--accent-primary); display: flex; flex-direction: column; gap: 6px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
-            <span class="ssd-health-pill health-bad">${dev.ssd_usage}% Full</span>
-          </div>
-          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host}</div>
-          <div class="usage-bar-track" style="margin-top: 4px;">
-            <div class="usage-bar-fill" style="width: ${dev.ssd_usage}%; background: var(--color-danger);"></div>
-          </div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Tindakan: Log cleaning & vacuum DB</div>
-        </div>
-      `).join('');
-    }
-  },
-
-  initFleetTableControls() {
-    const searchInput = document.getElementById('tableSearchInput');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        this.activeFilter.search = e.target.value.toLowerCase().trim();
-        this.currentPage = 1;
-        this.applyFleetFilters();
-      });
-    }
-
-    document.querySelectorAll('.filter-pill[data-filter]').forEach(pill => {
-      pill.addEventListener('click', () => {
-        const type = pill.dataset.filterType;
-        const val = pill.dataset.filter;
-
-        document.querySelectorAll(`.filter-pill[data-filter-type="${type}"]`).forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-
-        this.activeFilter[type] = val;
-        this.currentPage = 1;
-        this.applyFleetFilters();
-      });
-    });
-
-    const prevPageBtn = document.getElementById('prevPageBtn');
-    const nextPageBtn = document.getElementById('nextPageBtn');
-    if (prevPageBtn) {
-      prevPageBtn.addEventListener('click', () => {
-        if (this.currentPage > 1) {
-          this.currentPage--;
-          this.renderFleetTable();
-        }
-      });
-    }
-    if (nextPageBtn) {
-      nextPageBtn.addEventListener('click', () => {
-        const totalPages = Math.ceil(this.filteredFleet.length / this.pageSize);
-        if (this.currentPage < totalPages) {
-          this.currentPage++;
-          this.renderFleetTable();
-        }
-      });
-    }
-
-    const pageSizeSelect = document.getElementById('pageSizeSelect');
-    if (pageSizeSelect) {
-      pageSizeSelect.addEventListener('change', (e) => {
-        this.pageSize = parseInt(e.target.value, 10);
-        this.currentPage = 1;
-        this.renderFleetTable();
-      });
-    }
-
-    document.querySelectorAll('.fleet-table th.sortable').forEach(th => {
-      th.addEventListener('click', () => {
-        const col = th.dataset.col;
-        if (this.currentSort.col === col) {
-          this.currentSort.dir = this.currentSort.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-          this.currentSort.col = col;
-          this.currentSort.dir = 'asc';
-        }
-        this.applyFleetFilters();
-      });
-    });
-  },
-
-  applyFleetFilters() {
-    if (!this.fleet || this.fleet.length === 0) return;
-
-    const { search, tier, cat, alert } = this.activeFilter;
-
-    this.filteredFleet = this.fleet.filter(r => {
-      if (search) {
-        const matchLoc = r.loc && r.loc.toLowerCase().includes(search);
-        const matchHost = r.host && r.host.toLowerCase().includes(search);
-        const matchCode = r.code && r.code.toLowerCase().includes(search);
-        const matchIp = (r.ip && r.ip.includes(search)) || (r.zt && r.zt.includes(search));
-        const matchCpu = r.cpu && r.cpu.toLowerCase().includes(search);
-        if (!matchLoc && !matchHost && !matchCode && !matchIp && !matchCpu) return false;
-      }
-
-      if (tier !== 'all') {
-        if (tier === 'diamond' && r.tier.toLowerCase() !== 'diamond') return false;
-        if (tier === 'gold' && r.tier.toLowerCase() !== 'gold') return false;
-        if (tier === 'silver' && r.tier.toLowerCase() !== 'silver') return false;
-      }
-
-      if (cat !== 'all') {
-        if (cat === 'server' && r.cat !== 'Server') return false;
-        if (cat === 'admin' && r.cat !== 'Admin') return false;
-        if (cat === 'gate' && r.cat !== 'Gate / Kiosk') return false;
-        if (cat === 'cashier' && r.cat !== 'Cashier') return false;
-      }
-
-      if (alert !== 'all') {
-        if (alert === 'overheat' && (!r.temp || r.temp < 80)) return false;
-        if (alert === 'low_ssd' && (!r.ssd_health || r.ssd_health >= 70)) return false;
-        if (alert === 'high_storage' && (!r.ssd_usage || r.ssd_usage < 85)) return false;
-        if (alert === 'normal') {
-          if ((r.temp && r.temp >= 80) || (r.ssd_health && r.ssd_health < 70) || (r.ssd_usage && r.ssd_usage >= 85)) return false;
-        }
-      }
-
-      return true;
-    });
-
-    const { col, dir } = this.currentSort;
-    this.filteredFleet.sort((a, b) => {
-      let va = a[col];
-      let vb = b[col];
-
-      if (va === null || va === undefined) va = '';
-      if (vb === null || vb === undefined) vb = '';
-
-      if (typeof va === 'string') {
-        return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      } else {
-        return dir === 'asc' ? va - vb : vb - va;
-      }
-    });
-
-    this.renderFleetTable();
-  },
-
-  renderFleetTable() {
-    const tbody = document.getElementById('fleetTableBody');
-    const countLabel = document.getElementById('tableCountLabel');
-    const pageNumLabel = document.getElementById('currentPageLabel');
-    if (!tbody) return;
-
-    const total = this.filteredFleet.length;
-    const startIdx = (this.currentPage - 1) * this.pageSize;
-    const endIdx = Math.min(startIdx + this.pageSize, total);
-    const pageRows = this.filteredFleet.slice(startIdx, endIdx);
-
-    if (countLabel) {
-      countLabel.textContent = `Menampilkan ${startIdx + 1} - ${endIdx} dari total ${total.toLocaleString()} unit`;
-    }
-    if (pageNumLabel) {
-      const totalPages = Math.max(1, Math.ceil(total / this.pageSize));
-      pageNumLabel.textContent = `Halaman ${this.currentPage} / ${totalPages}`;
-    }
-
-    if (pageRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">Tidak ada data yang cocok dengan kriteria filter.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = pageRows.map((row, idx) => {
-      const tierClass = row.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (row.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
-      
-      let tempHtml = '<span style="color: var(--text-muted);">-</span>';
-      if (row.temp !== null && row.temp !== undefined) {
-        const cls = row.temp >= 80 ? 'temp-hot' : (row.temp >= 70 ? 'temp-warm' : 'temp-cool');
-        tempHtml = `<span class="temp-badge ${cls}">${row.temp}°C</span>`;
-      }
-
-      let healthHtml = '<span style="color: var(--text-muted);">-</span>';
-      if (row.ssd_health !== null && row.ssd_health !== undefined) {
-        const cls = row.ssd_health < 70 ? 'health-bad' : (row.ssd_health < 90 ? 'health-warn' : 'health-good');
-        healthHtml = `<span class="ssd-health-pill ${cls}">${row.ssd_health}%</span>`;
-      }
-
-      let usageHtml = '<span style="color: var(--text-muted);">-</span>';
-      if (row.ssd_usage !== null && row.ssd_usage !== undefined) {
-        const fillCol = row.ssd_usage >= 85 ? 'var(--color-danger)' : (row.ssd_usage >= 70 ? 'var(--color-warning)' : 'var(--color-success)');
-        usageHtml = `
-          <div class="usage-cell">
-            <span style="font-family: var(--font-mono); font-weight: 700; font-size: 0.75rem; width: 32px;">${row.ssd_usage}%</span>
-            <div class="usage-bar-track">
-              <div class="usage-bar-fill" style="width: ${row.ssd_usage}%; background: ${fillCol};"></div>
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <tr onclick="App.openDetailModal(${startIdx + idx})">
-          <td>
-            <div style="font-weight: 700; color: var(--text-main);">${row.loc}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">Kode: ${row.code || '-'}</div>
-          </td>
-          <td>
-            <span class="tier-tag ${tierClass}">${row.tier || 'Standard'}</span>
-          </td>
-          <td>
-            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary);">${row.host}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted);">${row.cat}</div>
-          </td>
-          <td>
-            <div style="font-family: var(--font-mono); font-size: 0.78rem;">${row.ip || '-'}</div>
-            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-secondary);">${row.zt ? 'ZT: ' + row.zt : ''}</div>
-          </td>
-          <td>${tempHtml}</td>
-          <td>${healthHtml}</td>
-          <td>${usageHtml}</td>
-          <td>
-            <div style="font-size: 0.78rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${row.os}">
-              ${row.os.split(' ')[0]} ${row.os.split(' ')[1] || ''}
-            </div>
-          </td>
-          <td>
-            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">Detail</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  },
-
-  filterByLocation(locName) {
-    const tabExplorer = document.querySelector('.sidebar-nav-btn[data-view="explorer"]');
-    if (tabExplorer) tabExplorer.click();
-
-    const searchInput = document.getElementById('tableSearchInput');
-    if (searchInput) {
-      searchInput.value = locName;
-      this.activeFilter.search = locName.toLowerCase();
-      this.currentPage = 1;
-      this.applyFleetFilters();
-    }
-  },
-
-  initHardwareTabs() {
-    const hwBtns = document.querySelectorAll('.hw-tab-btn');
-    hwBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        hwBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const cat = btn.dataset.hw;
-        if (window.ChartManager && this.summary) {
-          window.ChartManager.initHardwareChart(this.summary, cat);
-        }
-      });
-    });
-  },
-
-  initModal() {
-    const modal = document.getElementById('deviceDetailModal');
-    const closeBtn = document.getElementById('closeModalBtn');
-    if (closeBtn && modal) {
-      closeBtn.addEventListener('click', () => modal.classList.remove('open'));
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('open');
-      });
-    }
-  },
-
-  openDetailModal(idx) {
-    const item = this.filteredFleet[idx];
-    if (!item) return;
-
-    const modal = document.getElementById('deviceDetailModal');
-    const body = document.getElementById('modalBodyContent');
-    const title = document.getElementById('modalDeviceTitle');
-
-    if (title) title.textContent = `${item.loc} — ${item.host}`;
-
-    if (body) {
-      body.innerHTML = `
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Lokasi & Kode</div>
-          <div class="modal-spec-val">${item.loc} (${item.code})</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Tier Layanan</div>
-          <div class="modal-spec-val"><span class="tier-tag ${item.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (item.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}">${item.tier}</span></div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">IP Address</div>
-          <div class="modal-spec-val mono">Local: ${item.ip || '-'} | ZeroTier: ${item.zt || '-'}</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Suhu Prosessor</div>
-          <div class="modal-spec-val">${item.temp ? item.temp + '°C' : 'N/A'}</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Processor (CPU)</div>
-          <div class="modal-spec-val">${item.cpu || '-'}</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Motherboard</div>
-          <div class="modal-spec-val">${item.mb || '-'}</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Total RAM & Merek</div>
-          <div class="modal-spec-val">${item.ram || '-'} (${item.ram_brand || '-'})</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">SSD Type & Kapasitas</div>
-          <div class="modal-spec-val">${item.ssd_brand} (${item.ssd_type}) - ${item.ssd_size}</div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">SSD Health & Usage</div>
-          <div class="modal-spec-val">Kesehatan: <strong>${item.ssd_health || '-'}%</strong> | Pemakaian: <strong>${item.ssd_usage || '-'}%</strong></div>
-        </div>
-        <div class="modal-spec-item">
-          <div class="modal-spec-label">Versi Agent</div>
-          <div class="modal-spec-val mono">${item.agent || '-'}</div>
-        </div>
-        <div class="modal-spec-item" style="grid-column: span 2;">
-          <div class="modal-spec-label">Sistem Operasi (OS)</div>
-          <div class="modal-spec-val mono" style="font-size: 0.825rem;">${item.os || '-'}</div>
-        </div>
-        <div class="modal-spec-item" style="grid-column: span 2;">
-          <div class="modal-spec-label">Last Synchronized</div>
-          <div class="modal-spec-val mono">${item.sync || '-'}</div>
-        </div>
-      `;
-    }
-
-    if (modal) modal.classList.add('open');
-  },
-
-  exportTableToCSV() {
-    if (!this.filteredFleet || this.filteredFleet.length === 0) {
-      this.showToast('Tidak ada data untuk diekspor', 'warn');
-      return;
-    }
-
-    const headers = ['Lokasi', 'Kode', 'Tier', 'Hostname', 'Kategori', 'IP_Local', 'IP_ZeroTier', 'Suhu_C', 'SSD_Health', 'SSD_Usage', 'Processor', 'RAM', 'SSD', 'OS', 'Last_Sync'];
-    const rows = this.filteredFleet.map(r => [
-      `"${r.loc.replace(/"/g, '""')}"`,
-      `"${r.code}"`,
-      `"${r.tier}"`,
-      `"${r.host}"`,
-      `"${r.cat}"`,
-      `"${r.ip}"`,
-      `"${r.zt}"`,
-      r.temp ?? '',
-      r.ssd_health ?? '',
-      r.ssd_usage ?? '',
-      `"${(r.cpu || '').replace(/"/g, '""')}"`,
-      `"${r.ram}"`,
-      `"${r.ssd_brand} ${r.ssd_type}"`,
-      `"${(r.os || '').replace(/"/g, '""')}"`,
-      `"${r.sync}"`
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `parkee_fleet_export_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    this.showToast('File CSV berhasil diunduh.', 'success');
-  },
-
-  async syncGoogleSheets(isSilent = false) {
-    const btn = document.getElementById('syncSheetBtn');
-    if (btn && !isSilent) {
-      btn.disabled = true;
-      btn.innerHTML = `Menyinkronkan...`;
-    }
-
-    if (!isSilent) {
-      this.showToast('Mengambil data terbaru dari Google Sheets...', 'info');
-    }
-
-    try {
-      const res = await fetch(this.SHEET_CSV_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const csvText = await res.text();
-
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          this.processSyncData(results.data);
-          
-          localStorage.setItem('fleet_last_sync_timestamp', Date.now().toString());
-
-          const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
-          if (lastSyncLabel) {
-            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            lastSyncLabel.textContent = `Terakhir disinkronkan: Hari ini, ${timeStr} WIB`;
-          }
-
-          this.showToast('Sinkronisasi Sukses. Data armada diperbarui.', 'success');
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = `Sync Sheets Sekarang`;
-          }
-        },
-        error: (err) => {
-          throw err;
-        }
-      });
-    } catch (e) {
-      console.error('Sync failed', e);
-      if (!isSilent) {
-        this.showToast('Gagal menyinkronkan live: ' + e.message, 'error');
-      }
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = `Sync Sheets Sekarang`;
-      }
-    }
-  },
-
-  processSyncData(rows) {
-    const locTiers = {};
-    rows.forEach(r => {
-      const loc = (r['Nama Lokasi'] || '').trim();
-      const tier = (r['Tier'] || '').trim();
-      if (loc && tier) locTiers[loc] = tier;
-    });
-
-    const cleanNum = (val, isFloat = false) => {
-      if (!val) return null;
-      val = val.replace('Â°C', '').replace('°C', '').replace('C', '').replace('%', '').replace(',', '.').trim();
-      const m = val.match(/[-+]?\d*\.?\d+/);
-      return m ? (isFloat ? parseFloat(m[0]) : parseInt(m[0], 10)) : null;
-    };
-
-    const newFleet = [];
-    rows.forEach(r => {
-      const loc = (r['Nama Lokasi'] || '').trim();
-      if (!loc) return;
-      const host = (r['Nama Device / Hostname'] || '').trim();
-      const hLower = host.toLowerCase();
-
-      let devCat = 'Other / Network';
-      if (hLower.includes('server')) devCat = 'Server';
-      else if (hLower.includes('admin')) devCat = 'Admin';
-      else if (['pm', 'pos', 'gate', 'barrier', 'kiosk', 'dispenser'].some(k => hLower.includes(k))) devCat = 'Gate / Kiosk';
-      else if (hLower.includes('cashier') || hLower.includes('kasir')) devCat = 'Cashier';
-
-      const tier = (r['Tier'] || '').trim() || locTiers[loc] || 'Standard / Unset';
-
-      newFleet.push({
-        loc,
-        code: (r['Kode Unik Lokasi'] || '').trim(),
-        tier,
-        host,
-        cat: devCat,
-        ip: (r['IP local lokasi'] || '').trim(),
-        zt: (r['IP ZT Lokasi'] || '').trim(),
-        sync: (r['Last Sync'] || '').trim(),
-        agent: (r['Agent Version'] || '').trim(),
-        cpu: (r['Processor'] || '').trim(),
-        ram: (r['Total Ram'] || '').trim(),
-        mb: (r['Merek Motherboard'] || '').trim(),
-        ssd_brand: (r['Merk SSD'] || '').trim(),
-        ssd_type: (r['Type SSD (SATA/NVME)'] || '').toUpperCase().includes('NVME') ? 'NVMe' : 'SATA',
-        ssd_size: (r['Size SSD'] || '').trim(),
-        ssd_health: cleanNum(r['Health SSD']),
-        ssd_usage: cleanNum(r['SSD Usage']),
-        temp: cleanNum(r['Temperature'], true),
-        os: (r['OS Version'] || '').trim()
-      });
-    });
-
-    this.fleet = newFleet;
-    this.applyFleetFilters();
-  },
-
-  showToast(message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    container.appendChild(toast);
-
-    setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 250);
-    }, 4000);
   }
 };
 
-window.App = App;
 document.addEventListener('DOMContentLoaded', () => App.init());

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PARKEE FleetIQ — Infrastructure & Telemetry Engineering</title>
-  <meta name="description" content="Dashboard presentasi interaktif dan pemantauan armada server & client PARKEE dengan menu sidebar kiri, grafik warna-warni dinamis, dan sinkronisasi otomatis setiap jam 5 pagi.">
+  <title>Support Apps — Server & Client Infrastructure Telemetry</title>
+  <meta name="description" content="Support Apps: Platform audit dan pemantauan menyeluruh armada server, pos admin, klien gerbang, RFID reader, serta manajemen storage server lokasi PARKEE seluruh Indonesia.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/><path d=%22M50 20 L75 80 L50 65 L25 80 Z%22 fill=%22%23ffffff%22/></svg>">
   
   <!-- Design System Stylesheet -->
   <link rel="stylesheet" href="css/styles.css">
 
-  <!-- Chart.js & PapaParse -->
+  <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
@@ -24,66 +24,78 @@
     <aside class="app-sidebar" id="appSidebar">
       <div class="sidebar-top">
         
-        <!-- Brand Header -->
+        <!-- Brand Header: Support Apps -->
         <div class="sidebar-brand">
           <div class="brand-badge">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
             </svg>
           </div>
           <div class="brand-meta">
             <div class="brand-name">
-              PARKEE <span class="brand-version">v2.6</span>
+              Support Apps <span class="brand-version">v2.6</span>
             </div>
-            <span class="brand-tagline">FleetIQ Telemetry</span>
+            <span class="brand-tagline">PARKEE Infrastructure Engineering</span>
           </div>
         </div>
 
-        <!-- Navigation Menu -->
+        <!-- Navigation Menu: 4 Core Modules -->
         <nav class="sidebar-nav">
-          <span class="nav-label">Navigasi Utama</span>
-          <button class="sidebar-nav-btn active" data-view="presentation" title="Mode Presentasi Slide Keynote">
+          <span class="nav-label">Menu Utama</span>
+
+          <!-- 1. Location Information -->
+          <button class="sidebar-nav-btn active" data-view="locations" title="Informasi Lokasi & Manifest Versi Software">
+            <div class="nav-btn-left">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <span>Location Information</span>
+            </div>
+            <span class="badge-pill" id="badgeTotalLocs">961</span>
+          </button>
+
+          <!-- 2. Server Specification -->
+          <button class="sidebar-nav-btn" data-view="servers" title="Spesifikasi & Telemetri Lengkap Server Sentral">
+            <div class="nav-btn-left">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+              <span>Server Specification</span>
+            </div>
+            <span class="badge-pill" id="badgeTotalServers">1,982</span>
+          </button>
+
+          <!-- 3. Client Specification -->
+          <button class="sidebar-nav-btn" data-view="clients" title="Spesifikasi Klien & Reader RFID Lapangan Per Lokasi">
             <div class="nav-btn-left">
               <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
               </svg>
-              <span>Presentasi Slide</span>
+              <span>Client Specification</span>
             </div>
+            <span class="badge-pill" id="badgeTotalClients">5,536</span>
           </button>
 
-          <button class="sidebar-nav-btn" data-view="dashboard" title="Ringkasan Matriks & Analitik">
+          <!-- 4. Storage (Server Only) -->
+          <button class="sidebar-nav-btn" data-view="storage" title="Audit Kapasitas & Kesehatan SSD Khusus Server">
             <div class="nav-btn-left">
               <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
               </svg>
-              <span>Matriks Eksekutif</span>
+              <span>Storage (Server Only)</span>
             </div>
-          </button>
-
-          <button class="sidebar-nav-btn" data-view="explorer" title="Daftar Armada Lengkap & Pencarian">
-            <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <span>Eksplorasi Armada</span>
-            </div>
-          </button>
-
-          <button class="sidebar-nav-btn" data-view="alerts" title="Ruang Tanggap Insiden Kritis">
-            <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              <span>Incident Room</span>
-            </div>
-            <span class="badge-pill">155 Hot</span>
+            <span class="badge-pill" style="background: var(--accent-primary-light); color: var(--accent-primary);">SSD</span>
           </button>
         </nav>
 
@@ -98,52 +110,53 @@
             <div>Refresh Dashboard: <strong>Setiap 05:00 WIB</strong></div>
           </div>
           <div id="syncCountdownBadge" class="sync-countdown-badge">
-            Auto-refresh: 05:00 WIB
+            Menghitung jadwal...
           </div>
+          <button id="manualSyncBtn" class="sync-now-btn" title="Paksa tarik CSV Google Sheets langsung">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+            <span>Sinkronkan Sekarang</span>
+          </button>
         </div>
 
       </div>
 
-      <!-- Sidebar Bottom Actions -->
-      <div class="sidebar-bottom">
-        <button id="syncSheetBtn" class="btn-sidebar primary" title="Tarik data terbaru dari Google Sheets sekarang">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-          <span>Sync Sheets Sekarang</span>
-        </button>
-
-        <button id="exportCsvBtn" class="btn-sidebar" title="Download seluruh tabel armada ke file CSV">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Ekspor CSV Armada</span>
-        </button>
-
-        <div class="sidebar-footer-stat">
-          <span style="color: var(--text-main); font-weight: 700;">7,518 Nodes</span> · 961 Sites
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div class="system-health-indicator">
+          <div class="health-bullet"></div>
+          <div class="health-text">
+            <span>Status Sistem</span>
+            <strong id="sidebarHealthStatusText">Operasional Normal</strong>
+          </div>
         </div>
       </div>
     </aside>
 
     <!-- =========================================================================
-         RIGHT MAIN AREA
+         MAIN APPLICATION AREA
          ========================================================================= -->
     <div class="app-main">
-
-      <!-- Top Sticky Bar -->
-      <header class="top-bar">
+      
+      <!-- Top Bar Header -->
+      <header class="app-topbar">
         <div class="top-bar-left">
-          <button id="mobileMenuBtn" class="mobile-toggle-btn" title="Toggle Menu">
-            ☰
+          <button id="mobileMenuBtn" class="mobile-toggle-btn" title="Toggle Menu Sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
           </button>
-          <div class="page-breadcrumb">
-            <span class="breadcrumb-path">Infrastruktur & Telemetri PARKEE</span>
-            <h2 id="topBarTitle" class="breadcrumb-title">Presentasi Interaktif Armada</h2>
+          
+          <div class="top-bar-title-wrap">
+            <h1 class="top-bar-title" id="topBarTitle">Location Information</h1>
+            <div class="breadcrumbs">
+              <span>Support Apps</span>
+              <span class="crumb-separator">/</span>
+              <span class="crumb-current" id="crumbCurrent">Location Information</span>
+            </div>
           </div>
         </div>
 
@@ -171,423 +184,306 @@
       <div class="view-wrapper">
 
         <!-- =========================================================================
-             VIEW 1: Interactive Slide Deck (Keynote Style Presentation)
+             VIEW 1: Location Information (10 Columns Requested)
              ========================================================================= -->
-        <section id="view-presentation" class="view-section active-view">
-          <div class="presentation-container">
-            <!-- Deck Toolbar -->
-            <div class="deck-toolbar">
-              <div class="deck-controls-left">
-                <button id="deckPrevBtn" class="btn btn-outline" title="Slide Sebelumnya (Arrow Left)">
-                  <span>◀</span> Sebelumnya
-                </button>
-                <button id="deckNextBtn" class="btn btn-gradient" title="Slide Selanjutnya (Arrow Right / Space)">
-                  Selanjutnya <span>▶</span>
-                </button>
-                <div class="slide-dots-indicator">
-                  <div class="slide-dot active" data-slide="1" title="Slide 01"></div>
-                  <div class="slide-dot" data-slide="2" title="Slide 02"></div>
-                  <div class="slide-dot" data-slide="3" title="Slide 03"></div>
-                  <div class="slide-dot" data-slide="4" title="Slide 04"></div>
-                  <div class="slide-dot" data-slide="5" title="Slide 05"></div>
-                  <div class="slide-dot" data-slide="6" title="Slide 06"></div>
-                </div>
+        <section id="view-locations" class="view-section active-view">
+          <div class="glass-panel table-card">
+            
+            <div class="table-toolbar">
+              <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="locSearchInput" class="search-input" placeholder="Cari nama lokasi, kode unik, IP ZT, versi Agent, Fisherman, Watersheep, WBO...">
               </div>
 
-              <div class="deck-controls-right">
-                <span id="deckSlideNumberBadge" class="slide-number-badge">SLIDE 01 / 06 · Overview</span>
-                <button id="deckAutoPlayBtn" class="btn btn-outline">
-                  <span>▶ Auto-Play (12s)</span>
-                </button>
-                <button id="deckFullscreenBtn" class="btn btn-icon" title="Layar Penuh Slide">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                  </svg>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+                <span>Tampilkan:</span>
+                <select id="locPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                  <option value="15">15 Baris</option>
+                  <option value="25" selected>25 Baris</option>
+                  <option value="50">50 Baris</option>
+                  <option value="100">100 Baris</option>
+                </select>
+                <button id="exportLocsCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                  Ekspor CSV
                 </button>
               </div>
             </div>
 
-            <!-- Slide Frame Container -->
-            <div class="slide-frame">
+            <!-- Tier Filter Pills -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+              <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Tier:</span>
+              <div class="filter-pills-group">
+                <button class="filter-pill active" data-loc-tier="all">Semua Tier</button>
+                <button class="filter-pill" data-loc-tier="diamond">Diamond</button>
+                <button class="filter-pill" data-loc-tier="gold">Gold</button>
+                <button class="filter-pill" data-loc-tier="silver">Silver</button>
+                <button class="filter-pill" data-loc-tier="standard">Standard</button>
+              </div>
+              <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="locResultCountLabel">
+                Menampilkan 961 Lokasi
+              </div>
+            </div>
+
+            <!-- 10-Column Locations Table -->
+            <div class="table-responsive" style="margin-top: 0.65rem;">
+              <table class="fleet-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" data-loc-sort="loc">Nama Lokasi ⇅</th>
+                    <th class="sortable" data-loc-sort="code">Kode Unik Lokasi ⇅</th>
+                    <th class="sortable" data-loc-sort="tier">Tier ⇅</th>
+                    <th>IP ZT Lokasi</th>
+                    <th class="sortable" data-loc-sort="last_sync">Last Sync ⇅</th>
+                    <th>Agent Version</th>
+                    <th>Fisherman Version</th>
+                    <th>Watersheep Version</th>
+                    <th>WBO Version</th>
+                    <th>OS Version</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="locationsTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="table-pagination">
+              <span id="locTableCountLabel">Memuat data lokasi...</span>
+              <div class="pagination-btn-group">
+                <button id="locPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <span id="locCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
+                <button id="locNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 2: Server Specification (Data Lengkap Server)
+             ========================================================================= -->
+        <section id="view-servers" class="view-section">
+          <div class="glass-panel table-card">
+            
+            <div class="table-toolbar">
+              <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="serverSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname server, CPU, motherboard, RAM, atau IP...">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+                <span>Tampilkan:</span>
+                <select id="serverPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                  <option value="15">15 Baris</option>
+                  <option value="25" selected>25 Baris</option>
+                  <option value="50">50 Baris</option>
+                  <option value="100">100 Baris</option>
+                </select>
+                <button id="exportServersCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                  Ekspor CSV
+                </button>
+              </div>
+            </div>
+
+            <!-- Server Condition & Tier Filters -->
+            <div style="display: flex; flex-direction: column; gap: 0.65rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Status Server:</span>
+                <div class="filter-pills-group">
+                  <button class="filter-pill active" data-server-filter="all">Semua Server (1,982)</button>
+                  <button class="filter-pill hazard" data-server-filter="overheat">🔥 Overheat (≥80°C)</button>
+                  <button class="filter-pill hazard" data-server-filter="low_ssd">⚠️ Low SSD Health (&lt;70%)</button>
+                  <button class="filter-pill hazard" data-server-filter="full_storage">🚨 Storage Kritis (≥85%)</button>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Tier:</span>
+                <div class="filter-pills-group">
+                  <button class="filter-pill active" data-server-tier="all">Semua Tier</button>
+                  <button class="filter-pill" data-server-tier="diamond">Diamond</button>
+                  <button class="filter-pill" data-server-tier="gold">Gold</button>
+                  <button class="filter-pill" data-server-tier="silver">Silver</button>
+                </div>
+                <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="serverResultCountLabel">
+                  Menampilkan 1,982 Server
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed Server Table -->
+            <div class="table-responsive" style="margin-top: 0.65rem;">
+              <table class="fleet-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" data-srv-sort="loc">Lokasi & Kode ⇅</th>
+                    <th class="sortable" data-srv-sort="tier">Tier ⇅</th>
+                    <th class="sortable" data-srv-sort="host">Hostname Server ⇅</th>
+                    <th>IP Local / ZT</th>
+                    <th>Processor (CPU)</th>
+                    <th>RAM</th>
+                    <th>Motherboard</th>
+                    <th>SSD (Merk & Tipe)</th>
+                    <th class="sortable" data-srv-sort="temp">Suhu (°C) ⇅</th>
+                    <th class="sortable" data-srv-sort="ssd_health">Health SSD ⇅</th>
+                    <th class="sortable" data-srv-sort="ssd_usage">Disk Usage ⇅</th>
+                    <th>OS Version</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="serversTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Server Pagination -->
+            <div class="table-pagination">
+              <span id="serverTableCountLabel">Memuat data server...</span>
+              <div class="pagination-btn-group">
+                <button id="serverPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <span id="serverCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
+                <button id="serverNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 3: Client Specification (Master-Detail Lokasi & Reader Lapangan)
+             ========================================================================= -->
+        <section id="view-clients" class="view-section">
+          <div class="client-master-detail">
+            
+            <!-- Left Panel: Location Selector List -->
+            <div class="loc-picker-panel">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">
+                  Pilih Lokasi
+                </h3>
+                <span class="badge-pill" id="pickerCountBadge">961 Sites</span>
+              </div>
+
+              <!-- Search Input inside Picker -->
+              <div class="search-input-wrap" style="width: 100%;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="pickerSearchInput" class="search-input" placeholder="Cari nama lokasi / kode...">
+              </div>
+
+              <!-- Filter Tier Pills inside Picker -->
+              <div class="filter-pills-group" style="width: 100%;">
+                <button class="filter-pill active" data-picker-tier="all" style="font-size: 0.7rem; padding: 2px 8px;">Semua</button>
+                <button class="filter-pill" data-picker-tier="diamond" style="font-size: 0.7rem; padding: 2px 8px;">Diamond</button>
+                <button class="filter-pill" data-picker-tier="gold" style="font-size: 0.7rem; padding: 2px 8px;">Gold</button>
+                <button class="filter-pill" data-picker-tier="silver" style="font-size: 0.7rem; padding: 2px 8px;">Silver</button>
+              </div>
+
+              <!-- Location List -->
+              <div class="loc-picker-list" id="clientLocPickerList">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+
+            <!-- Right Panel: Selected Location Clients & Readers -->
+            <div class="client-content-panel">
               
-              <!-- SLIDE 1: Executive Fleet Overview & Scale -->
-              <div id="slide-1" class="slide-item active-slide" data-screen-label="01 Executive Overview">
-                <div class="slide-header">
-                  <div>
-                    <span class="slide-tag" style="background: var(--accent-primary-light); color: var(--accent-primary);">01 · SKALA & ARSITEKTUR</span>
-                    <h2 class="slide-title">Executive Overview: Armada Server & Klien</h2>
-                    <p class="slide-subtitle">Distribusi skala infrastruktur edge computing di 961 lokasi seluruh Indonesia</p>
+              <!-- Location Header Card -->
+              <div class="client-loc-header" id="selectedLocHeader">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h2 id="clientLocName" style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: var(--text-main); margin: 0;">
+                      Ancol Mansion
+                    </h2>
+                    <span id="clientLocTierBadge" class="tier-tag tier-silver">Silver</span>
+                    <span id="clientLocCodeBadge" class="version-code-tag">Kode: 001</span>
                   </div>
-                  <span class="tier-tag tier-diamond" style="font-size: 0.85rem; padding: 6px 14px;">Kesiapan Operasional: 96.8%</span>
-                </div>
-
-                <div class="slide-content-grid">
-                  <!-- Left side metrics -->
-                  <div style="grid-column: span 5; display: flex; flex-direction: column; gap: 1rem; justify-content: center;">
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Armada Terkoneksi</div>
-                      <div id="s1TotalDevs" style="font-family: var(--font-heading); font-size: 2.8rem; font-weight: 800; color: var(--accent-primary); line-height: 1;">7,518</div>
-                      <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 6px;">Server sentral, admin POS, kiosk tiket, & barrier gate</div>
-                    </div>
-
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Cakupan Lokasi Aktif</div>
-                      <div id="s1TotalSites" style="font-family: var(--font-heading); font-size: 2.4rem; font-weight: 800; color: var(--accent-secondary); line-height: 1;">961</div>
-                      <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 6px;">Mall, gedung perkantoran, rumah sakit, & bandara</div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                      <div class="glass-panel" style="padding: 1rem;">
-                        <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted);">DIAMOND HUBS</div>
-                        <div id="s1Diamond" style="font-family: var(--font-heading); font-size: 1.7rem; font-weight: 800; color: var(--color-warning);">1,909</div>
-                        <div style="font-size: 0.72rem; color: var(--text-muted);">High-traffic sites</div>
-                      </div>
-                      <div class="glass-panel" style="padding: 1rem;">
-                        <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted);">ACTION ITEMS</div>
-                        <div id="s1ActionItems" style="font-family: var(--font-heading); font-size: 1.7rem; font-weight: 800; color: var(--color-danger);">254</div>
-                        <div style="font-size: 0.72rem; color: var(--text-muted);">Suhu panas & SSD low</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Right side chart -->
-                  <div class="glass-panel" style="grid-column: span 7; padding: 1.5rem; display: flex; flex-direction: column;">
-                    <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.5rem;">
-                      Komposisi Kategori Perangkat Lapangan
-                    </div>
-                    <div style="flex: 1; position: relative; min-height: 280px;">
-                      <canvas id="slide1Chart"></canvas>
-                    </div>
+                  <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <span>IP ZT: <strong id="clientLocZt">-</strong></span>
+                    <span>Last Sync: <strong id="clientLocSync">-</strong></span>
                   </div>
                 </div>
 
-                <div class="slide-footer-bar">
-                  <span>Gunakan tombol [◀ Sebelumnya] dan [Selanjutnya ▶] atau tombol keyboard [Spasi / Panah]</span>
-                  <span>PARKEE Nationwide Infrastructure Performance</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="glass-panel" style="padding: 6px 12px; font-size: 0.8rem;">
+                    Total Klien: <strong id="clientCountBadge" style="color: var(--accent-primary);">3 Unit</strong>
+                  </div>
+                  <div class="glass-panel" style="padding: 6px 12px; font-size: 0.8rem;">
+                    RFID Reader: <strong id="readerCountBadge" style="color: var(--color-success);">1 Terpasang</strong>
+                  </div>
                 </div>
               </div>
 
-              <!-- SLIDE 2: Server Thermal Hazards & Critical Overheat Mitigation -->
-              <div id="slide-2" class="slide-item" data-screen-label="02 Server Thermal Hazards">
-                <div class="slide-header">
-                  <div>
-                    <span class="slide-tag" style="background: var(--color-danger-light); color: var(--color-danger);">02 · MANAJEMEN SUHU SERVER</span>
-                    <h2 class="slide-title">Server Thermal Health: Mitigasi 60 Server Overheat (≥80°C)</h2>
-                    <p class="slide-subtitle">Fokus proteksi server sentral & admin lokasi: jika server crash, seluruh gerbang dan transaksi lokasi lumpuh</p>
-                  </div>
-                  <span class="temp-badge temp-hot" style="font-size: 0.85rem; padding: 6px 14px;">60 Server Kritis (≥80°C) · 25 Unit Ekstrem (≥90°C)</span>
+              <!-- Search within Clients Toolbar -->
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div class="search-input-wrap" style="flex: 1; max-width: 400px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input type="text" id="clientFilterInput" class="search-input" placeholder="Cari di klien lokasi ini (hostname, SN Reader, IP)...">
                 </div>
 
-                <div class="slide-content-grid">
-                  <div class="glass-panel" style="grid-column: span 6; padding: 1.5rem; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                      <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; color: var(--text-main);">
-                        Spektrum Suhu: Server Sentral vs Klien
-                      </div>
-                      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">1,021 Server vs 2,422 Klien</span>
-                    </div>
-                    <div style="flex: 1; position: relative; min-height: 280px;">
-                      <canvas id="slide2Chart"></canvas>
-                    </div>
-                  </div>
-
-                  <div style="grid-column: span 6; display: flex; flex-direction: column; gap: 0.85rem;">
-                    <div class="glass-panel" style="padding: 1.15rem;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-weight: 700; color: var(--color-danger); font-size: 0.95rem;">
-                          Top Server Suhu Ekstrem (100°C) — Mission Critical:
-                        </span>
-                        <span class="tier-tag tier-diamond" style="font-size: 0.7rem; padding: 2px 8px;">Prioritas Utama</span>
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.825rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-hover); border-radius: var(--radius-xs); border-left: 3px solid var(--color-danger);">
-                          <div>
-                            <strong>Pelindo Pelabuhan Tanjung Priuk</strong> <span style="color: var(--accent-primary); font-family: var(--font-mono);">(server-0uy)</span>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">Tier Diamond · Intel Core i7 · 31GB RAM · ZT: 10.70.4.99</div>
-                          </div>
-                          <span class="temp-badge temp-hot" style="font-size: 0.85rem; font-weight: 800;">100.0°C</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-hover); border-radius: var(--radius-xs); border-left: 3px solid var(--color-danger);">
-                          <div>
-                            <strong>Bandara Sultan Hasanuddin Makassar</strong> <span style="color: var(--accent-primary); font-family: var(--font-mono);">(admin2-0w0)</span>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">Tier Diamond · Intel Core i3 · Hub Bandara Utama</div>
-                          </div>
-                          <span class="temp-badge temp-hot" style="font-size: 0.85rem; font-weight: 800;">100.0°C</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-hover); border-radius: var(--radius-xs); border-left: 3px solid var(--color-danger);">
-                          <div>
-                            <strong>Citimall Cilegon</strong> <span style="color: var(--accent-primary); font-family: var(--font-mono);">(server-0yi)</span>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">Tier Gold · Intel Core i3 · 31GB RAM · ZT: 10.70.4.227</div>
-                          </div>
-                          <span class="temp-badge temp-hot" style="font-size: 0.85rem; font-weight: 800;">100.0°C</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-hover); border-radius: var(--radius-xs); border-left: 3px solid var(--color-danger);">
-                          <div>
-                            <strong>POS 12 Pelabuhan Tanjung Priuk</strong> <span style="color: var(--accent-primary); font-family: var(--font-mono);">(server-0z9)</span>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">Tier Silver · Intel Core i3 · 31GB RAM · ZT: 10.70.4.254</div>
-                          </div>
-                          <span class="temp-badge temp-hot" style="font-size: 0.85rem; font-weight: 800;">100.0°C</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-hover); border-radius: var(--radius-xs); border-left: 3px solid var(--color-warning);">
-                          <div>
-                            <strong>Pelindo Jayapura & Gresik</strong> <span style="color: var(--accent-primary); font-family: var(--font-mono);">(server-0zw / server-10e)</span>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">Tier Silver · Intel Core i3 · Port Nodes</div>
-                          </div>
-                          <span class="temp-badge temp-hot" style="font-size: 0.85rem; font-weight: 800;">99.0°C</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="glass-panel" style="padding: 1.15rem;">
-                      <div style="font-weight: 700; color: var(--text-main); font-size: 0.925rem; margin-bottom: 6px;">
-                        Rekomendasi Tindakan Cepat Khusus Server (Server Preventive Action):
-                      </div>
-                      <ul style="padding-left: 1.25rem; font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 5px;">
-                        <li><strong>Evaluasi Sirkulasi Ruang Server / AC Pos:</strong> Server sentral lokasi sering diletakkan di ruang pos sempit atau bawah meja tanpa ventilasi AC. Wajib pasang AC / exhaust blower 24/7.</li>
-                        <li><strong>Re-pasting Pasta Termal CPU Server:</strong> Beban kerja PostgreSQL & docker 24/7 memicu thermal throttling instan jika pasta pendingin mengering. Gunakan thermal paste performa tinggi.</li>
-                        <li><strong>Pembersihan Heatsink & Fan Casing:</strong> Debu tebal menyumbat bilah kipas CPU heatsink tower server.</li>
-                        <li><strong>SLA Tanggap Cepat 1x24 Jam:</strong> Dispatch teknisi darurat untuk server Diamond (Tanjung Priuk & Bandara Hasanuddin).</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="slide-footer-bar">
-                  <span>Mengapa Server Diprioritaskan? Crash pada 1 server mematikan seluruh barrier gate dan transaksi di lokasi tersebut. Klien gate hanya berdampak pada 1 lajur.</span>
-                  <span>Mission Critical Server SLA</span>
+                <div style="display: flex; gap: 8px;">
+                  <button id="toggleMasterClientTableBtn" class="btn btn-outline" style="font-size: 0.78rem;">
+                    📋 Tampilkan Semua 5,536 Klien Nasional
+                  </button>
                 </div>
               </div>
 
-              <!-- SLIDE 3: Storage Reliability & Degradation Matrix -->
-              <div id="slide-3" class="slide-item" data-screen-label="03 Storage Reliability">
-                <div class="slide-header">
-                  <div>
-                    <span class="slide-tag" style="background: var(--color-warning-light); color: var(--color-warning);">03 · RELIABILITAS PENYIMPANAN</span>
-                    <h2 class="slide-title">Storage Reliability: Degradasi SSD & Utilisasi Disk</h2>
-                    <p class="slide-subtitle">99 SSD mengalami degradasi (&lt;70%) dan 198 unit mendekati kapasitas penuh (≥85%)</p>
-                  </div>
-                  <span class="ssd-health-pill health-warn" style="font-size: 0.85rem; padding: 6px 14px;">3,270 NVMe vs 1,025 SATA</span>
-                </div>
-
-                <div class="slide-content-grid">
-                  <div class="glass-panel" style="grid-column: span 6; padding: 1.5rem; display: flex; flex-direction: column;">
-                    <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.5rem;">
-                      Rasio Teknologi Penyimpanan (NVMe vs SATA)
-                    </div>
-                    <div style="flex: 1; position: relative; min-height: 280px;">
-                      <canvas id="slide3Chart"></canvas>
-                    </div>
-                  </div>
-
-                  <div style="grid-column: span 6; display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-weight: 700; font-size: 0.95rem; color: var(--color-warning);">99 SSD Mengalami Degradasi Wear Level (&lt;70%)</div>
-                      <p style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 4px;">
-                        SSD dengan wear health di bawah 70% berisiko mengalami read-only freeze atau file system corruption sewaktu-waktu.
-                      </p>
-                      <div style="margin-top: 8px; font-size: 0.78rem; background: var(--surface-hover); padding: 6px 10px; border-radius: 6px;">
-                        Contoh: <strong>Summarecon Mal Bekasi</strong> (pm2-pelataran-02c) - Health 20%
-                      </div>
-                    </div>
-
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-weight: 700; font-size: 0.95rem; color: var(--accent-primary);">198 Unit Penyimpanan Penuh (≥85% Usage)</div>
-                      <p style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 4px;">
-                        Penyebab utama: penumpukan log Docker, snapshot database transaksi lama, dan file cache lokal.
-                      </p>
-                      <div style="margin-top: 8px; font-size: 0.78rem; background: var(--surface-hover); padding: 6px 10px; border-radius: 6px;">
-                        Solusi: Eksekusi script auto-vacuum cron dan rotasi log retention maksimal 14 hari.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="slide-footer-bar">
-                  <span>Rekomendasi: Upgrade bertahap ke Samsung 980/990 PRO NVMe untuk server sentral lokasi.</span>
-                  <span>PARKEE Hardware Engineering</span>
-                </div>
+              <!-- Clients Cards Grid -->
+              <div class="client-grid" id="clientCardsGrid">
+                <!-- Rendered dynamically -->
               </div>
 
-              <!-- SLIDE 4: Hardware Ecosystem Diversity -->
-              <div id="slide-4" class="slide-item" data-screen-label="04 Hardware Ecosystem">
-                <div class="slide-header">
+              <!-- Master Full Clients Table Container (Hidden by default, can be toggled) -->
+              <div class="glass-panel table-card" id="allClientsTableCard" style="display: none; margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
                   <div>
-                    <span class="slide-tag" style="background: var(--color-violet-light); color: var(--color-violet);">04 · ARSITEKTUR HARDWARE</span>
-                    <h2 class="slide-title">Hardware Ecosystem: Standarisasi Vendor Komponen</h2>
-                    <p class="slide-subtitle">Pemetaan prosesor, motherboard, serta memori RAM di seluruh gerbang dan server</p>
+                    <h3 style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0;">
+                      Master Database Seluruh Klien Lapangan (5,536 Unit)
+                    </h3>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 0 0;">
+                      Pencarian komprehensif seluruh perangkat gerbang, dispenser, kasir, dan serial number reader di 961 lokasi
+                    </p>
                   </div>
-                  <span class="tier-tag tier-gold" style="font-size: 0.85rem; padding: 6px 14px;">Multi-Vendor Landscape</span>
-                </div>
-
-                <div class="slide-content-grid">
-                  <div class="glass-panel" style="grid-column: span 7; padding: 1.5rem; display: flex; flex-direction: column;">
-                    <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.5rem;">
-                      Distribusi Keluarga Prosesor (CPU Families)
-                    </div>
-                    <div style="flex: 1; position: relative; min-height: 280px;">
-                      <canvas id="slide4Chart"></canvas>
-                    </div>
-                  </div>
-
-                  <div style="grid-column: span 5; display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;">
-                        Komponen Terpasang di Lapangan:
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.825rem;">
-                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 4px;">
-                          <span>Motherboard Utama</span>
-                          <strong>Gigabyte H510M / H61 (1,613)</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 4px;">
-                          <span>Merek SSD Terbanyak</span>
-                          <strong>V-Gen (960) & Samsung (768)</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 4px;">
-                          <span>RAM Brand Dominan</span>
-                          <strong>SK Hynix (557) & Corsair (209)</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding-top: 4px;">
-                          <span>Standar RAM Server</span>
-                          <strong>15G / 16GB DDR4</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="glass-panel" style="padding: 1.25rem;">
-                      <div style="font-weight: 700; color: var(--color-success); font-size: 0.9rem;">Standar Baru Pengadaan 2026+:</div>
-                      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
-                        Minimum Intel Core i3 Gen-12+, Motherboard MSI/Gigabyte H610, RAM 16GB DDR4, dan NVMe SSD 500GB untuk seluruh server Diamond & Gold.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="slide-footer-bar">
-                  <span>Standarisasi mempermudah penyediaan spare part cadangan di 5 titik logistik regional.</span>
-                  <span>Fleet Standardization Roster</span>
-                </div>
-              </div>
-
-              <!-- SLIDE 5: OS & Software Compliance -->
-              <div id="slide-5" class="slide-item" data-screen-label="05 Software Compliance">
-                <div class="slide-header">
-                  <div>
-                    <span class="slide-tag" style="background: var(--color-success-light); color: var(--color-success);">05 · SISTEM OPERASI</span>
-                    <h2 class="slide-title">Software Migration: Adopsi ParkeeOS 22.04 LTS</h2>
-                    <p class="slide-subtitle">Perjalanan migrasi sistem operasi dari versi legacy 18.04 LTS menuju arsitektur modern 22.04 LTS</p>
-                  </div>
-                  <span class="tier-tag tier-diamond" style="font-size: 0.85rem; padding: 6px 14px;">Target 100% di Q4 2026</span>
-                </div>
-
-                <div class="slide-content-grid">
-                  <div style="grid-column: span 6; display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="glass-panel" style="padding: 1.5rem;">
-                      <div style="font-size: 0.8rem; font-weight: 700; color: var(--color-success); text-transform: uppercase;">ParkeeOS 22.04 LTS (Modern)</div>
-                      <div style="font-family: var(--font-heading); font-size: 2.5rem; font-weight: 800; color: var(--color-success);">2,265+ Unit</div>
-                      <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 4px;">Mendukung kernel Linux modern, efisiensi memori, dan zero-downtime container upgrade.</div>
-                    </div>
-
-                    <div class="glass-panel" style="padding: 1.5rem;">
-                      <div style="font-size: 0.8rem; font-weight: 700; color: var(--color-warning); text-transform: uppercase;">ParkeeOS 18.04 LTS (Legacy)</div>
-                      <div style="font-family: var(--font-heading); font-size: 2.5rem; font-weight: 800; color: var(--color-warning);">1,075 Unit</div>
-                      <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 4px;">Dijadwalkan upgrade remote via Teleport SSH playbook & ZeroTier tunnel bertahap.</div>
-                    </div>
-                  </div>
-
-                  <div class="glass-panel" style="grid-column: span 6; padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; gap: 1rem;">
-                    <div style="font-weight: 700; font-size: 1.05rem; color: var(--text-main);">Kepatuhan Versi Agent Lapangan:</div>
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
-                      <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.825rem; font-weight: 600; margin-bottom: 4px;">
-                          <span>Agent v8.136 Series (Latest)</span>
-                          <span>~45% Selesai</span>
-                        </div>
-                        <div class="usage-bar-track" style="height: 8px;">
-                          <div class="usage-bar-fill" style="width: 45%; background: var(--color-success);"></div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.825rem; font-weight: 600; margin-bottom: 4px;">
-                          <span>Agent v8.133 Series (Stable)</span>
-                          <span>~40%</span>
-                        </div>
-                        <div class="usage-bar-track" style="height: 8px;">
-                          <div class="usage-bar-fill" style="width: 40%; background: var(--accent-secondary);"></div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.825rem; font-weight: 600; margin-bottom: 4px;">
-                          <span>Versi Lama / Belum Ter-update</span>
-                          <span>~15%</span>
-                        </div>
-                        <div class="usage-bar-track" style="height: 8px;">
-                          <div class="usage-bar-fill" style="width: 15%; background: var(--color-warning);"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="slide-footer-bar">
-                  <span>Proses update dilakukan tanpa mengganggu transaksi pembayaran dan tiket di gate.</span>
-                  <span>Software Lifecycle Management</span>
-                </div>
-              </div>
-
-              <!-- SLIDE 6: Strategic Action Plan -->
-              <div id="slide-6" class="slide-item" data-screen-label="06 Strategic Roadmap">
-                <div class="slide-header">
-                  <div>
-                    <span class="slide-tag" style="background: var(--accent-primary-light); color: var(--accent-primary);">06 · RENCANA AKSI</span>
-                    <h2 class="slide-title">Action Plan: Roadmap 30-60-90 Hari</h2>
-                    <p class="slide-subtitle">Rekomendasi konkret untuk tim IT Support, Field Engineer, dan Manajemen</p>
-                  </div>
-                  <button class="btn btn-primary" onclick="document.querySelector('.sidebar-nav-btn[data-view=\'explorer\']').click()">
-                    Jelajahi Armada Lengkap ➜
+                  <button class="btn btn-outline" id="closeMasterClientTableBtn" style="font-size: 0.78rem;">
+                    ✕ Tutup Tampilan Master
                   </button>
                 </div>
 
-                <div class="slide-content-grid">
-                  <!-- Column 1 -->
-                  <div class="glass-panel" style="grid-column: span 4; padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: var(--color-danger); letter-spacing: 0.5px;">FASE 1: 30 HARI PERTAMA</div>
-                    <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-main);">Mitigasi Kritis Suhu Server</div>
-                    <ul style="font-size: 0.825rem; color: var(--text-secondary); padding-left: 1.25rem; display: flex; flex-direction: column; gap: 8px;">
-                      <li>Kunjungan teknisi darurat ke <strong>60 server sentral overheat (≥80°C)</strong>, terutama 25 server kritis ≥90°C (Pelindo Tj. Priuk, Bandara Hasanuddin, Citimall Cilegon).</li>
-                      <li>Perbaikan sirkulasi pendingin & pasang exhaust fan / AC pos server serta re-pasting pasta termal CPU Core i7/i5/i3.</li>
-                      <li>Kloning dan ganti <strong>99 unit SSD</strong> dengan wear health &lt;70%.</li>
-                    </ul>
-                  </div>
-
-                  <!-- Column 2 -->
-                  <div class="glass-panel" style="grid-column: span 4; padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: var(--color-warning); letter-spacing: 0.5px;">FASE 2: 60 HARI BERIKUTNYA</div>
-                    <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-main);">Sanitasi Storage & OS Rollout</div>
-                    <ul style="font-size: 0.825rem; color: var(--text-secondary); padding-left: 1.25rem; display: flex; flex-direction: column; gap: 8px;">
-                      <li>Implementasi auto-prune script untuk <strong>198 unit disk kritis ≥85%</strong>.</li>
-                      <li>Distribusi batch update Agent v8.136 ke seluruh site Gold & Diamond.</li>
-                      <li>Uji coba migrasi live ParkeeOS 18.04 ke 22.04 LTS via Teleport TSH.</li>
-                    </ul>
-                  </div>
-
-                  <!-- Column 3 -->
-                  <div class="glass-panel" style="grid-column: span 4; padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: var(--color-success); letter-spacing: 0.5px;">FASE 3: 90 HARI STABILISASI</div>
-                    <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-main);">Standarisasi & Zero Incident</div>
-                    <ul style="font-size: 0.825rem; color: var(--text-secondary); padding-left: 1.25rem; display: flex; flex-direction: column; gap: 8px;">
-                      <li>Penerapan standar minimum NVMe SSD & 16GB RAM di semua Diamond Hub.</li>
-                      <li>Setup dashboard alerts otomatis WhatsApp Bot AGY untuk suhu &gt;75°C.</li>
-                      <li>Pencapaian SLA ketersediaan gerbang parkir 99.95% se-Indonesia.</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="slide-footer-bar">
-                  <span>Selesai Presentasi. Beralih ke tab <strong>[Matriks Eksekutif]</strong> atau <strong>[Eksplorasi Armada]</strong> untuk investigasi real-time.</span>
-                  <span>Prepared for Management Review</span>
+                <div class="table-responsive">
+                  <table class="fleet-table">
+                    <thead>
+                      <tr>
+                        <th>Nama Lokasi</th>
+                        <th>Kode</th>
+                        <th>Hostname Klien</th>
+                        <th>Versi Reader</th>
+                        <th>SN Reader</th>
+                        <th>IP Local / ZT</th>
+                        <th>Suhu</th>
+                        <th>Processor (CPU)</th>
+                        <th>RAM</th>
+                        <th>SSD</th>
+                        <th>OS Version</th>
+                      </tr>
+                    </thead>
+                    <tbody id="allClientsTbody">
+                      <!-- Rendered dynamically -->
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -596,75 +492,15 @@
         </section>
 
         <!-- =========================================================================
-             VIEW 2: Executive Matrix Dashboard (Full Interactive Charts)
+             VIEW 4: Storage (Server Only)
              ========================================================================= -->
-        <section id="view-dashboard" class="view-section">
-          <!-- 4 Hero KPI Cards -->
+        <section id="view-storage" class="view-section">
+          <!-- Server Storage Hero KPIs -->
           <div class="kpi-deck-row">
-            <!-- Total Devices -->
+            <!-- Total Drives -->
             <div class="glass-panel kpi-card kpi-primary">
               <div class="kpi-top">
-                <span class="kpi-tag">TOTAL ARMADA NASIONAL</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                    <line x1="8" y1="21" x2="16" y2="21"></line>
-                    <line x1="12" y1="17" x2="12" y2="21"></line>
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <div id="kpiTotalDevices" class="kpi-value">7,518</div>
-                <div class="kpi-label">Perangkat Aktif Terhubung</div>
-              </div>
-              <div class="kpi-meta">
-                <span>Tersebar di <strong id="kpiTotalLocations">961</strong> Lokasi Komersial</span>
-              </div>
-            </div>
-
-            <!-- Overheat Alert -->
-            <div class="glass-panel kpi-card kpi-hazard">
-              <div class="kpi-top">
-                <span class="kpi-tag">THERMAL WARNING (≥80°C)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <div id="kpiOverheats" class="kpi-value" style="color: var(--color-danger);">60</div>
-                <div class="kpi-label">Server Sentral Overheat</div>
-              </div>
-              <div class="kpi-meta">
-                <span>Fokus 60 Server Kritis (+ 95 Klien Kiosk)</span>
-              </div>
-            </div>
-
-            <!-- SSD Health Alert -->
-            <div class="glass-panel kpi-card kpi-amber">
-              <div class="kpi-top">
-                <span class="kpi-tag">STORAGE AT-RISK (&lt;70%)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 12H2"></path>
-                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <div id="kpiLowSSD" class="kpi-value" style="color: var(--color-warning);">99</div>
-                <div class="kpi-label">SSD Mengalami Degradasi</div>
-              </div>
-              <div class="kpi-meta">
-                <span>Siapkan drive pengganti sebelum kegagalan I/O</span>
-              </div>
-            </div>
-
-            <!-- Storage Capacity Alert -->
-            <div class="glass-panel kpi-card kpi-cyan">
-              <div class="kpi-top">
-                <span class="kpi-tag">DISK FULL ALERT (≥85%)</span>
+                <span class="kpi-tag">TOTAL DRIVE SERVER</span>
                 <div class="kpi-icon-wrap">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
@@ -674,283 +510,152 @@
                 </div>
               </div>
               <div>
-                <div id="kpiStorageWarn" class="kpi-value" style="color: var(--accent-secondary);">198</div>
-                <div class="kpi-label">Penyimpanan Mendekati Penuh</div>
+                <div id="storageKpiTotalDrives" class="kpi-value">1,982</div>
+                <div class="kpi-label">SSD & NVMe Server Terpasang</div>
               </div>
               <div class="kpi-meta">
-                <span>Butuh pembersihan log & vacuum database</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Charts Grid 1 -->
-          <div class="charts-grid">
-            <div class="glass-panel chart-card col-4">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Distribusi Tier Lokasi</h3>
-                  <span class="chart-subtitle">Proporsi Diamond, Gold, dan Silver</span>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="chartTier"></canvas>
+                <span>Khusus Server Sentral & Pos Admin</span>
               </div>
             </div>
 
-            <div class="glass-panel chart-card col-4">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Kategori Perangkat</h3>
-                  <span class="chart-subtitle">Server, Admin, Gate, Kiosk, & Jaringan</span>
+            <!-- NVMe vs SATA -->
+            <div class="glass-panel kpi-card kpi-cyan">
+              <div class="kpi-top">
+                <span class="kpi-tag">TEKNOLOGI PENYIMPANAN</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                  </svg>
                 </div>
               </div>
-              <div class="chart-body">
-                <canvas id="chartDevice"></canvas>
-              </div>
-            </div>
-
-            <div class="glass-panel chart-card col-4">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Spektrum Suhu Server & Klien</h3>
-                  <span class="chart-subtitle">Fokus 1,021 Server Sentral & Pos Admin vs Klien</span>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="chartThermal"></canvas>
-              </div>
-            </div>
-          </div>
-
-          <!-- Charts Grid 2 -->
-          <div class="charts-grid">
-            <div class="glass-panel chart-card col-6">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Ekosistem Perangkat Keras</h3>
-                  <span class="chart-subtitle">Komposisi vendor prosesor, SSD, motherboard & RAM</span>
-                </div>
-                <div class="nav-tabs">
-                  <button class="hw-tab-btn active" data-hw="cpu">CPU</button>
-                  <button class="hw-tab-btn" data-hw="ssd">SSD</button>
-                  <button class="hw-tab-btn" data-hw="ram">RAM</button>
-                  <button class="hw-tab-btn" data-hw="mb">Motherboard</button>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="chartHardware"></canvas>
-              </div>
-            </div>
-
-            <div class="glass-panel chart-card col-3">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Kesehatan SSD</h3>
-                  <span class="chart-subtitle">Kondisi wear level SSD drive</span>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="chartSSDHealth"></canvas>
-              </div>
-            </div>
-
-            <div class="glass-panel chart-card col-3">
-              <div class="chart-card-header">
-                <div class="chart-title-wrap">
-                  <h3 class="chart-title">Adopsi Sistem Operasi</h3>
-                  <span class="chart-subtitle">ParkeeOS 22.04 LTS vs 18.04 LTS</span>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="chartOS"></canvas>
-              </div>
-            </div>
-          </div>
-
-          <!-- Top Problem Locations Table -->
-          <div class="glass-panel table-card">
-            <div class="table-toolbar">
               <div>
-                <h3 class="chart-title" style="font-size: 1.15rem;">
-                  Top 12 Lokasi Paling Memerlukan Atensi (Hotspots)
-                </h3>
-                <span class="chart-subtitle">Akumulasi titik panas, SSD terdegradasi, dan kapasitas disk penuh</span>
+                <div id="storageKpiNvmeRatio" class="kpi-value" style="font-size: 1.85rem; color: var(--accent-secondary);">
+                  1,328 NVMe
+                </div>
+                <div class="kpi-label">vs 614 SATA Server</div>
               </div>
-              <span style="font-size: 0.78rem; color: var(--text-muted);">Klik baris lokasi untuk langsung memfilter ke tabel armada</span>
+              <div class="kpi-meta">
+                <span>67% Server Telah Menggunakan NVMe</span>
+              </div>
             </div>
 
-            <div class="table-responsive">
-              <table class="fleet-table">
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>Nama Lokasi</th>
-                    <th>Tier</th>
-                    <th>Overheat (≥80°C)</th>
-                    <th>SSD Low (&lt;70%)</th>
-                    <th>Storage Kritis (≥85%)</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody id="problemLocsTbody">
-                  <!-- Rendered via App.renderProblemLocationsTable() -->
-                </tbody>
-              </table>
+            <!-- High Storage Usage Alert -->
+            <div class="glass-panel kpi-card kpi-hazard">
+              <div class="kpi-top">
+                <span class="kpi-tag">STORAGE KRITIS (≥85%)</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="storageKpiFullCount" class="kpi-value" style="color: var(--color-danger);">39</div>
+                <div class="kpi-label">Server Mendekati Kapasitas Penuh</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Perlu log vacuum & docker system prune</span>
+              </div>
+            </div>
+
+            <!-- Low SSD Health -->
+            <div class="glass-panel kpi-card kpi-amber">
+              <div class="kpi-top">
+                <span class="kpi-tag">WEAR HEALTH DEGRADED (&lt;70%)</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12H2"></path>
+                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="storageKpiLowHealthCount" class="kpi-value" style="color: var(--color-warning);">19</div>
+                <div class="kpi-label">SSD Server Mengalami Keausan</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Siapkan SSD clone pengganti sebelum I/O freeze</span>
+              </div>
             </div>
           </div>
-        </section>
 
-        <!-- =========================================================================
-             VIEW 3: Full Fleet Explorer (Searchable, Filterable, Virtualized Table)
-             ========================================================================= -->
-        <section id="view-explorer" class="view-section">
-          <div class="glass-panel table-card">
+          <!-- Storage Table Card -->
+          <div class="glass-panel table-card" style="margin-top: 1.25rem;">
+            
             <div class="table-toolbar">
               <div class="search-input-wrap">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="tableSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname, IP address, CPU...">
+                <input type="text" id="storageSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname server, merk SSD, atau tipe NVMe/SATA...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
                 <span>Tampilkan:</span>
-                <select id="pageSizeSelect" style="padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                <select id="storagePageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
                   <option value="15">15 Baris</option>
                   <option value="25" selected>25 Baris</option>
                   <option value="50">50 Baris</option>
                   <option value="100">100 Baris</option>
                 </select>
+                <button id="exportStorageCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                  Ekspor CSV
+                </button>
               </div>
             </div>
 
-            <!-- Filter Pills Bar -->
-            <div style="display: flex; flex-direction: column; gap: 0.65rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Tier:</span>
-                <div class="filter-pills-group">
-                  <button class="filter-pill active" data-filter-type="tier" data-filter="all">Semua Tier</button>
-                  <button class="filter-pill" data-filter-type="tier" data-filter="diamond">Diamond</button>
-                  <button class="filter-pill" data-filter-type="tier" data-filter="gold">Gold</button>
-                  <button class="filter-pill" data-filter-type="tier" data-filter="silver">Silver</button>
-                </div>
+            <!-- Storage Quick Filter Pills -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+              <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Storage:</span>
+              <div class="filter-pills-group">
+                <button class="filter-pill active" data-storage-filter="all">Semua Server Storage (1,982)</button>
+                <button class="filter-pill hazard" data-storage-filter="critical_usage">🚨 Kritis Usage (≥85%)</button>
+                <button class="filter-pill hazard" data-storage-filter="critical_health">⚠️ Health Rendah (&lt;70%)</button>
+                <button class="filter-pill" data-storage-filter="nvme">🚀 NVMe Saja</button>
+                <button class="filter-pill" data-storage-filter="sata">💾 SATA Saja</button>
               </div>
-
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Tipe Unit:</span>
-                <div class="filter-pills-group">
-                  <button class="filter-pill active" data-filter-type="cat" data-filter="all">Semua Tipe</button>
-                  <button class="filter-pill" data-filter-type="cat" data-filter="server">Server Sentral</button>
-                  <button class="filter-pill" data-filter-type="cat" data-filter="admin">Admin POS</button>
-                  <button class="filter-pill" data-filter-type="cat" data-filter="gate">Gate / Kiosk</button>
-                  <button class="filter-pill" data-filter-type="cat" data-filter="cashier">Cashier</button>
-                </div>
-              </div>
-
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Kondisi:</span>
-                <div class="filter-pills-group">
-                  <button class="filter-pill active" data-filter-type="alert" data-filter="all">Semua Kondisi</button>
-                  <button class="filter-pill hazard" data-filter-type="alert" data-filter="overheat">Overheat (≥80°C)</button>
-                  <button class="filter-pill hazard" data-filter-type="alert" data-filter="low_ssd">Low SSD (&lt;70%)</button>
-                  <button class="filter-pill hazard" data-filter-type="alert" data-filter="high_storage">Disk Penuh (≥85%)</button>
-                  <button class="filter-pill" data-filter-type="alert" data-filter="normal">Normal</button>
-                </div>
+              <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="storageResultCountLabel">
+                Menampilkan 1,982 Server
               </div>
             </div>
 
-            <!-- Table Responsive Container -->
-            <div class="table-responsive" style="margin-top: 0.5rem;">
+            <!-- Server Storage Audit Table -->
+            <div class="table-responsive" style="margin-top: 0.65rem;">
               <table class="fleet-table">
                 <thead>
                   <tr>
-                    <th class="sortable" data-col="loc">Lokasi & Kode ⇅</th>
-                    <th class="sortable" data-col="tier">Tier ⇅</th>
-                    <th class="sortable" data-col="host">Hostname & Tipe ⇅</th>
-                    <th>IP Local & ZT</th>
-                    <th class="sortable" data-col="temp">Suhu (°C) ⇅</th>
-                    <th class="sortable" data-col="ssd_health">SSD Health ⇅</th>
-                    <th class="sortable" data-col="ssd_usage">Disk Usage ⇅</th>
-                    <th>Sistem Operasi</th>
-                    <th>Aksi</th>
+                    <th class="sortable" data-st-sort="loc">Lokasi & Kode ⇅</th>
+                    <th class="sortable" data-st-sort="tier">Tier ⇅</th>
+                    <th class="sortable" data-st-sort="host">Hostname Server ⇅</th>
+                    <th>Merk SSD</th>
+                    <th class="sortable" data-st-sort="ssd_type">Tipe SSD ⇅</th>
+                    <th>Ukuran Disk</th>
+                    <th class="sortable" data-st-sort="ssd_health">Health SSD (%) ⇅</th>
+                    <th class="sortable" data-st-sort="ssd_usage">Disk Usage (%) ⇅</th>
+                    <th class="sortable" data-st-sort="temp">Suhu Server ⇅</th>
+                    <th>Last Sync</th>
+                    <th>Rekomendasi Tindakan</th>
                   </tr>
                 </thead>
-                <tbody id="fleetTableBody">
-                  <!-- Rendered via App.renderFleetTable() -->
+                <tbody id="storageTableBody">
+                  <!-- Rendered dynamically -->
                 </tbody>
               </table>
             </div>
 
-            <!-- Table Pagination Footer -->
+            <!-- Storage Pagination -->
             <div class="table-pagination">
-              <span id="tableCountLabel">Memuat data armada...</span>
+              <span id="storageTableCountLabel">Memuat data storage...</span>
               <div class="pagination-btn-group">
-                <button id="prevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
-                <span id="currentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="nextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- =========================================================================
-             VIEW 4: Incident & Alert Triage Room
-             ========================================================================= -->
-        <section id="view-alerts" class="view-section">
-          <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-            <!-- Overheats Section -->
-            <div class="glass-panel" style="padding: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-                <div>
-                  <h3 class="chart-title" style="color: var(--color-danger);">Prioritas Utama: 60 Server Sentral Overheat (≥80°C)</h3>
-                  <p class="chart-subtitle">Fokus proteksi server sentral & admin lokasi (+ 95 klien barrier gate & kiosk). 25 Server di zona kritis ≥90°C.</p>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                  <button class="btn btn-primary" onclick="App.activeFilter.alert='overheat'; App.activeFilter.cat='server'; document.querySelector('.sidebar-nav-btn[data-view=\'explorer\']').click(); App.applyFleetFilters();">
-                    Filter 60 Server Kritis ➜
-                  </button>
-                  <button class="btn btn-outline" onclick="App.activeFilter.alert='overheat'; App.activeFilter.cat='all'; document.querySelector('.sidebar-nav-btn[data-view=\'explorer\']').click(); App.applyFleetFilters();">
-                    Semua 155 Overheat ➜
-                  </button>
-                </div>
-              </div>
-              <div id="incidentOverheatGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
-                <!-- Rendered dynamically -->
+                <button id="storagePrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <span id="storageCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
+                <button id="storageNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
-            <!-- Low SSD Section -->
-            <div class="glass-panel" style="padding: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div>
-                  <h3 class="chart-title" style="color: var(--color-warning);">99 SSD Mengalami Degradasi (&lt;70%)</h3>
-                  <p class="chart-subtitle">Risiko read-only filesystem crash saat transaksi jam padat</p>
-                </div>
-                <button class="btn btn-outline" onclick="App.activeFilter.alert='low_ssd'; document.querySelector('.sidebar-nav-btn[data-view=\'explorer\']').click(); App.applyFleetFilters();">
-                  Filter di Tabel ➜
-                </button>
-              </div>
-              <div id="incidentSsdGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
-                <!-- Rendered dynamically -->
-              </div>
-            </div>
-
-            <!-- High Disk Usage Section -->
-            <div class="glass-panel" style="padding: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div>
-                  <h3 class="chart-title" style="color: var(--accent-primary);">198 Unit Penyimpanan Penuh (≥85%)</h3>
-                  <p class="chart-subtitle">Pembersihan log rotasi, docker prune, & vacuum PostgreSQL maintenance</p>
-                </div>
-                <button class="btn btn-outline" onclick="App.activeFilter.alert='high_storage'; document.querySelector('.sidebar-nav-btn[data-view=\'explorer\']').click(); App.applyFleetFilters();">
-                  Filter di Tabel ➜
-                </button>
-              </div>
-              <div id="incidentDiskGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
-                <!-- Rendered dynamically -->
-              </div>
-            </div>
           </div>
         </section>
 
@@ -962,38 +667,52 @@
   <div id="deviceDetailModal" class="modal-backdrop">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 id="modalDeviceTitle" class="modal-title">Detail Perangkat</h3>
-        <button id="closeModalBtn" class="modal-close-btn">&times;</button>
+        <h3 id="modalDeviceTitle" class="modal-title">Detail Perangkat Server</h3>
+        <button id="modalCloseBtn" class="modal-close-btn" title="Tutup">✕</button>
       </div>
-      <div id="modalBodyContent" class="modal-body">
-        <!-- Populated via App.openDetailModal() -->
+      <div class="modal-body" id="modalDeviceBody">
+        <!-- Rendered dynamically -->
       </div>
     </div>
   </div>
 
-  <!-- Tweaks Floating Trigger & Panel (SKILL REQUIREMENT) -->
-  <button id="tweaksTriggerBtn" class="tweaks-trigger-btn" title="Live Design Parameter Adjustment">
-    <span>⚙</span> Tweaks
+  <!-- Floating Tweaks Drawer Trigger (Skill Standard) -->
+  <button id="tweaksTriggerBtn" class="tweaks-trigger-btn" title="Kustomisasi Tampilan">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+    <span>Tweaks</span>
   </button>
 
-  <div id="tweaksDrawer" class="tweaks-panel-drawer">
+  <!-- Floating Tweaks Drawer -->
+  <div id="tweaksDrawer" class="tweaks-drawer">
     <div class="tweaks-header">
-      <span>Design Tweaks</span>
-      <button id="closeTweaksBtn" style="background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      <div class="tweaks-title">Pengaturan Tampilan</div>
+      <button id="closeTweaksBtn" class="tweaks-close-btn" title="Tutup">✕</button>
     </div>
 
-    <!-- Theme Mode -->
-    <div class="tweaks-field">
-      <span class="tweaks-label">Theme Mode</span>
+    <!-- Theme Setting -->
+    <div class="tweaks-group">
+      <label class="tweaks-label">Mode Tema</label>
       <div class="tweaks-segmented">
         <button class="tweaks-seg-btn active" data-theme-val="light">Light</button>
         <button class="tweaks-seg-btn" data-theme-val="dark">Dark</button>
       </div>
     </div>
 
-    <!-- Accent Color -->
-    <div class="tweaks-field">
-      <span class="tweaks-label">Accent Color</span>
+    <!-- UI Density Setting -->
+    <div class="tweaks-group">
+      <label class="tweaks-label">Kerapatan Tampilan</label>
+      <div class="tweaks-segmented">
+        <button class="tweaks-seg-btn active" data-density-val="comfortable">Comfortable</button>
+        <button class="tweaks-seg-btn" data-density-val="compact">Compact</button>
+      </div>
+    </div>
+
+    <!-- Accent Color Setting -->
+    <div class="tweaks-group">
+      <label class="tweaks-label">Aksen Warna</label>
       <div class="tweaks-segmented">
         <button class="tweaks-seg-btn active" data-accent-val="cobalt">Cobalt</button>
         <button class="tweaks-seg-btn" data-accent-val="cyan">Cyan</button>
@@ -1002,27 +721,17 @@
       </div>
     </div>
 
-    <!-- Density -->
-    <div class="tweaks-field">
-      <span class="tweaks-label">UI Density</span>
-      <div class="tweaks-segmented">
-        <button class="tweaks-seg-btn active" data-density-val="comfortable">Comfortable</button>
-        <button class="tweaks-seg-btn" data-density-val="compact">Compact</button>
-      </div>
-    </div>
-
-    <div style="font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 8px;">
-      Live parameters persist in browser local storage.
+    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+      Support Apps Engine v2.6 · Nilai preferensi disimpan di localStorage.
     </div>
   </div>
 
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <!-- Application Scripts -->
+  <!-- Fallback Embedded Summary -->
   <script src="js/summary-data.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/presentation.js"></script>
+  <!-- Application Controller -->
   <script src="js/app.js"></script>
 </body>
 </html>

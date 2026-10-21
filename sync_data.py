@@ -1,9 +1,10 @@
 import csv
 import json
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 import os
 import urllib.request
+import datetime
 
 CSV_URL = "https://docs.google.com/spreadsheets/d/11HUECMQG_30Sc1AupFLac7OxBDiFiZOD339LjiOkpdc/export?format=csv&gid=0"
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -56,11 +57,11 @@ for r in raw_rows:
     
     h_lower = host.lower()
     dev_cat = "Other / Network"
-    if "server" in h_lower:
+    if "server" in h_lower or "srv" in h_lower or "master" in h_lower:
         dev_cat = "Server"
     elif "admin" in h_lower:
         dev_cat = "Admin"
-    elif any(k in h_lower for k in ["pm", "pos", "gate", "barrier", "kiosk", "dispenser", "in-", "out-", "entry", "exit", "b1", "b2", "lobby"]):
+    elif any(k in h_lower for k in ["pm", "pos", "gate", "barrier", "kiosk", "dispenser", "in-", "out-", "entry", "exit", "b1", "b2", "lobby", "pelataran"]):
         dev_cat = "Gate / Kiosk"
     elif "cashier" in h_lower or "kasir" in h_lower:
         dev_cat = "Cashier"
@@ -129,6 +130,11 @@ for r in raw_rows:
         "zt": r.get("IP ZT Lokasi", "").strip(),
         "sync": r.get("Last Sync", "").strip(),
         "agent": r.get("Agent Version", "").strip(),
+        "fisherman": r.get("Fisherman Version", "").strip(),
+        "watersheep": r.get("Watersheep Version", "").strip(),
+        "wbo": r.get("WBO Version", "").strip(),
+        "reader_ver": r.get("Versi Reader", "").strip(),
+        "reader_sn": r.get("SN Reader", "").strip(),
         "cpu": r.get("Processor", "").strip(),
         "cpu_family": cpu_family,
         "ram": r.get("Total Ram", "").strip(),
@@ -146,25 +152,105 @@ for r in raw_rows:
 
 print(f"Processed {len(records)} records")
 
-# Save fleet.json
+# 1. Save fleet.json
 fleet_file = os.path.join(data_dir, "fleet.json")
 with open(fleet_file, "w", encoding="utf-8") as f:
     json.dump(records, f, separators=(',', ':'))
 
-unique_locs = len(set(r["loc"] for r in records))
-tier_counts = Counter(r["tier"] for r in records)
-cat_counts = Counter(r["cat"] for r in records)
-
-overheats = sorted([r for r in records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
-critical_ssd = sorted([r for r in records if r["ssd_health"] is not None and r["ssd_health"] < 70], key=lambda x: x["ssd_health"])
-critical_storage = sorted([r for r in records if r["ssd_usage"] is not None and r["ssd_usage"] >= 85], key=lambda x: x["ssd_usage"], reverse=True)
-
-# Separate Server vs Client thermal metrics
+# 2. Separate Server records & Client records
 server_records = [r for r in records if r["is_server"]]
 client_records = [r for r in records if not r["is_server"]]
 
+servers_file = os.path.join(data_dir, "servers.json")
+with open(servers_file, "w", encoding="utf-8") as f:
+    json.dump(server_records, f, separators=(',', ':'))
+
+# 3. Aggregate 961 Locations for 'Location Information'
+locs_map = defaultdict(lambda: {
+    "loc": "",
+    "code": "",
+    "tier": "",
+    "zt": "",
+    "last_sync": "",
+    "agent": "",
+    "fisherman": "",
+    "watersheep": "",
+    "wbo": "",
+    "os": "",
+    "total_devs": 0,
+    "total_servers": 0,
+    "total_clients": 0,
+    "server_overheats": 0,
+    "client_overheats": 0,
+    "has_reader": False
+})
+
+for r in records:
+    loc_name = r["loc"]
+    entry = locs_map[loc_name]
+    entry["loc"] = loc_name
+    entry["total_devs"] += 1
+
+    if r["code"] and not entry["code"]: entry["code"] = r["code"]
+    if r["tier"] and not entry["tier"]: entry["tier"] = r["tier"]
+
+    if r["is_server"]:
+        entry["total_servers"] += 1
+        if r["temp"] and r["temp"] >= 80: entry["server_overheats"] += 1
+        if r["zt"] and not entry["zt"]: entry["zt"] = r["zt"]
+        if r["sync"] and (not entry["last_sync"] or r["sync"] > entry["last_sync"]): entry["last_sync"] = r["sync"]
+        if r["agent"] and not entry["agent"]: entry["agent"] = r["agent"]
+        if r["fisherman"] and not entry["fisherman"]: entry["fisherman"] = r["fisherman"]
+        if r["watersheep"] and not entry["watersheep"]: entry["watersheep"] = r["watersheep"]
+        if r["wbo"] and not entry["wbo"]: entry["wbo"] = r["wbo"]
+        if r["os"] and not entry["os"]: entry["os"] = r["os"]
+    else:
+        entry["total_clients"] += 1
+        if r["temp"] and r["temp"] >= 80: entry["client_overheats"] += 1
+        if r["reader_ver"] or r["reader_sn"]: entry["has_reader"] = True
+        # Fallback values
+        if r["zt"] and not entry["zt"]: entry["zt"] = r["zt"]
+        if r["sync"] and (not entry["last_sync"] or r["sync"] > entry["last_sync"]): entry["last_sync"] = r["sync"]
+        if r["agent"] and not entry["agent"]: entry["agent"] = r["agent"]
+        if r["fisherman"] and not entry["fisherman"]: entry["fisherman"] = r["fisherman"]
+        if r["watersheep"] and not entry["watersheep"]: entry["watersheep"] = r["watersheep"]
+        if r["wbo"] and not entry["wbo"]: entry["wbo"] = r["wbo"]
+        if r["os"] and not entry["os"]: entry["os"] = r["os"]
+
+locations_list = sorted(list(locs_map.values()), key=lambda x: x["loc"].lower())
+
+locations_file = os.path.join(data_dir, "locations.json")
+with open(locations_file, "w", encoding="utf-8") as f:
+    json.dump(locations_list, f, separators=(',', ':'))
+
+# 4. Storage Audit Data (Server Only)
+server_storage_list = []
+for s in server_records:
+    server_storage_list.append({
+        "loc": s["loc"],
+        "code": s["code"],
+        "tier": s["tier"],
+        "host": s["host"],
+        "ssd_brand": s["ssd_brand"],
+        "ssd_type": s["ssd_type"],
+        "ssd_size": s["ssd_size"],
+        "ssd_health": s["ssd_health"],
+        "ssd_usage": s["ssd_usage"],
+        "temp": s["temp"],
+        "sync": s["sync"]
+    })
+
+server_storage_file = os.path.join(data_dir, "server_storage.json")
+with open(server_storage_file, "w", encoding="utf-8") as f:
+    json.dump(server_storage_list, f, separators=(',', ':'))
+
+# 5. Summary Statistics for KPIs
+unique_locs = len(locations_list)
+tier_counts = Counter(r["tier"] for r in records)
 server_overheats = sorted([r for r in server_records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
 client_overheats = sorted([r for r in client_records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
+critical_server_ssd = [r for r in server_records if r["ssd_health"] is not None and r["ssd_health"] < 70]
+critical_server_storage = [r for r in server_records if r["ssd_usage"] is not None and r["ssd_usage"] >= 85]
 
 server_temp_ranges = {
     "< 50°C (Cool)": sum(1 for r in server_records if r["temp"] is not None and r["temp"] < 50),
@@ -174,116 +260,39 @@ server_temp_ranges = {
     ">= 90°C (Critical)": sum(1 for r in server_records if r["temp"] is not None and r["temp"] >= 90),
 }
 
-client_temp_ranges = {
-    "< 50°C (Cool)": sum(1 for r in client_records if r["temp"] is not None and r["temp"] < 50),
-    "50-69°C (Normal)": sum(1 for r in client_records if r["temp"] is not None and 50 <= r["temp"] < 70),
-    "70-79°C (Warm)": sum(1 for r in client_records if r["temp"] is not None and 70 <= r["temp"] < 80),
-    "80-89°C (Hot)": sum(1 for r in client_records if r["temp"] is not None and 80 <= r["temp"] < 90),
-    ">= 90°C (Critical)": sum(1 for r in client_records if r["temp"] is not None and r["temp"] >= 90),
+server_ssd_health_ranges = {
+    ">= 95% (Pristine)": sum(1 for r in server_records if r["ssd_health"] is not None and r["ssd_health"] >= 95),
+    "80-94% (Good)": sum(1 for r in server_records if r["ssd_health"] is not None and 80 <= r["ssd_health"] < 95),
+    "70-79% (Warning)": sum(1 for r in server_records if r["ssd_health"] is not None and 70 <= r["ssd_health"] < 80),
+    "< 70% (Degraded)": len(critical_server_ssd),
 }
 
-loc_issues = Counter()
-for r in overheats: loc_issues[r["loc"]] += 3
-for r in critical_ssd: loc_issues[r["loc"]] += 2
-for r in critical_storage: loc_issues[r["loc"]] += 2
-
-top_problem_locs = []
-for loc_name, score in loc_issues.most_common(12):
-    loc_devs = [r for r in records if r["loc"] == loc_name]
-    top_problem_locs.append({
-        "loc": loc_name,
-        "score": score,
-        "tier": loc_devs[0]["tier"] if loc_devs else "Standard",
-        "total_devs": len(loc_devs),
-        "overheats": sum(1 for r in loc_devs if r["temp"] and r["temp"] >= 80),
-        "server_overheats": sum(1 for r in loc_devs if r["is_server"] and r["temp"] and r["temp"] >= 80),
-        "critical_ssd": sum(1 for r in loc_devs if r["ssd_health"] and r["ssd_health"] < 70),
-        "critical_storage": sum(1 for r in loc_devs if r["ssd_usage"] and r["ssd_usage"] >= 85)
-    })
-
-temp_ranges = {
-    "< 50°C (Cool)": sum(1 for r in records if r["temp"] is not None and r["temp"] < 50),
-    "50-69°C (Normal)": sum(1 for r in records if r["temp"] is not None and 50 <= r["temp"] < 70),
-    "70-79°C (Warm)": sum(1 for r in records if r["temp"] is not None and 70 <= r["temp"] < 80),
-    "80-89°C (Hot)": sum(1 for r in records if r["temp"] is not None and 80 <= r["temp"] < 90),
-    ">= 90°C (Critical)": sum(1 for r in records if r["temp"] is not None and r["temp"] >= 90),
+server_ssd_usage_ranges = {
+    "< 50% (Plenty)": sum(1 for r in server_records if r["ssd_usage"] is not None and r["ssd_usage"] < 50),
+    "50-69% (Moderate)": sum(1 for r in server_records if r["ssd_usage"] is not None and 50 <= r["ssd_usage"] < 70),
+    "70-84% (High)": sum(1 for r in server_records if r["ssd_usage"] is not None and 70 <= r["ssd_usage"] < 85),
+    ">= 85% (Critical)": len(critical_server_storage),
 }
 
-health_ranges = {
-    ">= 95% (Pristine)": sum(1 for r in records if r["ssd_health"] is not None and r["ssd_health"] >= 95),
-    "80-94% (Good)": sum(1 for r in records if r["ssd_health"] is not None and 80 <= r["ssd_health"] < 95),
-    "70-79°C (Warning)": sum(1 for r in records if r["ssd_health"] is not None and 70 <= r["ssd_health"] < 80),
-    "< 70% (Degraded)": sum(1 for r in records if r["ssd_health"] is not None and r["ssd_health"] < 70),
-}
-
-usage_ranges = {
-    "< 50% (Plenty)": sum(1 for r in records if r["ssd_usage"] is not None and r["ssd_usage"] < 50),
-    "50-69% (Moderate)": sum(1 for r in records if r["ssd_usage"] is not None and 50 <= r["ssd_usage"] < 70),
-    "70-84% (High)": sum(1 for r in records if r["ssd_usage"] is not None and 70 <= r["ssd_usage"] < 85),
-    ">= 85% (Critical)": sum(1 for r in records if r["ssd_usage"] is not None and r["ssd_usage"] >= 85),
-}
-
-os_counter = Counter()
-for r in records:
-    os_name = r["os"]
-    if "22.04" in os_name: os_counter["Ubuntu/ParkeeOS 22.04 LTS"] += 1
-    elif "18.04" in os_name: os_counter["ParkeeOS 18.04 LTS"] += 1
-    elif "20.04" in os_name: os_counter["Ubuntu 20.04 LTS"] += 1
-    elif "24.04" in os_name: os_counter["Ubuntu 24.04 LTS"] += 1
-    elif os_name: os_counter["Other Linux"] += 1
-    else: os_counter["Unreported"] += 1
-
-import datetime
 summary = {
     "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S WIB"),
     "total_devices": len(records),
+    "total_servers": len(server_records),
+    "total_clients": len(client_records),
     "unique_locations": unique_locs,
     "tier_counts": dict(tier_counts),
-    "device_categories": dict(cat_counts),
-    "cpu_families": dict(Counter(r["cpu_family"] for r in records if r["cpu_family"]).most_common(6)),
-    "ssd_brands": dict(Counter(r["ssd_brand"] for r in records if r["ssd_brand"]).most_common(6)),
-    "ram_brands": dict(Counter(r["ram_brand"] for r in records if r["ram_brand"]).most_common(6)),
-    "mb_brands": dict(Counter(r["mb_brand"] for r in records if r["mb_brand"]).most_common(6)),
-    "temp_stats": {
-        "reported": sum(temp_ranges.values()),
-        "overheat_count": len(overheats),
-        "ranges": temp_ranges,
-        "top_overheats": overheats[:12]
-    },
-    "server_temp_stats": {
-        "reported": sum(server_temp_ranges.values()),
-        "total_servers": len(server_records),
-        "overheat_count": len(server_overheats),
-        "critical_90_count": sum(1 for r in server_overheats if r["temp"] >= 90),
-        "ranges": server_temp_ranges,
-        "top_overheats": server_overheats[:15]
-    },
-    "client_temp_stats": {
-        "reported": sum(client_temp_ranges.values()),
-        "total_clients": len(client_records),
-        "overheat_count": len(client_overheats),
-        "ranges": client_temp_ranges,
-        "top_overheats": client_overheats[:12]
-    },
-    "ssd_health_stats": {
-        "reported": sum(health_ranges.values()),
-        "critical_count": len(critical_ssd),
-        "ranges": health_ranges,
-        "top_critical": critical_ssd[:12]
-    },
-    "ssd_usage_stats": {
-        "reported": sum(usage_ranges.values()),
-        "critical_count": len(critical_storage),
-        "ranges": usage_ranges,
-        "top_critical": critical_storage[:12]
-    },
-    "ssd_types": {
-        "NVMe": sum(1 for r in records if r["ssd_type"] == "NVMe"),
-        "SATA": sum(1 for r in records if r["ssd_type"] == "SATA"),
-        "Other": sum(1 for r in records if r["ssd_type"] not in ["NVMe", "SATA"] and r["ssd_type"] != "-")
-    },
-    "os_distribution": dict(os_counter.most_common(6)),
-    "top_problem_locations": top_problem_locs
+    "server_overheats_count": len(server_overheats),
+    "client_overheats_count": len(client_overheats),
+    "critical_server_ssd_count": len(critical_server_ssd),
+    "critical_server_storage_count": len(critical_server_storage),
+    "server_nvme_count": sum(1 for r in server_records if r["ssd_type"] == "NVMe"),
+    "server_sata_count": sum(1 for r in server_records if r["ssd_type"] == "SATA"),
+    "server_temp_ranges": server_temp_ranges,
+    "server_ssd_health_ranges": server_ssd_health_ranges,
+    "server_ssd_usage_ranges": server_ssd_usage_ranges,
+    "top_server_overheats": server_overheats[:15],
+    "top_server_ssd_critical": critical_server_ssd[:15],
+    "top_server_storage_critical": critical_server_storage[:15]
 }
 
 summary_file = os.path.join(data_dir, "summary.json")
@@ -294,4 +303,4 @@ js_file = os.path.join(js_dir, "summary-data.js")
 with open(js_file, "w", encoding="utf-8") as f:
     f.write("window.PRECOMPUTED_SUMMARY = " + json.dumps(summary, indent=2) + ";\n")
 
-print("Generated summary.json, fleet.json, and js/summary-data.js successfully!")
+print(f"Generated successfully: {unique_locs} locations, {len(server_records)} servers, {len(client_records)} clients!")
