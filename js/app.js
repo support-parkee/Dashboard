@@ -365,7 +365,7 @@ const App = {
           <td>
             <div style="font-weight: 700; color: var(--text-main); font-size: 0.875rem;">${item.loc}</div>
             <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
-              ${item.total_servers} Server · ${item.total_clients} Klien
+              ${item.total_clients} Klien
             </div>
           </td>
           <td>
