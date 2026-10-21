@@ -967,6 +967,75 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--color-danger);
 }
 
+/* Specific Advanced Filter Bar Styles */
+.filter-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+  margin-top: 0.4rem;
+}
+
+.filter-group-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-group-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.filter-select {
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-light);
+  background: var(--surface-card);
+  color: var(--text-main);
+  font-size: 0.74rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  max-width: 175px;
+}
+
+.filter-select:hover, .filter-select:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.btn-reset-filters {
+  background: var(--surface-card);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.btn-reset-filters:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: var(--surface-hover);
+}
+
 /* Responsive Table */
 .table-responsive {
   width: 100%;
