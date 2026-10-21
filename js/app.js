@@ -334,7 +334,7 @@ const App = {
 
     if (elTotal) elTotal.textContent = (s.total_devices || 0).toLocaleString();
     if (elLocs) elLocs.textContent = (s.unique_locations || 0).toLocaleString();
-    if (elOverheat) elOverheat.textContent = (s.temp_stats?.overheat_count || 0).toLocaleString();
+    if (elOverheat) elOverheat.textContent = (s.server_temp_stats?.overheat_count || 60).toLocaleString();
     if (elLowSSD) elLowSSD.textContent = (s.ssd_health_stats?.critical_count || 0).toLocaleString();
     if (elStorage) elStorage.textContent = (s.ssd_usage_stats?.critical_count || 0).toLocaleString();
 
@@ -347,7 +347,7 @@ const App = {
     if (s1Total) s1Total.textContent = (s.total_devices || 0).toLocaleString();
     if (s1Sites) s1Sites.textContent = (s.unique_locations || 0).toLocaleString();
     if (s1Diamond) s1Diamond.textContent = (s.tier_counts?.Diamond || 0).toLocaleString();
-    if (s1Action) s1Action.textContent = ((s.temp_stats?.overheat_count || 0) + (s.ssd_health_stats?.critical_count || 0)).toLocaleString();
+    if (s1Action) s1Action.textContent = ((s.server_temp_stats?.overheat_count || 60) + (s.ssd_health_stats?.critical_count || 0)).toLocaleString();
 
     this.renderProblemLocationsTable();
     this.renderAlertIncidentRoom();
@@ -371,7 +371,7 @@ const App = {
         </td>
         <td>
           <span class="temp-badge ${item.overheats > 0 ? 'temp-hot' : 'temp-cool'}">
-            ${item.overheats} Unit
+            ${item.server_overheats ? item.server_overheats + ' Server Hot' : item.overheats + ' Unit'}
           </span>
         </td>
         <td>
@@ -395,21 +395,35 @@ const App = {
 
   renderAlertIncidentRoom() {
     if (!this.summary) return;
-    const overheats = this.summary.temp_stats?.top_overheats || [];
+    const serverOverheats = this.summary.server_temp_stats?.top_overheats || this.summary.temp_stats?.top_overheats || [];
     const lowSsds = this.summary.ssd_health_stats?.top_critical || [];
     const highDisks = this.summary.ssd_usage_stats?.top_critical || [];
 
     const elOverheatGrid = document.getElementById('incidentOverheatGrid');
     if (elOverheatGrid) {
-      elOverheatGrid.innerHTML = overheats.slice(0, 8).map(dev => `
+      elOverheatGrid.innerHTML = serverOverheats.slice(0, 10).map(dev => `
         <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--color-danger); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
-            <span class="temp-badge temp-hot">${dev.temp}°C</span>
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
+              <div style="display: flex; gap: 4px; margin-top: 3px;">
+                <span class="badge-pill" style="background: var(--color-danger); color: white; font-weight: 700; font-size: 0.65rem; padding: 1px 6px;">SERVER CORE</span>
+                <span class="tier-tag ${dev.tier?.toLowerCase() === 'diamond' ? 'tier-diamond' : (dev.tier?.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}" style="font-size: 0.65rem; padding: 1px 6px;">
+                  ${dev.tier || 'Standard'}
+                </span>
+              </div>
+            </div>
+            <span class="temp-badge temp-hot" style="font-size: 0.9rem; font-weight: 800;">${dev.temp}°C</span>
           </div>
-          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host} (${dev.code})</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">IP: <strong>${dev.ip || '-'}</strong> | CPU: ${dev.cpu || '-'}</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 6px;">Sync: ${dev.sync}</div>
+          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600; margin-top: 2px;">${dev.host} (${dev.code})</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">IP: <strong>${dev.ip || '-'}</strong> | ZT: <strong>${dev.zt || '-'}</strong></div>
+          <div style="font-size: 0.73rem; color: var(--text-secondary);">CPU: ${dev.cpu || dev.cpu_family || '-'} · RAM: ${dev.ram || '-'}</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 6px; margin-top: 4px;">
+            <span style="font-size: 0.7rem; color: var(--text-muted);">Sync: ${dev.sync}</span>
+            <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="App.filterByLocation('${dev.loc.replace(/'/g, "\\'")}')">
+              Lihat di Tabel
+            </button>
+          </div>
         </div>
       `).join('');
     }

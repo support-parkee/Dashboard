@@ -116,12 +116,15 @@ for r in raw_rows:
     elif "xeon" in cpu_raw: cpu_family = "Intel Xeon"
     elif cpu_raw: cpu_family = "Other x86/ARM"
 
+    is_server = ("server" in h_lower or "srv" in h_lower or "master" in h_lower or "admin" in h_lower or dev_cat in ["Server", "Admin"])
+
     records.append({
         "loc": loc,
         "code": r.get("Kode Unik Lokasi", "").strip(),
         "tier": tier,
         "host": host,
         "cat": dev_cat,
+        "is_server": is_server,
         "ip": r.get("IP local lokasi", "").strip(),
         "zt": r.get("IP ZT Lokasi", "").strip(),
         "sync": r.get("Last Sync", "").strip(),
@@ -156,6 +159,29 @@ overheats = sorted([r for r in records if r["temp"] is not None and r["temp"] >=
 critical_ssd = sorted([r for r in records if r["ssd_health"] is not None and r["ssd_health"] < 70], key=lambda x: x["ssd_health"])
 critical_storage = sorted([r for r in records if r["ssd_usage"] is not None and r["ssd_usage"] >= 85], key=lambda x: x["ssd_usage"], reverse=True)
 
+# Separate Server vs Client thermal metrics
+server_records = [r for r in records if r["is_server"]]
+client_records = [r for r in records if not r["is_server"]]
+
+server_overheats = sorted([r for r in server_records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
+client_overheats = sorted([r for r in client_records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
+
+server_temp_ranges = {
+    "< 50°C (Cool)": sum(1 for r in server_records if r["temp"] is not None and r["temp"] < 50),
+    "50-69°C (Normal)": sum(1 for r in server_records if r["temp"] is not None and 50 <= r["temp"] < 70),
+    "70-79°C (Warm)": sum(1 for r in server_records if r["temp"] is not None and 70 <= r["temp"] < 80),
+    "80-89°C (Hot)": sum(1 for r in server_records if r["temp"] is not None and 80 <= r["temp"] < 90),
+    ">= 90°C (Critical)": sum(1 for r in server_records if r["temp"] is not None and r["temp"] >= 90),
+}
+
+client_temp_ranges = {
+    "< 50°C (Cool)": sum(1 for r in client_records if r["temp"] is not None and r["temp"] < 50),
+    "50-69°C (Normal)": sum(1 for r in client_records if r["temp"] is not None and 50 <= r["temp"] < 70),
+    "70-79°C (Warm)": sum(1 for r in client_records if r["temp"] is not None and 70 <= r["temp"] < 80),
+    "80-89°C (Hot)": sum(1 for r in client_records if r["temp"] is not None and 80 <= r["temp"] < 90),
+    ">= 90°C (Critical)": sum(1 for r in client_records if r["temp"] is not None and r["temp"] >= 90),
+}
+
 loc_issues = Counter()
 for r in overheats: loc_issues[r["loc"]] += 3
 for r in critical_ssd: loc_issues[r["loc"]] += 2
@@ -170,6 +196,7 @@ for loc_name, score in loc_issues.most_common(12):
         "tier": loc_devs[0]["tier"] if loc_devs else "Standard",
         "total_devs": len(loc_devs),
         "overheats": sum(1 for r in loc_devs if r["temp"] and r["temp"] >= 80),
+        "server_overheats": sum(1 for r in loc_devs if r["is_server"] and r["temp"] and r["temp"] >= 80),
         "critical_ssd": sum(1 for r in loc_devs if r["ssd_health"] and r["ssd_health"] < 70),
         "critical_storage": sum(1 for r in loc_devs if r["ssd_usage"] and r["ssd_usage"] >= 85)
     })
@@ -185,7 +212,7 @@ temp_ranges = {
 health_ranges = {
     ">= 95% (Pristine)": sum(1 for r in records if r["ssd_health"] is not None and r["ssd_health"] >= 95),
     "80-94% (Good)": sum(1 for r in records if r["ssd_health"] is not None and 80 <= r["ssd_health"] < 95),
-    "70-79% (Warning)": sum(1 for r in records if r["ssd_health"] is not None and 70 <= r["ssd_health"] < 80),
+    "70-79°C (Warning)": sum(1 for r in records if r["ssd_health"] is not None and 70 <= r["ssd_health"] < 80),
     "< 70% (Degraded)": sum(1 for r in records if r["ssd_health"] is not None and r["ssd_health"] < 70),
 }
 
@@ -222,6 +249,21 @@ summary = {
         "overheat_count": len(overheats),
         "ranges": temp_ranges,
         "top_overheats": overheats[:12]
+    },
+    "server_temp_stats": {
+        "reported": sum(server_temp_ranges.values()),
+        "total_servers": len(server_records),
+        "overheat_count": len(server_overheats),
+        "critical_90_count": sum(1 for r in server_overheats if r["temp"] >= 90),
+        "ranges": server_temp_ranges,
+        "top_overheats": server_overheats[:15]
+    },
+    "client_temp_stats": {
+        "reported": sum(client_temp_ranges.values()),
+        "total_clients": len(client_records),
+        "overheat_count": len(client_overheats),
+        "ranges": client_temp_ranges,
+        "top_overheats": client_overheats[:12]
     },
     "ssd_health_stats": {
         "reported": sum(health_ranges.values()),

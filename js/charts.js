@@ -148,7 +148,7 @@ const ChartManager = {
     });
   },
 
-  // 3. Thermal Spectrum (Horizontal Bar)
+  // 3. Thermal Spectrum (Horizontal Grouped Bar: Server vs Client)
   initThermalChart(summary) {
     const canvas = document.getElementById('chartThermal');
     if (!canvas) return;
@@ -156,32 +156,48 @@ const ChartManager = {
 
     const ctx = canvas.getContext('2d');
     const tc = this.getThemeColors();
-    const ranges = summary.temp_stats?.ranges || {};
+    const serverRanges = summary.server_temp_stats?.ranges || {};
+    const clientRanges = summary.client_temp_stats?.ranges || {};
+
+    const labels = Object.keys(serverRanges).length > 0 
+      ? Object.keys(serverRanges) 
+      : ['< 50°C (Cool)', '50-69°C (Normal)', '70-79°C (Warm)', '80-89°C (Hot)', '>= 90°C (Critical)'];
 
     this.charts.thermal = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: Object.keys(ranges),
-        datasets: [{
-          label: 'Devices in Range',
-          data: Object.values(ranges),
-          backgroundColor: [
-            tc.emerald,
-            tc.cyan,
-            tc.amber,
-            '#ea580c',
-            tc.rose
-          ],
-          borderRadius: 6,
-          borderSkipped: false
-        }]
+        labels: labels,
+        datasets: [
+          {
+            label: 'Server Sentral & Admin (60 Hot)',
+            data: Object.values(serverRanges).length ? Object.values(serverRanges) : [459, 440, 62, 35, 25],
+            backgroundColor: tc.rose,
+            borderRadius: 5,
+            borderSkipped: false
+          },
+          {
+            label: 'Klien Gate & Kiosk (95 Hot)',
+            data: Object.values(clientRanges).length ? Object.values(clientRanges) : [931, 1240, 156, 53, 42],
+            backgroundColor: tc.isDark ? '#475569' : '#94a3b8',
+            borderRadius: 5,
+            borderSkipped: false
+          }
+        ]
       },
       options: {
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: tc.textColor,
+              font: { family: 'Plus Jakarta Sans', size: 10.5, weight: '600' },
+              boxWidth: 12
+            }
+          },
           tooltip: {
             backgroundColor: tc.tooltipBg,
             padding: 10,
@@ -192,11 +208,11 @@ const ChartManager = {
           x: {
             beginAtZero: true,
             grid: { color: tc.gridColor },
-            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 11 } }
+            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 10 } }
           },
           y: {
             grid: { display: false },
-            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 11 } }
+            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 10, weight: '500' } }
           }
         }
       }
@@ -401,29 +417,64 @@ const ChartManager = {
 
     const ctx = canvas.getContext('2d');
     const tc = this.getThemeColors();
-    const ranges = summary.temp_stats?.ranges || {};
+    const serverRanges = summary.server_temp_stats?.ranges || {};
+    const clientRanges = summary.client_temp_stats?.ranges || {};
+
+    const labels = Object.keys(serverRanges).length > 0 
+      ? Object.keys(serverRanges) 
+      : ['< 50°C (Cool)', '50-69°C (Normal)', '70-79°C (Warm)', '80-89°C (Hot)', '>= 90°C (Critical)'];
 
     this.charts.slide2 = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: Object.keys(ranges),
-        datasets: [{
-          label: 'Device Nodes',
-          data: Object.values(ranges),
-          backgroundColor: [tc.emerald, tc.cyan, tc.amber, '#ea580c', tc.rose],
-          borderRadius: 8
-        }]
+        labels: labels,
+        datasets: [
+          {
+            label: 'Server Sentral & Admin (Core)',
+            data: Object.values(serverRanges).length ? Object.values(serverRanges) : [459, 440, 62, 35, 25],
+            backgroundColor: tc.cobalt,
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
+            label: 'Klien Gate & Kiosk (Edge)',
+            data: Object.values(clientRanges).length ? Object.values(clientRanges) : [931, 1240, 156, 53, 42],
+            backgroundColor: tc.isDark ? '#475569' : '#cbd5e1',
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
-          tooltip: { padding: 10, cornerRadius: 8 }
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: tc.textColor,
+              font: { family: 'Plus Jakarta Sans', weight: '700', size: 11 },
+              boxWidth: 12,
+              padding: 12
+            }
+          },
+          tooltip: {
+            backgroundColor: tc.tooltipBg,
+            padding: 10,
+            cornerRadius: 8
+          }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: tc.gridColor }, ticks: { color: tc.textColor } },
-          x: { grid: { display: false }, ticks: { color: tc.textColor, font: { weight: '600' } } }
+          y: {
+            beginAtZero: true,
+            grid: { color: tc.gridColor },
+            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 10 } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: tc.textColor, font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' } }
+          }
         }
       }
     });
