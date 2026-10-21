@@ -1,16 +1,25 @@
 /**
- * PARKEE FleetIQ - Interactive Presentation Controller (Slide Deck / Keynote)
- * Fullscreen presentation runner, keyboard shortcuts, and auto-play
+ * PARKEE FleetIQ - Interactive Presentation Controller (Web Design Engineer Standard)
+ * 1-Indexed numbering, persistent slide memory via localStorage, and keyboard shortcuts
  */
 
 const PresentationController = {
   currentSlide: 1,
   totalSlides: 6,
   autoPlayTimer: null,
-  autoPlayIntervalMs: 12000, // 12 seconds per slide
+  autoPlayIntervalMs: 12000,
   isPlaying: false,
 
   init() {
+    // Restore saved slide from localStorage if available
+    const savedSlide = localStorage.getItem('parkee_presentation_slide');
+    if (savedSlide) {
+      const parsed = parseInt(savedSlide, 10);
+      if (parsed >= 1 && parsed <= this.totalSlides) {
+        this.currentSlide = parsed;
+      }
+    }
+
     this.bindEvents();
     this.updateSlideUI();
   },
@@ -39,9 +48,8 @@ const PresentationController = {
       });
     });
 
-    // Keyboard Shortcuts
+    // Keyboard Shortcuts (ArrowRight, Space, ArrowLeft, F)
     window.addEventListener('keydown', (e) => {
-      // Only trigger if presentation view is active
       const presSection = document.getElementById('view-presentation');
       if (!presSection || !presSection.classList.contains('active-view')) return;
 
@@ -51,7 +59,7 @@ const PresentationController = {
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
         this.prevSlide();
-      } else if (e.key.toLowerCase() === 'f') {
+      } else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
         this.toggleFullscreen();
       } else if (e.key === 'Home') {
         this.goToSlide(1);
@@ -65,7 +73,7 @@ const PresentationController = {
     if (this.currentSlide < this.totalSlides) {
       this.currentSlide++;
     } else {
-      this.currentSlide = 1; // loop back
+      this.currentSlide = 1;
     }
     this.updateSlideUI();
   },
@@ -87,6 +95,9 @@ const PresentationController = {
   },
 
   updateSlideUI() {
+    // Persist position in localStorage
+    localStorage.setItem('parkee_presentation_slide', this.currentSlide.toString());
+
     // Hide all slides
     const slides = document.querySelectorAll('.slide-item');
     slides.forEach(slide => slide.classList.remove('active-slide'));
@@ -104,13 +115,14 @@ const PresentationController = {
       dot.classList.toggle('active', s === this.currentSlide);
     });
 
-    // Update Counter badge
+    // Update Counter badge (1-indexed standard)
     const badge = document.getElementById('deckSlideNumberBadge');
     if (badge) {
-      badge.textContent = `SLIDE 0${this.currentSlide} / 0${this.totalSlides}`;
+      const label = targetSlide?.dataset?.screenLabel || `0${this.currentSlide}`;
+      badge.textContent = `SLIDE 0${this.currentSlide} / 0${this.totalSlides} · ${label.replace(/^\d+\s*/, '')}`;
     }
 
-    // Re-render charts for the active slide if needed
+    // Re-render charts for active slide
     if (window.ChartManager && window.currentSummary) {
       if (this.currentSlide === 1) window.ChartManager.initSlide1Chart(window.currentSummary);
       if (this.currentSlide === 2) window.ChartManager.initSlide2Chart(window.currentSummary);
@@ -124,10 +136,10 @@ const PresentationController = {
     if (this.isPlaying) {
       clearInterval(this.autoPlayTimer);
       this.isPlaying = false;
-      if (btn) btn.innerHTML = `<span>▶ Mulai Auto-Play</span>`;
+      if (btn) btn.innerHTML = `<span>▶ Auto-Play (12s)</span>`;
     } else {
       this.isPlaying = true;
-      if (btn) btn.innerHTML = `<span>⏸ Berhenti Auto-Play</span>`;
+      if (btn) btn.innerHTML = `<span>⏸ Pause Auto-Play</span>`;
       this.autoPlayTimer = setInterval(() => {
         this.nextSlide();
       }, this.autoPlayIntervalMs);
@@ -138,13 +150,11 @@ const PresentationController = {
     const container = document.querySelector('.slide-frame') || document.documentElement;
     if (!document.fullscreenElement) {
       if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
+        container.requestFullscreen().catch(() => {});
       }
     } else {
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch(() => {});
       }
     }
   }

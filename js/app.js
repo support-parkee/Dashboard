@@ -1,6 +1,6 @@
 /**
- * PARKEE FleetIQ - Core Application Logic
- * Left Sidebar Navigation, 05:00 AM Auto-Refresh Scheduler & Live Google Sheets Sync
+ * PARKEE FleetIQ - Core Application Logic (Web Design Engineer Standard)
+ * Left Sidebar, Live Google Sheets Sync, 05:00 AM Auto-Refresh, Dark/Light Themes & Tweaks Panel
  */
 
 const App = {
@@ -21,6 +21,7 @@ const App = {
   nextSyncTimeout: null,
 
   async init() {
+    this.initThemeAndTweaks();
     this.initNavigation();
     this.initModal();
     this.initHardwareTabs();
@@ -55,6 +56,116 @@ const App = {
 
     // 4. Check if today's 05:00 AM auto-refresh is due
     this.checkAutoSyncOnLoad();
+  },
+
+  // =========================================================================
+  // THEME & TWEAKS PANEL (SKILL REQUIREMENT)
+  // =========================================================================
+  initThemeAndTweaks() {
+    // 1. Theme (Light vs Dark)
+    const savedTheme = localStorage.getItem('parkee_theme') || 'light';
+    this.applyTheme(savedTheme);
+
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        this.applyTheme(next);
+      });
+    }
+
+    // 2. Density (Comfortable vs Compact)
+    const savedDensity = localStorage.getItem('parkee_density') || 'comfortable';
+    this.applyDensity(savedDensity);
+
+    // 3. Tweaks Drawer Toggle
+    const tweaksTrigger = document.getElementById('tweaksTriggerBtn');
+    const tweaksDrawer = document.getElementById('tweaksDrawer');
+    const closeTweaksBtn = document.getElementById('closeTweaksBtn');
+
+    if (tweaksTrigger && tweaksDrawer) {
+      tweaksTrigger.addEventListener('click', () => {
+        tweaksDrawer.classList.toggle('open');
+      });
+    }
+
+    if (closeTweaksBtn && tweaksDrawer) {
+      closeTweaksBtn.addEventListener('click', () => {
+        tweaksDrawer.classList.remove('open');
+      });
+    }
+
+    // Tweaks Segmented Buttons
+    document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.applyTheme(btn.dataset.themeVal);
+      });
+    });
+
+    document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.applyDensity(btn.dataset.densityVal);
+      });
+    });
+
+    document.querySelectorAll('.tweaks-seg-btn[data-accent-val]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tweaks-seg-btn[data-accent-val]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.applyAccent(btn.dataset.accentVal);
+      });
+    });
+  },
+
+  applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('parkee_theme', theme);
+
+    // Update icons
+    const iconSpan = document.getElementById('themeIconSpan');
+    if (iconSpan) {
+      iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+
+    // Update tweaks active state
+    document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => {
+      b.classList.toggle('active', b.dataset.themeVal === theme);
+    });
+
+    // Re-render charts with theme-aware colors
+    if (window.ChartManager && this.summary) {
+      window.ChartManager.initAllCharts(this.summary);
+    }
+  },
+
+  applyDensity(density) {
+    document.documentElement.setAttribute('data-density', density);
+    localStorage.setItem('parkee_density', density);
+
+    document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(b => {
+      b.classList.toggle('active', b.dataset.densityVal === density);
+    });
+  },
+
+  applyAccent(accent) {
+    const accents = {
+      cobalt: '#2563eb',
+      cyan: '#0891b2',
+      emerald: '#059669',
+      violet: '#7c3aed'
+    };
+    if (accents[accent]) {
+      document.documentElement.style.setProperty('--accent-primary', accents[accent]);
+      localStorage.setItem('parkee_accent', accent);
+      if (window.ChartManager && this.summary) {
+        window.ChartManager.initAllCharts(this.summary);
+      }
+    }
   },
 
   initNavigation() {
@@ -120,11 +231,9 @@ const App = {
   setupDailyRefreshScheduler() {
     const updateCountdown = () => {
       const now = new Date();
-      // Target today 05:00:00
       let target = new Date();
       target.setHours(5, 0, 0, 0);
 
-      // If it's already past 05:00 today, schedule for tomorrow 05:00
       if (now >= target) {
         target.setDate(target.getDate() + 1);
       }
@@ -138,17 +247,14 @@ const App = {
         badge.textContent = `Auto-refresh: ${hours}j ${mins}m (05:00 WIB)`;
       }
 
-      // If within 1 second of 05:00 AM, trigger sync
       if (diffMs <= 1000) {
         this.syncGoogleSheets(true);
       }
     };
 
     updateCountdown();
-    // Update timer text every minute
     setInterval(updateCountdown, 60000);
 
-    // Schedule exact timeout for next 05:00 AM
     const now = new Date();
     let next5AM = new Date();
     next5AM.setHours(5, 0, 0, 0);
@@ -161,7 +267,7 @@ const App = {
     this.nextSyncTimeout = setTimeout(() => {
       console.log('⏰ Auto-refresh triggered at 05:00 AM WIB!');
       this.syncGoogleSheets(true);
-      this.setupDailyRefreshScheduler(); // Schedule for next day
+      this.setupDailyRefreshScheduler();
     }, msUntil5AM);
   },
 
@@ -171,7 +277,6 @@ const App = {
     const today5AM = new Date();
     today5AM.setHours(5, 0, 0, 0);
 
-    // If current time is past 05:00 AM today and we haven't synced since today's 05:00 AM
     if (now > today5AM) {
       if (!lastSync || new Date(parseInt(lastSync, 10)) < today5AM) {
         console.log('⚡ Data stale since 05:00 AM today, auto-syncing in background...');
@@ -207,24 +312,20 @@ const App = {
     }
   },
 
-  // Render KPI cards and Top Alert highlights from summary
   renderDashboardSummary() {
     if (!this.summary) return;
     const s = this.summary;
 
-    // Header badge
     const headerBadge = document.getElementById('headerFleetBadge');
     if (headerBadge) {
-      headerBadge.textContent = `${(s.total_devices || 0).toLocaleString()} Nodes • ${s.unique_locations || 0} Sites`;
+      headerBadge.textContent = `${(s.total_devices || 0).toLocaleString()} Nodes · ${s.unique_locations || 0} Sites`;
     }
 
-    // Last sync label in top bar
     const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
     if (lastSyncLabel) {
       lastSyncLabel.textContent = s.last_updated ? `Update: ${s.last_updated}` : 'Terakhir disinkronkan: Hari ini, 05:00 WIB';
     }
 
-    // KPI Cards
     const elTotal = document.getElementById('kpiTotalDevices');
     const elLocs = document.getElementById('kpiTotalLocations');
     const elOverheat = document.getElementById('kpiOverheats');
@@ -248,10 +349,7 @@ const App = {
     if (s1Diamond) s1Diamond.textContent = (s.tier_counts?.Diamond || 0).toLocaleString();
     if (s1Action) s1Action.textContent = ((s.temp_stats?.overheat_count || 0) + (s.ssd_health_stats?.critical_count || 0)).toLocaleString();
 
-    // Populate Top Problem Locations Table in Executive View
     this.renderProblemLocationsTable();
-
-    // Populate Alerts View
     this.renderAlertIncidentRoom();
   },
 
@@ -261,10 +359,10 @@ const App = {
 
     tbody.innerHTML = this.summary.top_problem_locations.map((item, idx) => `
       <tr onclick="App.filterByLocation('${item.loc.replace(/'/g, "\\'")}')">
-        <td style="font-weight: 700; color: #475569;">#${idx + 1}</td>
+        <td style="font-weight: 700; color: var(--text-muted); font-family: var(--font-mono);">0${idx + 1}</td>
         <td>
-          <div style="font-weight: 700; color: #0f172a;">${item.loc}</div>
-          <div style="font-size: 0.75rem; color: #64748b;">${item.total_devs} unit terpasang</div>
+          <div style="font-weight: 700; color: var(--text-main);">${item.loc}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">${item.total_devs} unit terpasang</div>
         </td>
         <td>
           <span class="tier-tag ${item.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (item.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}">
@@ -273,7 +371,7 @@ const App = {
         </td>
         <td>
           <span class="temp-badge ${item.overheats > 0 ? 'temp-hot' : 'temp-cool'}">
-            🔥 ${item.overheats} Unit
+            ${item.overheats} Unit
           </span>
         </td>
         <td>
@@ -287,8 +385,8 @@ const App = {
           </span>
         </td>
         <td>
-          <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;">
-            Investigasi ➜
+          <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">
+            Investigasi
           </button>
         </td>
       </tr>
@@ -301,59 +399,55 @@ const App = {
     const lowSsds = this.summary.ssd_health_stats?.top_critical || [];
     const highDisks = this.summary.ssd_usage_stats?.top_critical || [];
 
-    // Overheats grid
     const elOverheatGrid = document.getElementById('incidentOverheatGrid');
     if (elOverheatGrid) {
       elOverheatGrid.innerHTML = overheats.slice(0, 8).map(dev => `
-        <div class="glass-panel" style="padding: 1.25rem; border-left: 4px solid #ef4444; display: flex; flex-direction: column; gap: 8px;">
+        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--color-danger); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 1rem; color: #0f172a;">${dev.loc}</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
             <span class="temp-badge temp-hot">${dev.temp}°C</span>
           </div>
-          <div style="font-family: var(--font-mono); font-size: 0.8rem; color: #4338ca; font-weight: 600;">${dev.host} (${dev.code})</div>
-          <div style="font-size: 0.8rem; color: #64748b;">IP: <strong>${dev.ip || '-'}</strong> | CPU: ${dev.cpu || '-'}</div>
-          <div style="font-size: 0.75rem; color: #94a3b8; border-top: 1px dashed #e2e8f0; padding-top: 6px;">Sync: ${dev.sync}</div>
+          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host} (${dev.code})</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">IP: <strong>${dev.ip || '-'}</strong> | CPU: ${dev.cpu || '-'}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 6px;">Sync: ${dev.sync}</div>
         </div>
       `).join('');
     }
 
-    // Low SSD grid
     const elSsdGrid = document.getElementById('incidentSsdGrid');
     if (elSsdGrid) {
       elSsdGrid.innerHTML = lowSsds.slice(0, 8).map(dev => `
-        <div class="glass-panel" style="padding: 1.25rem; border-left: 4px solid #f59e0b; display: flex; flex-direction: column; gap: 8px;">
+        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--color-warning); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 1rem; color: #0f172a;">${dev.loc}</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
             <span class="ssd-health-pill health-bad">Health ${dev.ssd_health}%</span>
           </div>
-          <div style="font-family: var(--font-mono); font-size: 0.8rem; color: #4338ca; font-weight: 600;">${dev.host}</div>
-          <div style="font-size: 0.8rem; color: #64748b;">SSD: ${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</div>
-          <div style="font-size: 0.75rem; color: #94a3b8; border-top: 1px dashed #e2e8f0; padding-top: 6px;">Tindakan: Segera siapkan SSD spare clone</div>
+          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host}</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">SSD: ${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 6px;">Tindakan: Siapkan SSD clone cadangan</div>
         </div>
       `).join('');
     }
 
-    // High disk usage grid
     const elDiskGrid = document.getElementById('incidentDiskGrid');
     if (elDiskGrid) {
       elDiskGrid.innerHTML = highDisks.slice(0, 8).map(dev => `
-        <div class="glass-panel" style="padding: 1.25rem; border-left: 4px solid #ec4899; display: flex; flex-direction: column; gap: 8px;">
+        <div class="glass-panel" style="padding: 1.15rem; border-top: 3px solid var(--accent-primary); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="font-weight: 700; font-size: 1rem; color: #0f172a;">${dev.loc}</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${dev.loc}</div>
             <span class="ssd-health-pill health-bad">${dev.ssd_usage}% Full</span>
           </div>
-          <div style="font-family: var(--font-mono); font-size: 0.8rem; color: #4338ca; font-weight: 600;">${dev.host}</div>
+          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary); font-weight: 600;">${dev.host}</div>
           <div class="usage-bar-track" style="margin-top: 4px;">
-            <div class="usage-bar-fill" style="width: ${dev.ssd_usage}%; background: #ef4444;"></div>
+            <div class="usage-bar-fill" style="width: ${dev.ssd_usage}%; background: var(--color-danger);"></div>
           </div>
-          <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">Tindakan: Log cleaning & vacuum database</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Tindakan: Log cleaning & vacuum DB</div>
         </div>
       `).join('');
     }
   },
 
   initFleetTableControls() {
-    // Search input
     const searchInput = document.getElementById('tableSearchInput');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -363,7 +457,6 @@ const App = {
       });
     }
 
-    // Filter pills
     document.querySelectorAll('.filter-pill[data-filter]').forEach(pill => {
       pill.addEventListener('click', () => {
         const type = pill.dataset.filterType;
@@ -378,7 +471,6 @@ const App = {
       });
     });
 
-    // Pagination buttons
     const prevPageBtn = document.getElementById('prevPageBtn');
     const nextPageBtn = document.getElementById('nextPageBtn');
     if (prevPageBtn) {
@@ -399,7 +491,6 @@ const App = {
       });
     }
 
-    // Page size selector
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
       pageSizeSelect.addEventListener('change', (e) => {
@@ -409,7 +500,6 @@ const App = {
       });
     }
 
-    // Table Header Sorting
     document.querySelectorAll('.fleet-table th.sortable').forEach(th => {
       th.addEventListener('click', () => {
         const col = th.dataset.col;
@@ -430,7 +520,6 @@ const App = {
     const { search, tier, cat, alert } = this.activeFilter;
 
     this.filteredFleet = this.fleet.filter(r => {
-      // Search term
       if (search) {
         const matchLoc = r.loc && r.loc.toLowerCase().includes(search);
         const matchHost = r.host && r.host.toLowerCase().includes(search);
@@ -440,14 +529,12 @@ const App = {
         if (!matchLoc && !matchHost && !matchCode && !matchIp && !matchCpu) return false;
       }
 
-      // Tier filter
       if (tier !== 'all') {
         if (tier === 'diamond' && r.tier.toLowerCase() !== 'diamond') return false;
         if (tier === 'gold' && r.tier.toLowerCase() !== 'gold') return false;
         if (tier === 'silver' && r.tier.toLowerCase() !== 'silver') return false;
       }
 
-      // Category filter
       if (cat !== 'all') {
         if (cat === 'server' && r.cat !== 'Server') return false;
         if (cat === 'admin' && r.cat !== 'Admin') return false;
@@ -455,7 +542,6 @@ const App = {
         if (cat === 'cashier' && r.cat !== 'Cashier') return false;
       }
 
-      // Alert filter
       if (alert !== 'all') {
         if (alert === 'overheat' && (!r.temp || r.temp < 80)) return false;
         if (alert === 'low_ssd' && (!r.ssd_health || r.ssd_health >= 70)) return false;
@@ -468,7 +554,6 @@ const App = {
       return true;
     });
 
-    // Apply Sorting
     const { col, dir } = this.currentSort;
     this.filteredFleet.sort((a, b) => {
       let va = a[col];
@@ -507,34 +592,31 @@ const App = {
     }
 
     if (pageRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 3rem; color: #94a3b8;">Tidak ada data yang cocok dengan filter pencarian.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">Tidak ada data yang cocok dengan kriteria filter.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = pageRows.map((row, idx) => {
       const tierClass = row.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (row.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
       
-      // Temp formatting
-      let tempHtml = '<span style="color: #cbd5e1;">-</span>';
+      let tempHtml = '<span style="color: var(--text-muted);">-</span>';
       if (row.temp !== null && row.temp !== undefined) {
         const cls = row.temp >= 80 ? 'temp-hot' : (row.temp >= 70 ? 'temp-warm' : 'temp-cool');
-        tempHtml = `<span class="temp-badge ${cls}">${row.temp >= 80 ? '🔥 ' : ''}${row.temp}°C</span>`;
+        tempHtml = `<span class="temp-badge ${cls}">${row.temp}°C</span>`;
       }
 
-      // Health formatting
-      let healthHtml = '<span style="color: #cbd5e1;">-</span>';
+      let healthHtml = '<span style="color: var(--text-muted);">-</span>';
       if (row.ssd_health !== null && row.ssd_health !== undefined) {
         const cls = row.ssd_health < 70 ? 'health-bad' : (row.ssd_health < 90 ? 'health-warn' : 'health-good');
         healthHtml = `<span class="ssd-health-pill ${cls}">${row.ssd_health}%</span>`;
       }
 
-      // Storage formatting
-      let usageHtml = '<span style="color: #cbd5e1;">-</span>';
+      let usageHtml = '<span style="color: var(--text-muted);">-</span>';
       if (row.ssd_usage !== null && row.ssd_usage !== undefined) {
-        const fillCol = row.ssd_usage >= 85 ? '#ef4444' : (row.ssd_usage >= 70 ? '#f59e0b' : '#10b981');
+        const fillCol = row.ssd_usage >= 85 ? 'var(--color-danger)' : (row.ssd_usage >= 70 ? 'var(--color-warning)' : 'var(--color-success)');
         usageHtml = `
           <div class="usage-cell">
-            <span style="font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; width: 32px;">${row.ssd_usage}%</span>
+            <span style="font-family: var(--font-mono); font-weight: 700; font-size: 0.75rem; width: 32px;">${row.ssd_usage}%</span>
             <div class="usage-bar-track">
               <div class="usage-bar-fill" style="width: ${row.ssd_usage}%; background: ${fillCol};"></div>
             </div>
@@ -545,30 +627,30 @@ const App = {
       return `
         <tr onclick="App.openDetailModal(${startIdx + idx})">
           <td>
-            <div style="font-weight: 700; color: #0f172a;">${row.loc}</div>
-            <div style="font-size: 0.75rem; color: #64748b; font-family: var(--font-mono);">Kode: ${row.code || '-'}</div>
+            <div style="font-weight: 700; color: var(--text-main);">${row.loc}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">Kode: ${row.code || '-'}</div>
           </td>
           <td>
             <span class="tier-tag ${tierClass}">${row.tier || 'Standard'}</span>
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-weight: 700; color: #4338ca;">${row.host}</div>
-            <div style="font-size: 0.75rem; color: #94a3b8;">${row.cat}</div>
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary);">${row.host}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">${row.cat}</div>
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-size: 0.8rem;">${row.ip || '-'}</div>
-            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: #06b6d4;">${row.zt ? 'ZT: ' + row.zt : ''}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.78rem;">${row.ip || '-'}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-secondary);">${row.zt ? 'ZT: ' + row.zt : ''}</div>
           </td>
           <td>${tempHtml}</td>
           <td>${healthHtml}</td>
           <td>${usageHtml}</td>
           <td>
-            <div style="font-size: 0.8rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${row.os}">
+            <div style="font-size: 0.78rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${row.os}">
               ${row.os.split(' ')[0]} ${row.os.split(' ')[1] || ''}
             </div>
           </td>
           <td>
-            <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;">Detail ℹ️</button>
+            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;">Detail</button>
           </td>
         </tr>
       `;
@@ -667,7 +749,7 @@ const App = {
         </div>
         <div class="modal-spec-item" style="grid-column: span 2;">
           <div class="modal-spec-label">Sistem Operasi (OS)</div>
-          <div class="modal-spec-val mono" style="font-size: 0.85rem;">${item.os || '-'}</div>
+          <div class="modal-spec-val mono" style="font-size: 0.825rem;">${item.os || '-'}</div>
         </div>
         <div class="modal-spec-item" style="grid-column: span 2;">
           <div class="modal-spec-label">Last Synchronized</div>
@@ -712,18 +794,18 @@ const App = {
     a.download = `parkee_fleet_export_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    this.showToast('File CSV berhasil diunduh!', 'success');
+    this.showToast('File CSV berhasil diunduh.', 'success');
   },
 
   async syncGoogleSheets(isSilent = false) {
     const btn = document.getElementById('syncSheetBtn');
     if (btn && !isSilent) {
       btn.disabled = true;
-      btn.innerHTML = `<span style="display: inline-block; animation: spin 1s infinite linear;">🔄</span> Menyinkronkan...`;
+      btn.innerHTML = `Menyinkronkan...`;
     }
 
     if (!isSilent) {
-      this.showToast('Mengambil data terbaru langsung dari Google Sheets...', 'info');
+      this.showToast('Mengambil data terbaru dari Google Sheets...', 'info');
     }
 
     try {
@@ -745,10 +827,10 @@ const App = {
             lastSyncLabel.textContent = `Terakhir disinkronkan: Hari ini, ${timeStr} WIB`;
           }
 
-          this.showToast('Sinkronisasi Sukses! Data armada ter-update.', 'success');
+          this.showToast('Sinkronisasi Sukses. Data armada diperbarui.', 'success');
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<span>🔄</span> Sync Sheets Sekarang`;
+            btn.innerHTML = `Sync Sheets Sekarang`;
           }
         },
         error: (err) => {
@@ -762,7 +844,7 @@ const App = {
       }
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `<span>🔄</span> Sync Sheets Sekarang`;
+        btn.innerHTML = `Sync Sheets Sekarang`;
       }
     }
   },
@@ -830,19 +912,13 @@ const App = {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
-    let icon = 'ℹ️';
-    if (type === 'success') icon = '✅';
-    if (type === 'warn') icon = '⚠️';
-    if (type === 'error') icon = '❌';
-
-    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    toast.textContent = message;
     container.appendChild(toast);
 
     setTimeout(() => toast.classList.add('show'), 10);
     setTimeout(() => {
       toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
+      setTimeout(() => toast.remove(), 250);
     }, 4000);
   }
 };
