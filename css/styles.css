@@ -1592,15 +1592,21 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
   overflow-y: auto;
   max-height: calc(100vh - 310px);
-  padding-right: 4px;
+  padding-right: 6px;
+  flex: 1 1 auto;
 }
 
 .loc-accordion-item {
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--surface-card);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
 }
 
 .loc-accordion-item:hover {
@@ -1610,10 +1616,13 @@ h1, h2, h3, h4, h5, h6 {
 .loc-accordion-item.open {
   border-color: var(--accent-primary-border);
   box-shadow: 0 2px 10px rgba(0, 102, 255, 0.08);
+  content-visibility: visible;
 }
 
 .loc-accordion-header {
-  padding: 11px 14px;
+  padding: 12px 14px;
+  min-height: 52px;
+  box-sizing: border-box;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
