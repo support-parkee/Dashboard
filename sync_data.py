@@ -57,9 +57,9 @@ for r in raw_rows:
     
     h_lower = host.lower()
     dev_cat = "Other / Network"
-    if "server" in h_lower or "srv" in h_lower or "master" in h_lower:
+    if h_lower.startswith("server"):
         dev_cat = "Server"
-    elif "admin" in h_lower:
+    elif h_lower.startswith("admin"):
         dev_cat = "Admin"
     elif any(k in h_lower for k in ["pm", "pos", "gate", "barrier", "kiosk", "dispenser", "in-", "out-", "entry", "exit", "b1", "b2", "lobby", "pelataran"]):
         dev_cat = "Gate / Kiosk"
@@ -117,7 +117,8 @@ for r in raw_rows:
     elif "xeon" in cpu_raw: cpu_family = "Intel Xeon"
     elif cpu_raw: cpu_family = "Other x86/ARM"
 
-    is_server = ("server" in h_lower or "srv" in h_lower or "master" in h_lower or "admin" in h_lower or dev_cat in ["Server", "Admin"])
+    # Strict server criteria: hostname must start with "server"
+    is_server = h_lower.startswith("server")
 
     records.append({
         "loc": loc,
@@ -197,20 +198,20 @@ for r in records:
     if r["is_server"]:
         entry["total_servers"] += 1
         if r["temp"] and r["temp"] >= 80: entry["server_overheats"] += 1
-        if r["zt"] and not entry["zt"]: entry["zt"] = r["zt"]
-        if r["sync"] and (not entry["last_sync"] or r["sync"] > entry["last_sync"]): entry["last_sync"] = r["sync"]
-        if r["agent"] and not entry["agent"]: entry["agent"] = r["agent"]
-        if r["fisherman"] and not entry["fisherman"]: entry["fisherman"] = r["fisherman"]
-        if r["watersheep"] and not entry["watersheep"]: entry["watersheep"] = r["watersheep"]
-        if r["wbo"] and not entry["wbo"]: entry["wbo"] = r["wbo"]
-        if r["os"] and not entry["os"]: entry["os"] = r["os"]
+        if r["zt"]: entry["zt"] = r["zt"]
+        if r["sync"]: entry["last_sync"] = r["sync"]
+        if r["agent"]: entry["agent"] = r["agent"]
+        if r["fisherman"]: entry["fisherman"] = r["fisherman"]
+        if r["watersheep"]: entry["watersheep"] = r["watersheep"]
+        if r["wbo"]: entry["wbo"] = r["wbo"]
+        if r["os"]: entry["os"] = r["os"]
     else:
         entry["total_clients"] += 1
         if r["temp"] and r["temp"] >= 80: entry["client_overheats"] += 1
         if r["reader_ver"] or r["reader_sn"]: entry["has_reader"] = True
-        # Fallback values
+        # Fallback values if server hasn't set them yet
         if r["zt"] and not entry["zt"]: entry["zt"] = r["zt"]
-        if r["sync"] and (not entry["last_sync"] or r["sync"] > entry["last_sync"]): entry["last_sync"] = r["sync"]
+        if r["sync"] and not entry["last_sync"]: entry["last_sync"] = r["sync"]
         if r["agent"] and not entry["agent"]: entry["agent"] = r["agent"]
         if r["fisherman"] and not entry["fisherman"]: entry["fisherman"] = r["fisherman"]
         if r["watersheep"] and not entry["watersheep"]: entry["watersheep"] = r["watersheep"]

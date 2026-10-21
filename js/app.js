@@ -133,7 +133,9 @@ const App = {
     try {
       const res = await fetch('./data/servers.json');
       if (res.ok) {
-        this.servers = await res.json();
+        const raw = await res.json();
+        // Strict: Only hostnames starting with "server"
+        this.servers = raw.filter(d => (d.host || '').toLowerCase().startsWith('server'));
         const badge = document.getElementById('badgeTotalServers');
         if (badge) badge.textContent = this.servers.length.toLocaleString();
         this.renderServersTable();
@@ -149,7 +151,7 @@ const App = {
       const res = await fetch('./data/fleet.json');
       if (res.ok) {
         this.fleet = await res.json();
-        const clients = this.fleet.filter(d => !d.is_server);
+        const clients = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
         const badge = document.getElementById('badgeTotalClients');
         if (badge) badge.textContent = clients.length.toLocaleString();
         this.renderAllClientsNationwideTable();
@@ -417,7 +419,7 @@ const App = {
     const tbody = document.getElementById('serversTableBody');
     if (!tbody) return;
 
-    let list = [...this.servers];
+    let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
     // Filter by Condition (overheat, low_ssd, full_storage)
     if (this.serverState.filter === 'overheat') {
@@ -707,7 +709,7 @@ const App = {
     const tbody = document.getElementById('allClientsTableBody');
     if (!tbody) return;
 
-    let list = this.fleet.filter(d => !d.is_server);
+    let list = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
 
     // Quick filter pills
     if (this.allClientsState.filter === 'reader') {
@@ -722,16 +724,21 @@ const App = {
     if (this.allClientsState.role !== 'all') {
       list = list.filter(d => {
         const cat = (d.cat || '').toLowerCase();
+        const host = (d.host || '').toLowerCase();
         if (this.allClientsState.role === 'gate') {
           return cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
         }
         if (this.allClientsState.role === 'cashier') {
           return cat.includes('cashier') || cat.includes('kasir');
         }
+        if (this.allClientsState.role === 'admin') {
+          return cat.includes('admin') || host.startsWith('admin');
+        }
         if (this.allClientsState.role === 'other') {
           const isGate = cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
           const isCashier = cat.includes('cashier') || cat.includes('kasir');
-          return !isGate && !isCashier;
+          const isAdmin = cat.includes('admin') || host.startsWith('admin');
+          return !isGate && !isCashier && !isAdmin;
         }
         return true;
       });
@@ -927,7 +934,7 @@ const App = {
 
       let clientsHtml = '';
       if (isOpen) {
-        const clients = this.fleet.filter(d => d.loc.toLowerCase() === l.loc.toLowerCase() && !d.is_server);
+        const clients = this.fleet.filter(d => d.loc.toLowerCase() === l.loc.toLowerCase() && !(d.host || '').toLowerCase().startsWith('server'));
         if (clients.length === 0) {
           clientsHtml = `
             <div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: var(--surface-card); border-radius: var(--radius-sm);">
@@ -1100,7 +1107,7 @@ const App = {
     const tbody = document.getElementById('storageTableBody');
     if (!tbody) return;
 
-    let list = [...this.servers];
+    let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
     // Filter condition
     if (this.storageState.filter === 'critical_usage') {
