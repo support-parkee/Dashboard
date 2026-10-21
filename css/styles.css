@@ -1067,10 +1067,27 @@ h1, h2, h3, h4, h5, h6 {
 
 .fleet-table th.sortable {
   cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .fleet-table th.sortable:hover {
-  color: var(--text-main);
+  color: var(--accent-primary);
+  background: var(--surface-hover);
+}
+
+.fleet-table th.sort-active {
+  color: var(--accent-primary) !important;
+  font-weight: 800 !important;
+  background: var(--surface-hover);
+}
+
+.fleet-table th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.72rem;
+  font-family: system-ui, sans-serif;
+  vertical-align: middle;
 }
 
 .fleet-table td {
