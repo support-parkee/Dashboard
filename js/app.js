@@ -16,6 +16,9 @@ const App = {
   locState: {
     search: '',
     tier: 'all',
+    reader: 'all',
+    temp: 'all',
+    storage: 'all',
     page: 1,
     pageSize: 25,
     sortCol: 'loc',
@@ -26,6 +29,14 @@ const App = {
     search: '',
     filter: 'all',
     tier: 'all',
+    cpu: 'all',
+    mb: 'all',
+    ram: 'all',
+    ssdType: 'all',
+    ssdBrand: 'all',
+    tempRange: 'all',
+    healthRange: 'all',
+    usageRange: 'all',
     page: 1,
     pageSize: 25,
     sortCol: 'loc',
@@ -36,6 +47,11 @@ const App = {
   allClientsState: {
     search: '',
     filter: 'all',
+    role: 'all',
+    readerStatus: 'all',
+    readerVer: 'all',
+    cpu: 'all',
+    tempRange: 'all',
     page: 1,
     pageSize: 15,
     sortCol: 'loc',
@@ -45,7 +61,9 @@ const App = {
   // Sisi Kanan (50%): Location Accordion Dropdowns
   pickerState: {
     search: '',
-    tier: 'all'
+    tier: 'all',
+    reader: 'all',
+    condition: 'all'
   },
   expandedLocations: new Set(['Ancol Mansion']),
   targetHighlightedHost: null,
@@ -53,6 +71,12 @@ const App = {
   storageState: {
     search: '',
     filter: 'all',
+    type: 'all',
+    brand: 'all',
+    capacity: 'all',
+    healthRange: 'all',
+    usageRange: 'all',
+    tier: 'all',
     page: 1,
     pageSize: 25,
     sortCol: 'loc',
@@ -260,6 +284,29 @@ const App = {
       list = list.filter(item => item.tier && item.tier.toLowerCase() === this.locState.tier.toLowerCase());
     }
 
+    // Specific Filter: RFID Reader
+    if (this.locState.reader === 'yes') {
+      list = list.filter(item => item.has_reader === true);
+    } else if (this.locState.reader === 'no') {
+      list = list.filter(item => !item.has_reader);
+    }
+
+    // Specific Filter: Suhu Operasional
+    if (this.locState.temp === 'cool') {
+      list = list.filter(item => (item.server_overheats || 0) === 0 && (item.client_overheats || 0) === 0);
+    } else if (this.locState.temp === 'hot') {
+      list = list.filter(item => (item.server_overheats || 0) > 0 || (item.client_overheats || 0) > 0);
+    }
+
+    // Specific Filter: Status Storage
+    if (this.locState.storage === 'low_health') {
+      const lowHealthLocs = new Set(this.servers.filter(s => s.ssd_health !== null && s.ssd_health < 70).map(s => (s.loc || '').toLowerCase()));
+      list = list.filter(item => item.loc && lowHealthLocs.has(item.loc.toLowerCase()));
+    } else if (this.locState.storage === 'full_storage') {
+      const fullStorageLocs = new Set(this.servers.filter(s => s.ssd_usage !== null && s.ssd_usage >= 85).map(s => (s.loc || '').toLowerCase()));
+      list = list.filter(item => item.loc && fullStorageLocs.has(item.loc.toLowerCase()));
+    }
+
     // Sort
     const col = this.locState.sortCol;
     const dir = this.locState.sortDir === 'asc' ? 1 : -1;
@@ -384,6 +431,81 @@ const App = {
     // Filter by Tier
     if (this.serverState.tier !== 'all') {
       list = list.filter(d => d.tier && d.tier.toLowerCase() === this.serverState.tier.toLowerCase());
+    }
+
+    // Specific Filter: CPU
+    if (this.serverState.cpu !== 'all') {
+      const qCpu = this.serverState.cpu.toLowerCase();
+      list = list.filter(d => d.cpu && d.cpu.toLowerCase().includes(qCpu));
+    }
+
+    // Specific Filter: Motherboard
+    if (this.serverState.mb !== 'all') {
+      const qMb = this.serverState.mb.toLowerCase();
+      list = list.filter(d => 
+        (d.mb && d.mb.toLowerCase().includes(qMb)) ||
+        (d.mb_brand && d.mb_brand.toLowerCase().includes(qMb))
+      );
+    }
+
+    // Specific Filter: RAM
+    if (this.serverState.ram !== 'all') {
+      list = list.filter(d => {
+        const val = this.parseRamGb(d.ram);
+        if (this.serverState.ram === '4g') return val > 0 && val <= 4.5;
+        if (this.serverState.ram === '8g') return val > 4.5 && val <= 10;
+        if (this.serverState.ram === '16g') return val > 10 && val <= 20;
+        if (this.serverState.ram === '32g') return val > 20;
+        return true;
+      });
+    }
+
+    // Specific Filter: SSD Type
+    if (this.serverState.ssdType !== 'all') {
+      list = list.filter(d => d.ssd_type && d.ssd_type.toLowerCase() === this.serverState.ssdType.toLowerCase());
+    }
+
+    // Specific Filter: SSD Brand
+    if (this.serverState.ssdBrand !== 'all') {
+      const qBrand = this.serverState.ssdBrand.toLowerCase();
+      list = list.filter(d => d.ssd_brand && d.ssd_brand.toLowerCase().includes(qBrand));
+    }
+
+    // Specific Filter: Temp Range
+    if (this.serverState.tempRange !== 'all') {
+      list = list.filter(d => {
+        if (d.temp === null || d.temp === undefined) return false;
+        if (this.serverState.tempRange === 'cool') return d.temp < 50;
+        if (this.serverState.tempRange === 'normal') return d.temp >= 50 && d.temp < 70;
+        if (this.serverState.tempRange === 'warm') return d.temp >= 70 && d.temp < 80;
+        if (this.serverState.tempRange === 'hot') return d.temp >= 80 && d.temp < 90;
+        if (this.serverState.tempRange === 'critical') return d.temp >= 90;
+        return true;
+      });
+    }
+
+    // Specific Filter: SSD Health Range
+    if (this.serverState.healthRange !== 'all') {
+      list = list.filter(d => {
+        if (d.ssd_health === null || d.ssd_health === undefined) return false;
+        if (this.serverState.healthRange === 'pristine') return d.ssd_health >= 95;
+        if (this.serverState.healthRange === 'good') return d.ssd_health >= 80 && d.ssd_health < 95;
+        if (this.serverState.healthRange === 'warning') return d.ssd_health >= 70 && d.ssd_health < 80;
+        if (this.serverState.healthRange === 'degraded') return d.ssd_health < 70;
+        return true;
+      });
+    }
+
+    // Specific Filter: Disk Usage Range
+    if (this.serverState.usageRange !== 'all') {
+      list = list.filter(d => {
+        if (d.ssd_usage === null || d.ssd_usage === undefined) return false;
+        if (this.serverState.usageRange === 'plenty') return d.ssd_usage < 50;
+        if (this.serverState.usageRange === 'moderate') return d.ssd_usage >= 50 && d.ssd_usage < 70;
+        if (this.serverState.usageRange === 'high') return d.ssd_usage >= 70 && d.ssd_usage < 85;
+        if (this.serverState.usageRange === 'critical') return d.ssd_usage >= 85;
+        return true;
+      });
     }
 
     // Search filter
@@ -596,6 +718,55 @@ const App = {
       list = list.filter(d => d.temp !== null && d.temp >= 80);
     }
 
+    // Specific Filter: Role
+    if (this.allClientsState.role !== 'all') {
+      list = list.filter(d => {
+        const cat = (d.cat || '').toLowerCase();
+        if (this.allClientsState.role === 'gate') {
+          return cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
+        }
+        if (this.allClientsState.role === 'cashier') {
+          return cat.includes('cashier') || cat.includes('kasir');
+        }
+        if (this.allClientsState.role === 'other') {
+          const isGate = cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
+          const isCashier = cat.includes('cashier') || cat.includes('kasir');
+          return !isGate && !isCashier;
+        }
+        return true;
+      });
+    }
+
+    // Specific Filter: Reader Status
+    if (this.allClientsState.readerStatus === 'connected') {
+      list = list.filter(d => Boolean(d.reader_ver || d.reader_sn));
+    } else if (this.allClientsState.readerStatus === 'none') {
+      list = list.filter(d => !d.reader_ver && !d.reader_sn);
+    }
+
+    // Specific Filter: Firmware Version
+    if (this.allClientsState.readerVer !== 'all') {
+      const qFw = this.allClientsState.readerVer.toLowerCase();
+      list = list.filter(d => d.reader_ver && d.reader_ver.toLowerCase().startsWith(qFw));
+    }
+
+    // Specific Filter: CPU
+    if (this.allClientsState.cpu !== 'all') {
+      const qCpu = this.allClientsState.cpu.toLowerCase();
+      list = list.filter(d => d.cpu && d.cpu.toLowerCase().includes(qCpu));
+    }
+
+    // Specific Filter: Temp Range
+    if (this.allClientsState.tempRange !== 'all') {
+      list = list.filter(d => {
+        if (d.temp === null || d.temp === undefined) return false;
+        if (this.allClientsState.tempRange === 'normal') return d.temp < 60;
+        if (this.allClientsState.tempRange === 'warm') return d.temp >= 60 && d.temp < 80;
+        if (this.allClientsState.tempRange === 'hot') return d.temp >= 80;
+        return true;
+      });
+    }
+
     // Search query
     if (this.allClientsState.search) {
       const q = this.allClientsState.search.toLowerCase();
@@ -723,6 +894,21 @@ const App = {
 
     if (this.pickerState.tier !== 'all') {
       locs = locs.filter(l => l.tier && l.tier.toLowerCase() === this.pickerState.tier.toLowerCase());
+    }
+
+    // Specific Filter: RFID Reader
+    if (this.pickerState.reader === 'yes') {
+      locs = locs.filter(l => l.has_reader === true);
+    } else if (this.pickerState.reader === 'no') {
+      locs = locs.filter(l => !l.has_reader);
+    }
+
+    // Specific Filter: Condition (overheat, low_ssd)
+    if (this.pickerState.condition === 'overheat') {
+      locs = locs.filter(l => (l.client_overheats || 0) > 0 || (l.server_overheats || 0) > 0);
+    } else if (this.pickerState.condition === 'low_ssd') {
+      const lowSsdLocs = new Set(this.fleet.filter(d => d.ssd_health !== null && d.ssd_health < 70).map(d => (d.loc || '').toLowerCase()));
+      locs = locs.filter(l => l.loc && lowSsdLocs.has(l.loc.toLowerCase()));
     }
 
     const badge = document.getElementById('pickerCountBadge');
@@ -927,6 +1113,58 @@ const App = {
       list = list.filter(d => d.ssd_type === 'SATA');
     }
 
+    // Specific Filter: Tipe SSD
+    if (this.storageState.type !== 'all') {
+      list = list.filter(d => d.ssd_type && d.ssd_type.toLowerCase() === this.storageState.type.toLowerCase());
+    }
+
+    // Specific Filter: Merk SSD
+    if (this.storageState.brand !== 'all') {
+      const qBrand = this.storageState.brand.toLowerCase();
+      list = list.filter(d => d.ssd_brand && d.ssd_brand.toLowerCase().includes(qBrand));
+    }
+
+    // Specific Filter: Kapasitas
+    if (this.storageState.capacity !== 'all') {
+      list = list.filter(d => {
+        const cap = this.parseStorageGb(d.ssd_size);
+        if (this.storageState.capacity === '128g') return cap > 0 && cap <= 130;
+        if (this.storageState.capacity === '256g') return cap > 130 && cap <= 260;
+        if (this.storageState.capacity === '512g') return cap > 260 && cap <= 550;
+        if (this.storageState.capacity === '1t') return cap > 550;
+        return true;
+      });
+    }
+
+    // Specific Filter: Health SSD
+    if (this.storageState.healthRange !== 'all') {
+      list = list.filter(d => {
+        if (d.ssd_health === null || d.ssd_health === undefined) return false;
+        if (this.storageState.healthRange === 'pristine') return d.ssd_health >= 95;
+        if (this.storageState.healthRange === 'good') return d.ssd_health >= 80 && d.ssd_health < 95;
+        if (this.storageState.healthRange === 'warning') return d.ssd_health >= 70 && d.ssd_health < 80;
+        if (this.storageState.healthRange === 'degraded') return d.ssd_health < 70;
+        return true;
+      });
+    }
+
+    // Specific Filter: Disk Usage
+    if (this.storageState.usageRange !== 'all') {
+      list = list.filter(d => {
+        if (d.ssd_usage === null || d.ssd_usage === undefined) return false;
+        if (this.storageState.usageRange === 'plenty') return d.ssd_usage < 50;
+        if (this.storageState.usageRange === 'moderate') return d.ssd_usage >= 50 && d.ssd_usage < 70;
+        if (this.storageState.usageRange === 'high') return d.ssd_usage >= 70 && d.ssd_usage < 85;
+        if (this.storageState.usageRange === 'critical') return d.ssd_usage >= 85;
+        return true;
+      });
+    }
+
+    // Specific Filter: Tier
+    if (this.storageState.tier !== 'all') {
+      list = list.filter(d => d.tier && d.tier.toLowerCase() === this.storageState.tier.toLowerCase());
+    }
+
     // Search filter
     if (this.storageState.search) {
       const q = this.storageState.search.toLowerCase();
@@ -1073,7 +1311,9 @@ const App = {
   // EVENT HANDLERS
   // =========================================================================
   initEventHandlers() {
+    // -----------------------------------------------------------------------
     // 1. Location Table Events
+    // -----------------------------------------------------------------------
     const locSearch = document.getElementById('locSearchInput');
     if (locSearch) {
       locSearch.addEventListener('input', (e) => {
@@ -1102,6 +1342,57 @@ const App = {
       });
     });
 
+    const locReaderFilter = document.getElementById('locReaderFilter');
+    if (locReaderFilter) {
+      locReaderFilter.addEventListener('change', (e) => {
+        this.locState.reader = e.target.value;
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    }
+
+    const locTempFilter = document.getElementById('locTempFilter');
+    if (locTempFilter) {
+      locTempFilter.addEventListener('change', (e) => {
+        this.locState.temp = e.target.value;
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    }
+
+    const locStorageFilter = document.getElementById('locStorageFilter');
+    if (locStorageFilter) {
+      locStorageFilter.addEventListener('change', (e) => {
+        this.locState.storage = e.target.value;
+        this.locState.page = 1;
+        this.renderLocationsTable();
+      });
+    }
+
+    const locResetBtn = document.getElementById('locResetFiltersBtn');
+    if (locResetBtn) {
+      locResetBtn.addEventListener('click', () => {
+        this.locState.search = '';
+        this.locState.tier = 'all';
+        this.locState.reader = 'all';
+        this.locState.temp = 'all';
+        this.locState.storage = 'all';
+        this.locState.page = 1;
+
+        if (locSearch) locSearch.value = '';
+        if (locReaderFilter) locReaderFilter.value = 'all';
+        if (locTempFilter) locTempFilter.value = 'all';
+        if (locStorageFilter) locStorageFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-loc-tier]').forEach(b => {
+          b.classList.toggle('active', b.dataset.locTier === 'all');
+        });
+
+        this.renderLocationsTable();
+        this.showToast('Filter Lokasi berhasil direset', 'info');
+      });
+    }
+
     const locPrev = document.getElementById('locPrevPageBtn');
     if (locPrev) {
       locPrev.addEventListener('click', () => {
@@ -1120,7 +1411,9 @@ const App = {
       });
     }
 
+    // -----------------------------------------------------------------------
     // 2. Server Table Events
+    // -----------------------------------------------------------------------
     const serverSearch = document.getElementById('serverSearchInput');
     if (serverSearch) {
       serverSearch.addEventListener('input', (e) => {
@@ -1159,6 +1452,117 @@ const App = {
       });
     });
 
+    // Specific Server Dropdowns
+    const serverCpuFilter = document.getElementById('serverCpuFilter');
+    if (serverCpuFilter) {
+      serverCpuFilter.addEventListener('change', (e) => {
+        this.serverState.cpu = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverMbFilter = document.getElementById('serverMbFilter');
+    if (serverMbFilter) {
+      serverMbFilter.addEventListener('change', (e) => {
+        this.serverState.mb = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverRamFilter = document.getElementById('serverRamFilter');
+    if (serverRamFilter) {
+      serverRamFilter.addEventListener('change', (e) => {
+        this.serverState.ram = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverSsdTypeFilter = document.getElementById('serverSsdTypeFilter');
+    if (serverSsdTypeFilter) {
+      serverSsdTypeFilter.addEventListener('change', (e) => {
+        this.serverState.ssdType = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverSsdBrandFilter = document.getElementById('serverSsdBrandFilter');
+    if (serverSsdBrandFilter) {
+      serverSsdBrandFilter.addEventListener('change', (e) => {
+        this.serverState.ssdBrand = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverTempFilter = document.getElementById('serverTempFilter');
+    if (serverTempFilter) {
+      serverTempFilter.addEventListener('change', (e) => {
+        this.serverState.tempRange = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverHealthFilter = document.getElementById('serverHealthFilter');
+    if (serverHealthFilter) {
+      serverHealthFilter.addEventListener('change', (e) => {
+        this.serverState.healthRange = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverUsageFilter = document.getElementById('serverUsageFilter');
+    if (serverUsageFilter) {
+      serverUsageFilter.addEventListener('change', (e) => {
+        this.serverState.usageRange = e.target.value;
+        this.serverState.page = 1;
+        this.renderServersTable();
+      });
+    }
+
+    const serverResetBtn = document.getElementById('serverResetFiltersBtn');
+    if (serverResetBtn) {
+      serverResetBtn.addEventListener('click', () => {
+        this.serverState.search = '';
+        this.serverState.filter = 'all';
+        this.serverState.tier = 'all';
+        this.serverState.cpu = 'all';
+        this.serverState.mb = 'all';
+        this.serverState.ram = 'all';
+        this.serverState.ssdType = 'all';
+        this.serverState.ssdBrand = 'all';
+        this.serverState.tempRange = 'all';
+        this.serverState.healthRange = 'all';
+        this.serverState.usageRange = 'all';
+        this.serverState.page = 1;
+
+        if (serverSearch) serverSearch.value = '';
+        if (serverCpuFilter) serverCpuFilter.value = 'all';
+        if (serverMbFilter) serverMbFilter.value = 'all';
+        if (serverRamFilter) serverRamFilter.value = 'all';
+        if (serverSsdTypeFilter) serverSsdTypeFilter.value = 'all';
+        if (serverSsdBrandFilter) serverSsdBrandFilter.value = 'all';
+        if (serverTempFilter) serverTempFilter.value = 'all';
+        if (serverHealthFilter) serverHealthFilter.value = 'all';
+        if (serverUsageFilter) serverUsageFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => {
+          b.classList.toggle('active', b.dataset.serverFilter === 'all');
+        });
+        document.querySelectorAll('.filter-pill[data-server-tier]').forEach(b => {
+          b.classList.toggle('active', b.dataset.serverTier === 'all');
+        });
+
+        this.renderServersTable();
+        this.showToast('Filter Server berhasil direset', 'info');
+      });
+    }
+
     const serverPrev = document.getElementById('serverPrevPageBtn');
     if (serverPrev) {
       serverPrev.addEventListener('click', () => {
@@ -1177,8 +1581,10 @@ const App = {
       });
     }
 
+    // -----------------------------------------------------------------------
     // 3. Client Specification Events (50:50 Layout)
-    // Sisi Kiri: All Clients
+    // -----------------------------------------------------------------------
+    // Sisi Kiri: All Clients Nationwide
     const allClientsSearch = document.getElementById('allClientsSearchInput');
     if (allClientsSearch) {
       allClientsSearch.addEventListener('input', (e) => {
@@ -1197,6 +1603,79 @@ const App = {
         this.renderAllClientsNationwideTable();
       });
     });
+
+    const clientRoleFilter = document.getElementById('clientRoleFilter');
+    if (clientRoleFilter) {
+      clientRoleFilter.addEventListener('change', (e) => {
+        this.allClientsState.role = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const clientReaderFilter = document.getElementById('clientReaderFilter');
+    if (clientReaderFilter) {
+      clientReaderFilter.addEventListener('change', (e) => {
+        this.allClientsState.readerStatus = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const clientReaderVerFilter = document.getElementById('clientReaderVerFilter');
+    if (clientReaderVerFilter) {
+      clientReaderVerFilter.addEventListener('change', (e) => {
+        this.allClientsState.readerVer = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const clientCpuFilter = document.getElementById('clientCpuFilter');
+    if (clientCpuFilter) {
+      clientCpuFilter.addEventListener('change', (e) => {
+        this.allClientsState.cpu = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const clientTempFilter = document.getElementById('clientTempFilter');
+    if (clientTempFilter) {
+      clientTempFilter.addEventListener('change', (e) => {
+        this.allClientsState.tempRange = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const allClientsResetBtn = document.getElementById('allClientsResetFiltersBtn');
+    if (allClientsResetBtn) {
+      allClientsResetBtn.addEventListener('click', () => {
+        this.allClientsState.search = '';
+        this.allClientsState.filter = 'all';
+        this.allClientsState.role = 'all';
+        this.allClientsState.readerStatus = 'all';
+        this.allClientsState.readerVer = 'all';
+        this.allClientsState.cpu = 'all';
+        this.allClientsState.tempRange = 'all';
+        this.allClientsState.page = 1;
+
+        if (allClientsSearch) allClientsSearch.value = '';
+        if (clientRoleFilter) clientRoleFilter.value = 'all';
+        if (clientReaderFilter) clientReaderFilter.value = 'all';
+        if (clientReaderVerFilter) clientReaderVerFilter.value = 'all';
+        if (clientCpuFilter) clientCpuFilter.value = 'all';
+        if (clientTempFilter) clientTempFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => {
+          b.classList.toggle('active', b.dataset.clientFilter === 'all');
+        });
+
+        this.renderAllClientsNationwideTable();
+        this.showToast('Filter Klien berhasil direset', 'info');
+      });
+    }
 
     document.querySelectorAll('[data-cl-sort]').forEach(th => {
       th.addEventListener('click', () => {
@@ -1255,7 +1734,46 @@ const App = {
       });
     });
 
+    const pickerReaderFilter = document.getElementById('pickerReaderFilter');
+    if (pickerReaderFilter) {
+      pickerReaderFilter.addEventListener('change', (e) => {
+        this.pickerState.reader = e.target.value;
+        this.renderClientLocationAccordions();
+      });
+    }
+
+    const pickerConditionFilter = document.getElementById('pickerConditionFilter');
+    if (pickerConditionFilter) {
+      pickerConditionFilter.addEventListener('change', (e) => {
+        this.pickerState.condition = e.target.value;
+        this.renderClientLocationAccordions();
+      });
+    }
+
+    const pickerResetBtn = document.getElementById('pickerResetFiltersBtn');
+    if (pickerResetBtn) {
+      pickerResetBtn.addEventListener('click', () => {
+        this.pickerState.search = '';
+        this.pickerState.tier = 'all';
+        this.pickerState.reader = 'all';
+        this.pickerState.condition = 'all';
+
+        if (pickerSearch) pickerSearch.value = '';
+        if (pickerReaderFilter) pickerReaderFilter.value = 'all';
+        if (pickerConditionFilter) pickerConditionFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(b => {
+          b.classList.toggle('active', b.dataset.pickerTier === 'all');
+        });
+
+        this.renderClientLocationAccordions();
+        this.showToast('Filter Dropdown Lokasi berhasil direset', 'info');
+      });
+    }
+
+    // -----------------------------------------------------------------------
     // 4. Storage Table Events
+    // -----------------------------------------------------------------------
     const storageSearch = document.getElementById('storageSearchInput');
     if (storageSearch) {
       storageSearch.addEventListener('input', (e) => {
@@ -1283,6 +1801,90 @@ const App = {
         this.renderStorageTable();
       });
     });
+
+    const storageTypeFilter = document.getElementById('storageTypeFilter');
+    if (storageTypeFilter) {
+      storageTypeFilter.addEventListener('change', (e) => {
+        this.storageState.type = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageBrandFilter = document.getElementById('storageBrandFilter');
+    if (storageBrandFilter) {
+      storageBrandFilter.addEventListener('change', (e) => {
+        this.storageState.brand = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageCapFilter = document.getElementById('storageCapFilter');
+    if (storageCapFilter) {
+      storageCapFilter.addEventListener('change', (e) => {
+        this.storageState.capacity = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageHealthFilter = document.getElementById('storageHealthFilter');
+    if (storageHealthFilter) {
+      storageHealthFilter.addEventListener('change', (e) => {
+        this.storageState.healthRange = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageUsageFilter = document.getElementById('storageUsageFilter');
+    if (storageUsageFilter) {
+      storageUsageFilter.addEventListener('change', (e) => {
+        this.storageState.usageRange = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageTierFilter = document.getElementById('storageTierFilter');
+    if (storageTierFilter) {
+      storageTierFilter.addEventListener('change', (e) => {
+        this.storageState.tier = e.target.value;
+        this.storageState.page = 1;
+        this.renderStorageTable();
+      });
+    }
+
+    const storageResetBtn = document.getElementById('storageResetFiltersBtn');
+    if (storageResetBtn) {
+      storageResetBtn.addEventListener('click', () => {
+        this.storageState.search = '';
+        this.storageState.filter = 'all';
+        this.storageState.type = 'all';
+        this.storageState.brand = 'all';
+        this.storageState.capacity = 'all';
+        this.storageState.healthRange = 'all';
+        this.storageState.usageRange = 'all';
+        this.storageState.tier = 'all';
+        this.storageState.page = 1;
+
+        if (storageSearch) storageSearch.value = '';
+        if (storageTypeFilter) storageTypeFilter.value = 'all';
+        if (storageBrandFilter) storageBrandFilter.value = 'all';
+        if (storageCapFilter) storageCapFilter.value = 'all';
+        if (storageHealthFilter) storageHealthFilter.value = 'all';
+        if (storageUsageFilter) storageUsageFilter.value = 'all';
+        if (storageTierFilter) storageTierFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(b => {
+          b.classList.toggle('active', b.dataset.storageFilter === 'all');
+        });
+
+        this.renderStorageTable();
+        this.showToast('Filter Storage berhasil direset', 'info');
+      });
+    }
 
     const storagePrev = document.getElementById('storagePrevPageBtn');
     if (storagePrev) {
@@ -1323,6 +1925,23 @@ const App = {
     if (manualBtn) {
       manualBtn.addEventListener('click', () => this.manualSync());
     }
+  },
+
+  parseRamGb(ramStr) {
+    if (!ramStr) return 0;
+    const num = parseFloat(String(ramStr).replace(',', '.'));
+    return isNaN(num) ? 0 : num;
+  },
+
+  parseStorageGb(sizeStr) {
+    if (!sizeStr) return 0;
+    const s = String(sizeStr).toUpperCase();
+    if (s.includes('T')) {
+      const val = parseFloat(s.replace('T', ''));
+      return (isNaN(val) ? 1 : val) * 1000;
+    }
+    const val = parseFloat(s.replace(/[^0-9.]/g, ''));
+    return isNaN(val) ? 0 : val;
   },
 
   // =========================================================================
