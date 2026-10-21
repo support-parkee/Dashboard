@@ -1296,12 +1296,7 @@ const App = {
   // =========================================================================
   initTweaks() {
     const savedTheme = localStorage.getItem('parkee_theme') || 'light';
-    const savedDensity = localStorage.getItem('parkee_density') || 'comfortable';
-    const savedAccent = localStorage.getItem('parkee_accent') || 'cobalt';
-
     this.applyTheme(savedTheme);
-    this.applyDensity(savedDensity);
-    this.applyAccent(savedAccent);
 
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {
@@ -1310,41 +1305,6 @@ const App = {
         this.applyTheme(curTheme === 'dark' ? 'light' : 'dark');
       });
     }
-
-    const tweaksTrigger = document.getElementById('tweaksTriggerBtn');
-    const tweaksDrawer = document.getElementById('tweaksDrawer');
-    const closeTweaksBtn = document.getElementById('closeTweaksBtn');
-
-    if (tweaksTrigger && tweaksDrawer) {
-      tweaksTrigger.addEventListener('click', () => tweaksDrawer.classList.toggle('open'));
-    }
-    if (closeTweaksBtn && tweaksDrawer) {
-      closeTweaksBtn.addEventListener('click', () => tweaksDrawer.classList.remove('open'));
-    }
-
-    document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.applyTheme(btn.dataset.themeVal);
-      });
-    });
-
-    document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.applyDensity(btn.dataset.densityVal);
-      });
-    });
-
-    document.querySelectorAll('.tweaks-seg-btn[data-accent-val]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tweaks-seg-btn[data-accent-val]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.applyAccent(btn.dataset.accentVal);
-      });
-    });
   },
 
   applyTheme(theme) {
@@ -1352,30 +1312,6 @@ const App = {
     localStorage.setItem('parkee_theme', theme);
     const iconSpan = document.getElementById('themeIconSpan');
     if (iconSpan) iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
-    document.querySelectorAll('.tweaks-seg-btn[data-theme-val]').forEach(b => {
-      b.classList.toggle('active', b.dataset.themeVal === theme);
-    });
-  },
-
-  applyDensity(density) {
-    document.documentElement.setAttribute('data-density', density);
-    localStorage.setItem('parkee_density', density);
-    document.querySelectorAll('.tweaks-seg-btn[data-density-val]').forEach(b => {
-      b.classList.toggle('active', b.dataset.densityVal === density);
-    });
-  },
-
-  applyAccent(accent) {
-    const accents = {
-      cobalt: '#2563eb',
-      cyan: '#0891b2',
-      emerald: '#059669',
-      violet: '#7c3aed'
-    };
-    if (accents[accent]) {
-      document.documentElement.style.setProperty('--accent-primary', accents[accent]);
-      localStorage.setItem('parkee_accent', accent);
-    }
   }
 };
 
