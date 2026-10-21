@@ -406,6 +406,18 @@
                 </div>
 
                 <div class="filter-group-item">
+                  <span class="filter-group-label">Ukuran SSD:</span>
+                  <select id="serverSsdSizeFilter" class="filter-select">
+                    <option value="all">Semua Ukuran</option>
+                    <option value="128">~128 GB</option>
+                    <option value="256">~256 GB</option>
+                    <option value="512">~512 GB</option>
+                    <option value="1t">~1 TB (931.5G / 1T)</option>
+                    <option value="2t">≥ 2 TB (1.8T / 2T)</option>
+                  </select>
+                </div>
+
+                <div class="filter-group-item">
                   <span class="filter-group-label">Suhu:</span>
                   <select id="serverTempFilter" class="filter-select">
                     <option value="all">Semua Suhu</option>
@@ -455,7 +467,8 @@
                     <th>Processor (CPU)</th>
                     <th>RAM</th>
                     <th>Motherboard</th>
-                    <th>SSD (Merk & Tipe)</th>
+                    <th class="sortable" data-srv-sort="ssd_brand">Merk SSD ⇅</th>
+                    <th class="sortable" data-srv-sort="ssd_size">Ukuran SSD ⇅</th>
                     <th class="sortable" data-srv-sort="temp">Suhu (°C) ⇅</th>
                     <th class="sortable" data-srv-sort="ssd_health">Health SSD ⇅</th>
                     <th class="sortable" data-srv-sort="ssd_usage">Disk Usage ⇅</th>
