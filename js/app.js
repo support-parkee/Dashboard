@@ -461,14 +461,14 @@ const App = {
             <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
             <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt || '-'}</div>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-main); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu}">
-            ${d.cpu_family || d.cpu || '-'}
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu || ''}">
+            ${this.formatCpu(d.cpu)}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
             ${d.ram || '-'} <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 400;">(${d.ram_brand || '-'})</span>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.mb}">
-            ${d.mb_brand || d.mb || '-'}
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.mb || ''}">
+            ${this.formatMb(d.mb, d.mb_brand)}
           </td>
           <td>
             <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${d.ssd_brand} ${d.ssd_size || ''}</div>
@@ -532,7 +532,7 @@ const App = {
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Processor (CPU)</span>
-          <span class="modal-spec-val">${dev.cpu || '-'}</span>
+          <span class="modal-spec-val">${this.formatCpu(dev.cpu)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Memori RAM</span>
@@ -540,7 +540,7 @@ const App = {
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Motherboard</span>
-          <span class="modal-spec-val">${dev.mb || '-'}</span>
+          <span class="modal-spec-val">${this.formatMb(dev.mb, dev.mb_brand)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Storage SSD</span>
@@ -660,6 +660,8 @@ const App = {
       const q = this.clientFilterText.toLowerCase();
       clients = clients.filter(d => 
         (d.host && d.host.toLowerCase().includes(q)) ||
+        (d.cpu && d.cpu.toLowerCase().includes(q)) ||
+        (d.mb && d.mb.toLowerCase().includes(q)) ||
         (d.reader_sn && d.reader_sn.toLowerCase().includes(q)) ||
         (d.reader_ver && d.reader_ver.toLowerCase().includes(q)) ||
         (d.ip && d.ip.toLowerCase().includes(q))
@@ -738,7 +740,7 @@ const App = {
           <div class="client-specs-grid">
             <div class="client-spec-cell">
               <span class="lbl">Processor</span>
-              <span class="val" title="${dev.cpu}">${dev.cpu_family || dev.cpu || '-'}</span>
+              <span class="val" title="${dev.cpu || ''}">${this.formatCpu(dev.cpu)}</span>
             </div>
             <div class="client-spec-cell">
               <span class="lbl">RAM</span>
@@ -746,7 +748,7 @@ const App = {
             </div>
             <div class="client-spec-cell">
               <span class="lbl">Motherboard</span>
-              <span class="val" title="${dev.mb}">${dev.mb_brand || dev.mb || '-'}</span>
+              <span class="val" title="${dev.mb || ''}">${this.formatMb(dev.mb, dev.mb_brand)}</span>
             </div>
             <div class="client-spec-cell">
               <span class="lbl">Storage SSD</span>
@@ -799,7 +801,7 @@ const App = {
         <td><span class="reader-sn-code" style="font-size: 0.75rem;">${d.reader_sn || '-'}</span></td>
         <td style="font-family: var(--font-mono); font-size: 0.75rem;">${d.ip || '-'}</td>
         <td>${d.temp !== null ? d.temp + '°C' : '-'}</td>
-        <td style="font-size: 0.75rem;">${d.cpu_family || '-'}</td>
+        <td style="font-size: 0.75rem;" title="${d.cpu || ''}">${this.formatCpu(d.cpu)}</td>
         <td style="font-size: 0.75rem;">${d.ram || '-'}</td>
         <td style="font-size: 0.75rem;">${d.ssd_brand} (${d.ssd_type})</td>
         <td style="font-size: 0.72rem; color: var(--text-muted);">${d.os ? d.os.split('(')[0].trim() : '-'}</td>
@@ -1200,6 +1202,33 @@ const App = {
         if (e.target === modal) modal.classList.remove('open');
       });
     }
+  },
+
+  formatCpu(raw) {
+    if (!raw) return '-';
+    let s = String(raw)
+      .replace(/\((?:R|TM)\)/gi, '')
+      .replace(/\bCPU\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return s || '-';
+  },
+
+  formatMb(raw, brand) {
+    if (!raw || raw.toLowerCase().includes('default string')) {
+      return (brand && brand !== 'Other Brand') ? brand : '-';
+    }
+    let s = String(raw)
+      .replace(/ASUSTeK COMPUTER INC\./gi, 'ASUS')
+      .replace(/Micro-Star International Co\., Ltd\./gi, 'MSI')
+      .replace(/Gigabyte Technology Co\., Ltd\./gi, 'Gigabyte')
+      .replace(/BIOSTAR Group/gi, 'Biostar')
+      .replace(/Intel Corporation/gi, 'Intel')
+      .replace(/Dell Inc\./gi, 'Dell')
+      .replace(/Hewlett-Packard/gi, 'HP')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return s || brand || '-';
   },
 
   copyToClipboard(text) {
