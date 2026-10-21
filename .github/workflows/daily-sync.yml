@@ -1,0 +1,35 @@
+name: Daily Google Sheets Sync & Pages Deploy
+
+on:
+  schedule:
+    # 22:00 UTC is 05:00 AM WIB (Jakarta UTC+7)
+    - cron: '0 22 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch Latest Google Sheet & Re-compute Datasets
+        run: |
+          python sync_data.py
+
+      - name: Commit and Push if Changed
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ js/summary-data.js sheet_data.csv
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(auto-sync): daily sync at 05:00 WIB from Google Sheet" && git push)

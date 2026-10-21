@@ -1,6 +1,6 @@
 /**
  * PARKEE FleetIQ - Core Application Logic
- * Interactive data explorer, real-time filtering, live Google Sheets sync & alerts
+ * Left Sidebar Navigation, 05:00 AM Auto-Refresh Scheduler & Live Google Sheets Sync
  */
 
 const App = {
@@ -18,12 +18,15 @@ const App = {
   },
 
   SHEET_CSV_URL: 'https://docs.google.com/spreadsheets/d/11HUECMQG_30Sc1AupFLac7OxBDiFiZOD339LjiOkpdc/export?format=csv&gid=0',
+  nextSyncTimeout: null,
 
   async init() {
     this.initNavigation();
     this.initModal();
     this.initHardwareTabs();
     this.initFleetTableControls();
+    this.initFullscreen();
+    this.setupDailyRefreshScheduler();
 
     // 1. Load Precomputed Summary (Instant 0ms render)
     if (window.PRECOMPUTED_SUMMARY) {
@@ -36,10 +39,10 @@ const App = {
       await this.fetchSummaryJson();
     }
 
-    // 2. Load Full Fleet JSON asynchronously for the table and search
+    // 2. Load Full Fleet JSON asynchronously for table and search
     this.fetchFleetData();
 
-    // 3. Setup Sync button
+    // 3. Setup Sync button & Export button
     const syncBtn = document.getElementById('syncSheetBtn');
     if (syncBtn) {
       syncBtn.addEventListener('click', () => this.syncGoogleSheets());
@@ -49,24 +52,132 @@ const App = {
     if (exportBtn) {
       exportBtn.addEventListener('click', () => this.exportTableToCSV());
     }
+
+    // 4. Check if today's 05:00 AM auto-refresh is due
+    this.checkAutoSyncOnLoad();
   },
 
   initNavigation() {
-    const tabs = document.querySelectorAll('.nav-tab-btn');
-    tabs.forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+    const navBtns = document.querySelectorAll('.sidebar-nav-btn');
+    const topTitle = document.getElementById('topBarTitle');
 
-        const targetView = tab.dataset.view;
+    const titleMap = {
+      presentation: 'Presentasi Interaktif Armada',
+      dashboard: 'Matriks & Analitik Eksekutif',
+      explorer: 'Eksplorasi Armada Perangkat',
+      alerts: 'Incident Response & Triage Room'
+    };
+
+    navBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        navBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const targetView = btn.dataset.view;
         document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-view'));
         const targetSec = document.getElementById(`view-${targetView}`);
         if (targetSec) targetSec.classList.add('active-view');
 
-        // Trigger chart resize if charts are inside
+        if (topTitle && titleMap[targetView]) {
+          topTitle.textContent = titleMap[targetView];
+        }
+
+        // Close mobile sidebar if open
+        const sidebar = document.getElementById('appSidebar');
+        if (sidebar) sidebar.classList.remove('open');
+
+        // Trigger chart resize
         window.dispatchEvent(new Event('resize'));
       });
     });
+
+    // Mobile menu toggle
+    const mobBtn = document.getElementById('mobileMenuBtn');
+    const sidebar = document.getElementById('appSidebar');
+    if (mobBtn && sidebar) {
+      mobBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+      });
+    }
+  },
+
+  initFullscreen() {
+    const fsBtn = document.getElementById('globalFullscreenBtn');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      });
+    }
+  },
+
+  // =========================================================================
+  // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB)
+  // =========================================================================
+  setupDailyRefreshScheduler() {
+    const updateCountdown = () => {
+      const now = new Date();
+      // Target today 05:00:00
+      let target = new Date();
+      target.setHours(5, 0, 0, 0);
+
+      // If it's already past 05:00 today, schedule for tomorrow 05:00
+      if (now >= target) {
+        target.setDate(target.getDate() + 1);
+      }
+
+      const diffMs = target.getTime() - now.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      const badge = document.getElementById('syncCountdownBadge');
+      if (badge) {
+        badge.textContent = `Auto-refresh: ${hours}j ${mins}m (05:00 WIB)`;
+      }
+
+      // If within 1 second of 05:00 AM, trigger sync
+      if (diffMs <= 1000) {
+        this.syncGoogleSheets(true);
+      }
+    };
+
+    updateCountdown();
+    // Update timer text every minute
+    setInterval(updateCountdown, 60000);
+
+    // Schedule exact timeout for next 05:00 AM
+    const now = new Date();
+    let next5AM = new Date();
+    next5AM.setHours(5, 0, 0, 0);
+    if (now >= next5AM) {
+      next5AM.setDate(next5AM.getDate() + 1);
+    }
+    const msUntil5AM = next5AM.getTime() - now.getTime();
+
+    if (this.nextSyncTimeout) clearTimeout(this.nextSyncTimeout);
+    this.nextSyncTimeout = setTimeout(() => {
+      console.log('⏰ Auto-refresh triggered at 05:00 AM WIB!');
+      this.syncGoogleSheets(true);
+      this.setupDailyRefreshScheduler(); // Schedule for next day
+    }, msUntil5AM);
+  },
+
+  checkAutoSyncOnLoad() {
+    const lastSync = localStorage.getItem('fleet_last_sync_timestamp');
+    const now = new Date();
+    const today5AM = new Date();
+    today5AM.setHours(5, 0, 0, 0);
+
+    // If current time is past 05:00 AM today and we haven't synced since today's 05:00 AM
+    if (now > today5AM) {
+      if (!lastSync || new Date(parseInt(lastSync, 10)) < today5AM) {
+        console.log('⚡ Data stale since 05:00 AM today, auto-syncing in background...');
+        setTimeout(() => this.syncGoogleSheets(true), 1500);
+      }
+    }
   },
 
   async fetchSummaryJson() {
@@ -90,7 +201,6 @@ const App = {
       if (res.ok) {
         this.fleet = await res.json();
         this.applyFleetFilters();
-        this.showToast('Data armada lengkap 7,518 device berhasil dimuat!', 'success');
       }
     } catch (e) {
       console.warn('Could not load fleet.json asynchronously', e);
@@ -106,6 +216,12 @@ const App = {
     const headerBadge = document.getElementById('headerFleetBadge');
     if (headerBadge) {
       headerBadge.textContent = `${(s.total_devices || 0).toLocaleString()} Nodes • ${s.unique_locations || 0} Sites`;
+    }
+
+    // Last sync label in top bar
+    const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
+    if (lastSyncLabel) {
+      lastSyncLabel.textContent = s.last_updated ? `Update: ${s.last_updated}` : 'Terakhir disinkronkan: Hari ini, 05:00 WIB';
     }
 
     // KPI Cards
@@ -460,11 +576,9 @@ const App = {
   },
 
   filterByLocation(locName) {
-    // Switch to Explorer Tab
-    const tabExplorer = document.querySelector('.nav-tab-btn[data-view="explorer"]');
+    const tabExplorer = document.querySelector('.sidebar-nav-btn[data-view="explorer"]');
     if (tabExplorer) tabExplorer.click();
 
-    // Set search input
     const searchInput = document.getElementById('tableSearchInput');
     if (searchInput) {
       searchInput.value = locName;
@@ -601,30 +715,40 @@ const App = {
     this.showToast('File CSV berhasil diunduh!', 'success');
   },
 
-  async syncGoogleSheets() {
+  async syncGoogleSheets(isSilent = false) {
     const btn = document.getElementById('syncSheetBtn');
-    if (btn) {
+    if (btn && !isSilent) {
       btn.disabled = true;
       btn.innerHTML = `<span style="display: inline-block; animation: spin 1s infinite linear;">🔄</span> Menyinkronkan...`;
     }
 
-    this.showToast('Mengambil data terbaru langsung dari Google Sheets...', 'info');
+    if (!isSilent) {
+      this.showToast('Mengambil data terbaru langsung dari Google Sheets...', 'info');
+    }
 
     try {
       const res = await fetch(this.SHEET_CSV_URL);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const csvText = await res.text();
 
-      // Parse with PapaParse
       Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
           this.processSyncData(results.data);
-          this.showToast('Sinkronisasi Google Sheets Sukses! Data armada ter-update.', 'success');
+          
+          localStorage.setItem('fleet_last_sync_timestamp', Date.now().toString());
+
+          const lastSyncLabel = document.getElementById('lastSyncStatusLabel');
+          if (lastSyncLabel) {
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            lastSyncLabel.textContent = `Terakhir disinkronkan: Hari ini, ${timeStr} WIB`;
+          }
+
+          this.showToast('Sinkronisasi Sukses! Data armada ter-update.', 'success');
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<span>🔄</span> Sinkronkan Google Sheets`;
+            btn.innerHTML = `<span>🔄</span> Sync Sheets Sekarang`;
           }
         },
         error: (err) => {
@@ -633,16 +757,17 @@ const App = {
       });
     } catch (e) {
       console.error('Sync failed', e);
-      this.showToast('Gagal menyinkronkan live: ' + e.message, 'error');
+      if (!isSilent) {
+        this.showToast('Gagal menyinkronkan live: ' + e.message, 'error');
+      }
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `<span>🔄</span> Sinkronkan Google Sheets`;
+        btn.innerHTML = `<span>🔄</span> Sync Sheets Sekarang`;
       }
     }
   },
 
   processSyncData(rows) {
-    // Process rows into new fleet structure
     const locTiers = {};
     rows.forEach(r => {
       const loc = (r['Nama Lokasi'] || '').trim();
