@@ -12,8 +12,6 @@ const App = {
   summary: null,
 
   // Selected state for Client Specification master-detail
-  selectedLocation: 'Ancol Mansion',
-
   // View Filter states
   locState: {
     search: '',
@@ -34,12 +32,23 @@ const App = {
     sortDir: 'asc'
   },
 
+  // Sisi Kiri (50%): All Clients Nationwide
+  allClientsState: {
+    search: '',
+    filter: 'all',
+    page: 1,
+    pageSize: 15,
+    sortCol: 'loc',
+    sortDir: 'asc'
+  },
+
+  // Sisi Kanan (50%): Location Accordion Dropdowns
   pickerState: {
     search: '',
     tier: 'all'
   },
-
-  clientFilterText: '',
+  expandedLocations: new Set(['Ancol Mansion']),
+  targetHighlightedHost: null,
 
   storageState: {
     search: '',
@@ -89,7 +98,7 @@ const App = {
         const badge = document.getElementById('badgeTotalLocs');
         if (badge) badge.textContent = this.locations.length.toLocaleString();
         this.renderLocationsTable();
-        this.renderClientLocationPicker();
+        this.renderClientLocationAccordions();
       }
     } catch (e) {
       console.warn('Could not load locations.json', e);
@@ -119,7 +128,8 @@ const App = {
         const clients = this.fleet.filter(d => !d.is_server);
         const badge = document.getElementById('badgeTotalClients');
         if (badge) badge.textContent = clients.length.toLocaleString();
-        this.renderSelectedLocationClients();
+        this.renderAllClientsNationwideTable();
+        this.renderClientLocationAccordions();
       }
     } catch (e) {
       console.warn('Could not load fleet.json', e);
@@ -214,8 +224,8 @@ const App = {
     } else if (this.activeView === 'servers') {
       this.renderServersTable();
     } else if (this.activeView === 'clients') {
-      this.renderClientLocationPicker();
-      this.renderSelectedLocationClients();
+      this.renderAllClientsNationwideTable();
+      this.renderClientLocationAccordions();
     } else if (this.activeView === 'storage') {
       this.renderStorageTable();
     }
@@ -569,11 +579,137 @@ const App = {
   },
 
   // =========================================================================
-  // MODULE 3: CLIENT SPECIFICATION (Master-Detail & RFID Readers)
+  // MODULE 3: CLIENT SPECIFICATION (50:50 All Clients & Location Dropdowns)
   // =========================================================================
-  renderClientLocationPicker() {
-    const listContainer = document.getElementById('clientLocPickerList');
-    if (!listContainer) return;
+  renderAllClientsNationwideTable() {
+    const tbody = document.getElementById('allClientsTableBody');
+    if (!tbody) return;
+
+    let list = this.fleet.filter(d => !d.is_server);
+
+    // Quick filter pills
+    if (this.allClientsState.filter === 'reader') {
+      list = list.filter(d => d.reader_ver || d.reader_sn);
+    } else if (this.allClientsState.filter === 'warm') {
+      list = list.filter(d => d.temp !== null && d.temp >= 70);
+    } else if (this.allClientsState.filter === 'hot') {
+      list = list.filter(d => d.temp !== null && d.temp >= 80);
+    }
+
+    // Search query
+    if (this.allClientsState.search) {
+      const q = this.allClientsState.search.toLowerCase();
+      list = list.filter(d =>
+        (d.loc && d.loc.toLowerCase().includes(q)) ||
+        (d.code && d.code.toLowerCase().includes(q)) ||
+        (d.host && d.host.toLowerCase().includes(q)) ||
+        (d.ip && d.ip.toLowerCase().includes(q)) ||
+        (d.cpu && d.cpu.toLowerCase().includes(q)) ||
+        (d.reader_sn && d.reader_sn.toLowerCase().includes(q)) ||
+        (d.reader_ver && d.reader_ver.toLowerCase().includes(q)) ||
+        (d.os && d.os.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    const col = this.allClientsState.sortCol;
+    const dir = this.allClientsState.sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+      if (va === null || va === undefined) return 1;
+      if (vb === null || vb === undefined) return -1;
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+
+    const badge = document.getElementById('allClientsCountBadge');
+    if (badge) badge.textContent = `${list.length.toLocaleString()} Unit`;
+
+    // Pagination
+    const totalPages = Math.ceil(list.length / this.allClientsState.pageSize) || 1;
+    if (this.allClientsState.page > totalPages) this.allClientsState.page = totalPages;
+    if (this.allClientsState.page < 1) this.allClientsState.page = 1;
+
+    const startIdx = (this.allClientsState.page - 1) * this.allClientsState.pageSize;
+    const pageItems = list.slice(startIdx, startIdx + this.allClientsState.pageSize);
+
+    const pageLabel = document.getElementById('allClientsPageLabel');
+    if (pageLabel) pageLabel.textContent = `Halaman ${this.allClientsState.page} / ${totalPages}`;
+    const countLabel = document.getElementById('allClientsCountLabel');
+    if (countLabel) countLabel.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.allClientsState.pageSize, list.length)} dari ${list.length.toLocaleString()} klien`;
+
+    const prevBtn = document.getElementById('allClientsPrevBtn');
+    const nextBtn = document.getElementById('allClientsNextBtn');
+    if (prevBtn) prevBtn.disabled = this.allClientsState.page <= 1;
+    if (nextBtn) nextBtn.disabled = this.allClientsState.page >= totalPages;
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = pageItems.map(d => {
+      let tempClass = 'temp-cool';
+      if (d.temp !== null) {
+        if (d.temp >= 80) tempClass = 'temp-hot';
+        else if (d.temp >= 70) tempClass = 'temp-warm';
+        else if (d.temp >= 50) tempClass = 'temp-normal';
+      }
+
+      const hasReader = Boolean(d.reader_ver || d.reader_sn);
+      const locEscaped = (d.loc || '').replace(/'/g, "\\'");
+      const hostEscaped = (d.host || '').replace(/'/g, "\\'");
+
+      return `
+        <tr onclick="App.openLocationInAccordion('${locEscaped}', '${hostEscaped}')" title="Klik untuk membuka dropdown lokasi di sisi kanan">
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.8rem; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${d.loc}
+            </div>
+            <span class="version-code-tag" style="font-size: 0.65rem;">${d.code || '-'}</span>
+          </td>
+          <td>
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.8rem;">
+              ${d.host}
+            </div>
+            <span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">${d.cat}</span>
+          </td>
+          <td>
+            ${hasReader ? `
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span class="reader-ver-tag" style="font-size: 0.68rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader'}</span>
+                ${d.reader_sn ? `<span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary);">${d.reader_sn}</span>` : ''}
+              </div>
+            ` : `<span style="font-size: 0.68rem; color: var(--text-muted); font-style: italic;">Tidak Ada</span>`}
+          </td>
+          <td style="font-family: var(--font-mono); font-size: 0.74rem;">
+            ${d.ip || '-'}
+          </td>
+          <td>
+            <span class="temp-badge ${tempClass}" style="font-weight: 700; font-size: 0.72rem; padding: 2px 6px;">
+              ${d.temp !== null ? d.temp + '°C' : '-'}
+            </span>
+          </td>
+          <td style="font-size: 0.74rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu || ''}">
+            ${this.formatCpu(d.cpu)}
+          </td>
+          <td>
+            <button class="btn btn-outline" style="padding: 2px 7px; font-size: 0.7rem; white-space: nowrap;" onclick="event.stopPropagation(); App.openLocationInAccordion('${locEscaped}', '${hostEscaped}')">
+              Buka ➔
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  renderClientLocationAccordions() {
+    const container = document.getElementById('clientLocAccordionList');
+    if (!container) return;
 
     let locs = [...this.locations];
 
@@ -593,220 +729,182 @@ const App = {
     if (badge) badge.textContent = `${locs.length} Sites`;
 
     if (locs.length === 0) {
-      listContainer.innerHTML = `<div style="text-align:center; padding: 1.5rem; color: var(--text-muted); font-size: 0.8rem;">Lokasi tidak ditemukan.</div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem;">Lokasi tidak ditemukan.</div>`;
       return;
     }
 
-    listContainer.innerHTML = locs.map(l => {
-      const isActive = l.loc.toLowerCase() === this.selectedLocation.toLowerCase();
+    container.innerHTML = locs.map(l => {
+      const isOpen = this.expandedLocations.has(l.loc);
       const tierClass = l.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (l.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
-      return `
-        <div class="loc-picker-item ${isActive ? 'active' : ''}" onclick="App.selectLocationForClients('${l.loc.replace(/'/g, "\\'")}')">
-          <div>
-            <div class="loc-name">${l.loc}</div>
-            <div class="loc-sub">
-              <span class="version-code-tag">${l.code || '-'}</span>
-              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${l.tier}</span>
+      const locEscaped = l.loc.replace(/'/g, "\\'");
+      const safeId = 'loc-acc-' + (l.code || l.loc).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      let clientsHtml = '';
+      if (isOpen) {
+        const clients = this.fleet.filter(d => d.loc.toLowerCase() === l.loc.toLowerCase() && !d.is_server);
+        if (clients.length === 0) {
+          clientsHtml = `
+            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: var(--surface-card); border-radius: var(--radius-sm);">
+              Seluruh unit di lokasi ini terdaftar sebagai server atau belum ada unit klien yang aktif.
             </div>
-          </div>
-          <div style="text-align: right;">
-            <span class="badge-pill" style="font-size: 0.72rem;">${l.total_clients} Klien</span>
-            ${l.has_reader ? '<div style="font-size: 0.65rem; color: var(--color-success); font-weight: 700; margin-top: 2px;">● RFID</div>' : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-  },
+          `;
+        } else {
+          clientsHtml = `
+            <div class="loc-accordion-clients-grid">
+              ${clients.map(dev => {
+                let tempClass = 'temp-cool';
+                if (dev.temp !== null) {
+                  if (dev.temp >= 80) tempClass = 'temp-hot';
+                  else if (dev.temp >= 70) tempClass = 'temp-warm';
+                  else if (dev.temp >= 50) tempClass = 'temp-normal';
+                }
+                const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
+                const isTarget = this.targetHighlightedHost === dev.host;
 
-  selectLocationForClients(locName) {
-    this.selectedLocation = locName;
-    this.renderClientLocationPicker();
-    this.renderSelectedLocationClients();
-  },
+                return `
+                  <div class="client-device-card ${isTarget ? 'pulse-highlight' : ''}" id="card-client-${dev.host}">
+                    <!-- Top Row -->
+                    <div class="client-card-top">
+                      <div>
+                        <div class="client-host-title">${dev.host}</div>
+                        <span class="badge-pill" style="font-size: 0.68rem; margin-top: 3px; display: inline-block;">
+                          ${dev.cat}
+                        </span>
+                      </div>
+                      <span class="temp-badge ${tempClass}" style="font-weight: 700;">
+                        ${dev.temp !== null ? dev.temp + '°C' : '-'}
+                      </span>
+                    </div>
 
-  renderSelectedLocationClients() {
-    const locName = this.selectedLocation;
-    const locMeta = this.locations.find(l => l.loc.toLowerCase() === locName.toLowerCase()) || {
-      loc: locName,
-      code: '-',
-      tier: 'Standard',
-      zt: '-',
-      last_sync: '-'
-    };
+                    <!-- RFID Reader Box -->
+                    <div class="reader-telemetry-box" style="${hasReader ? '' : 'border-style: solid; border-color: var(--border-subtle);'}">
+                      <div class="reader-badge-header">
+                        <span>RFID / Barcode Reader Telemetry</span>
+                        ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">TIDAK TERPASANG</span>'}
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <span class="reader-ver-tag">Versi: <strong>${dev.reader_ver || '-'}</strong></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader:</span>
+                          ${dev.reader_sn ? `
+                            <div class="reader-sn-code">
+                              <span>${dev.reader_sn}</span>
+                              <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number" onclick="App.copyToClipboard('${dev.reader_sn}')">
+                                📋
+                              </button>
+                            </div>
+                          ` : '<span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">-</span>'}
+                        </div>
+                      </div>
+                    </div>
 
-    // Update Header
-    const elName = document.getElementById('clientLocName');
-    const elTier = document.getElementById('clientLocTierBadge');
-    const elCode = document.getElementById('clientLocCodeBadge');
-    const elZt = document.getElementById('clientLocZt');
-    const elSync = document.getElementById('clientLocSync');
-    const elClientCount = document.getElementById('clientCountBadge');
-    const elReaderCount = document.getElementById('readerCountBadge');
+                    <!-- Hardware Specs Grid -->
+                    <div class="client-specs-grid">
+                      <div class="client-spec-cell">
+                        <span class="lbl">Processor</span>
+                        <span class="val" title="${dev.cpu || ''}">${this.formatCpu(dev.cpu)}</span>
+                      </div>
+                      <div class="client-spec-cell">
+                        <span class="lbl">RAM</span>
+                        <span class="val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
+                      </div>
+                      <div class="client-spec-cell">
+                        <span class="lbl">Motherboard</span>
+                        <span class="val" title="${dev.mb || ''}">${this.formatMb(dev.mb, dev.mb_brand)}</span>
+                      </div>
+                      <div class="client-spec-cell">
+                        <span class="lbl">Storage SSD</span>
+                        <span class="val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</span>
+                      </div>
+                      <div class="client-spec-cell">
+                        <span class="lbl">SSD Health / Usage</span>
+                        <span class="val">Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
+                      </div>
+                      <div class="client-spec-cell">
+                        <span class="lbl">IP Local / ZT</span>
+                        <span class="val mono">${dev.ip || '-'}</span>
+                      </div>
+                    </div>
 
-    if (elName) elName.textContent = locMeta.loc;
-    if (elCode) elCode.textContent = `Kode: ${locMeta.code || '-'}`;
-    if (elTier) {
-      elTier.textContent = locMeta.tier || 'Standard';
-      elTier.className = `tier-tag ${locMeta.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (locMeta.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver')}`;
-    }
-    if (elZt) elZt.textContent = locMeta.zt || '-';
-    if (elSync) elSync.textContent = locMeta.last_sync || '-';
-
-    // Get clients for this location
-    let clients = this.fleet.filter(d => d.loc.toLowerCase() === locName.toLowerCase() && !d.is_server);
-
-    // If clientFilterText
-    if (this.clientFilterText) {
-      const q = this.clientFilterText.toLowerCase();
-      clients = clients.filter(d => 
-        (d.host && d.host.toLowerCase().includes(q)) ||
-        (d.cpu && d.cpu.toLowerCase().includes(q)) ||
-        (d.mb && d.mb.toLowerCase().includes(q)) ||
-        (d.reader_sn && d.reader_sn.toLowerCase().includes(q)) ||
-        (d.reader_ver && d.reader_ver.toLowerCase().includes(q)) ||
-        (d.ip && d.ip.toLowerCase().includes(q))
-      );
-    }
-
-    const readersCount = clients.filter(d => d.reader_ver || d.reader_sn).length;
-    if (elClientCount) elClientCount.textContent = `${clients.length} Unit`;
-    if (elReaderCount) elReaderCount.textContent = `${readersCount} Terpasang`;
-
-    const cardsGrid = document.getElementById('clientCardsGrid');
-    if (!cardsGrid) return;
-
-    if (clients.length === 0) {
-      cardsGrid.innerHTML = `
-        <div class="glass-panel" style="grid-column: 1 / -1; padding: 2.5rem; text-align: center; color: var(--text-muted);">
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Tidak ada unit klien di lokasi ini.</div>
-          <p style="font-size: 0.85rem; margin: 0;">Seluruh perangkat mungkin terdaftar sebagai server atau tidak ada perangkat klien yang aktif.</p>
-        </div>
-      `;
-      return;
-    }
-
-    cardsGrid.innerHTML = clients.map(dev => {
-      let tempClass = 'temp-cool';
-      if (dev.temp !== null) {
-        if (dev.temp >= 80) tempClass = 'temp-hot';
-        else if (dev.temp >= 70) tempClass = 'temp-warm';
-        else if (dev.temp >= 50) tempClass = 'temp-normal';
+                    <!-- Footer -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-size: 0.7rem; color: var(--text-muted);">
+                      <span>OS: ${dev.os ? dev.os.split('(')[0].trim() : '-'}</span>
+                      <span>Sync: ${dev.sync}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
       }
 
-      const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
-
       return `
-        <div class="client-device-card">
-          <!-- Top Row: Hostname, Role Badge & Temp -->
-          <div class="client-card-top">
-            <div>
-              <div class="client-host-title">${dev.host}</div>
-              <span class="badge-pill" style="font-size: 0.68rem; margin-top: 3px; display: inline-block;">
-                ${dev.cat}
-              </span>
-            </div>
-            <span class="temp-badge ${tempClass}" style="font-weight: 700;">
-              ${dev.temp !== null ? dev.temp + '°C' : '-'}
-            </span>
-          </div>
-
-          <!-- Reader RFID Section (Requested by user) -->
-          <div class="reader-telemetry-box" style="${hasReader ? '' : 'border-style: solid; border-color: var(--border-subtle);'}">
-            <div class="reader-badge-header">
-              <span>RFID / Barcode Reader Telemetry</span>
-              ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">TIDAK TERPASANG</span>'}
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="reader-ver-tag">Versi: <strong>${dev.reader_ver || '-'}</strong></span>
-              </div>
-              
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader:</span>
-                ${dev.reader_sn ? `
-                  <div class="reader-sn-code">
-                    <span>${dev.reader_sn}</span>
-                    <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number" onclick="App.copyToClipboard('${dev.reader_sn}')">
-                      📋
-                    </button>
-                  </div>
-                ` : '<span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">-</span>'}
+        <div class="loc-accordion-item ${isOpen ? 'open' : ''}" id="${safeId}">
+          <div class="loc-accordion-header" onclick="App.toggleLocationAccordion('${locEscaped}')">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="loc-accordion-chevron">▶</span>
+              <div>
+                <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem;">${l.loc}</div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-top: 3px;">
+                  <span class="version-code-tag" style="font-size: 0.65rem;">${l.code || '-'}</span>
+                  <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${l.tier}</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          <!-- Hardware Specifications Grid -->
-          <div class="client-specs-grid">
-            <div class="client-spec-cell">
-              <span class="lbl">Processor</span>
-              <span class="val" title="${dev.cpu || ''}">${this.formatCpu(dev.cpu)}</span>
-            </div>
-            <div class="client-spec-cell">
-              <span class="lbl">RAM</span>
-              <span class="val">${dev.ram || '-'} (${dev.ram_brand || '-'})</span>
-            </div>
-            <div class="client-spec-cell">
-              <span class="lbl">Motherboard</span>
-              <span class="val" title="${dev.mb || ''}">${this.formatMb(dev.mb, dev.mb_brand)}</span>
-            </div>
-            <div class="client-spec-cell">
-              <span class="lbl">Storage SSD</span>
-              <span class="val">${dev.ssd_brand} (${dev.ssd_type}) ${dev.ssd_size}</span>
-            </div>
-            <div class="client-spec-cell">
-              <span class="lbl">SSD Health / Usage</span>
-              <span class="val">Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
-            </div>
-            <div class="client-spec-cell">
-              <span class="lbl">IP Local / ZT</span>
-              <span class="val mono">${dev.ip || '-'}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge-pill" style="font-size: 0.72rem;">${l.total_clients} Klien</span>
+              ${l.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.68rem;">✓ RFID</span>' : ''}
             </div>
           </div>
 
-          <!-- Bottom Footer -->
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-size: 0.7rem; color: var(--text-muted);">
-            <span>OS: ${dev.os ? dev.os.split('(')[0].trim() : '-'}</span>
-            <span>Sync: ${dev.sync}</span>
-          </div>
+          ${isOpen ? `
+            <div class="loc-accordion-body">
+              <div class="loc-accordion-meta-bar">
+                <span>IP ZeroTier: <strong style="font-family: var(--font-mono);">${l.zt || '-'}</strong></span>
+                <span>Last Telemetry Sync: <strong>${l.last_sync || '-'}</strong></span>
+              </div>
+              ${clientsHtml}
+            </div>
+          ` : ''}
         </div>
       `;
     }).join('');
   },
 
-  // Master Client Table (Nationwide 5,536 Clients)
-  toggleMasterClientTable() {
-    const card = document.getElementById('allClientsTableCard');
-    if (!card) return;
-    const isHidden = card.style.display === 'none';
-    card.style.display = isHidden ? 'block' : 'none';
-    if (isHidden) {
-      this.renderMasterClientsTable();
-      card.scrollIntoView({ behavior: 'smooth' });
+  toggleLocationAccordion(locName) {
+    if (this.expandedLocations.has(locName)) {
+      this.expandedLocations.delete(locName);
+    } else {
+      this.expandedLocations.add(locName);
     }
+    this.renderClientLocationAccordions();
   },
 
-  renderMasterClientsTable() {
-    const tbody = document.getElementById('allClientsTbody');
-    if (!tbody) return;
+  openLocationInAccordion(locName, targetHost = null) {
+    this.expandedLocations.add(locName);
+    this.targetHighlightedHost = targetHost;
+    this.renderClientLocationAccordions();
 
-    const clients = this.fleet.filter(d => !d.is_server).slice(0, 100);
+    setTimeout(() => {
+      const locMeta = this.locations.find(l => l.loc.toLowerCase() === locName.toLowerCase());
+      const safeId = 'loc-acc-' + (locMeta ? (locMeta.code || locMeta.loc) : locName).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const el = document.getElementById(safeId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
 
-    tbody.innerHTML = clients.map(d => `
-      <tr>
-        <td style="font-weight: 700;">${d.loc}</td>
-        <td><span class="version-code-tag">${d.code || '-'}</span></td>
-        <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary);">${d.host}</td>
-        <td><span class="version-code-tag">${d.reader_ver || '-'}</span></td>
-        <td><span class="reader-sn-code" style="font-size: 0.75rem;">${d.reader_sn || '-'}</span></td>
-        <td style="font-family: var(--font-mono); font-size: 0.75rem;">${d.ip || '-'}</td>
-        <td>${d.temp !== null ? d.temp + '°C' : '-'}</td>
-        <td style="font-size: 0.75rem;" title="${d.cpu || ''}">${this.formatCpu(d.cpu)}</td>
-        <td style="font-size: 0.75rem;">${d.ram || '-'}</td>
-        <td style="font-size: 0.75rem;">${d.ssd_brand} (${d.ssd_type})</td>
-        <td style="font-size: 0.72rem; color: var(--text-muted);">${d.os ? d.os.split('(')[0].trim() : '-'}</td>
-      </tr>
-    `).join('');
+      if (targetHost) {
+        const cardEl = document.getElementById(`card-client-${targetHost}`);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          cardEl.classList.add('pulse-highlight');
+          setTimeout(() => cardEl.classList.remove('pulse-highlight'), 2000);
+        }
+      }
+    }, 60);
   },
 
   // =========================================================================
@@ -1079,12 +1177,72 @@ const App = {
       });
     }
 
-    // 3. Client Specification Events
+    // 3. Client Specification Events (50:50 Layout)
+    // Sisi Kiri: All Clients
+    const allClientsSearch = document.getElementById('allClientsSearchInput');
+    if (allClientsSearch) {
+      allClientsSearch.addEventListener('input', (e) => {
+        this.allClientsState.search = e.target.value;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-client-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.allClientsState.filter = btn.dataset.clientFilter;
+        this.allClientsState.page = 1;
+        this.renderAllClientsNationwideTable();
+      });
+    });
+
+    document.querySelectorAll('[data-cl-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.clSort;
+        if (this.allClientsState.sortCol === col) {
+          this.allClientsState.sortDir = this.allClientsState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.allClientsState.sortCol = col;
+          this.allClientsState.sortDir = 'asc';
+        }
+        this.renderAllClientsNationwideTable();
+      });
+    });
+
+    const clPrev = document.getElementById('allClientsPrevBtn');
+    if (clPrev) {
+      clPrev.addEventListener('click', () => {
+        if (this.allClientsState.page > 1) {
+          this.allClientsState.page--;
+          this.renderAllClientsNationwideTable();
+        }
+      });
+    }
+
+    const clNext = document.getElementById('allClientsNextBtn');
+    if (clNext) {
+      clNext.addEventListener('click', () => {
+        this.allClientsState.page++;
+        this.renderAllClientsNationwideTable();
+      });
+    }
+
+    const exportClients = document.getElementById('exportAllClientsBtn');
+    if (exportClients) {
+      exportClients.addEventListener('click', () => {
+        const clients = this.fleet.filter(d => !d.is_server);
+        this.exportCsv(clients, 'parkee_all_clients.csv');
+      });
+    }
+
+    // Sisi Kanan: Location Accordions
     const pickerSearch = document.getElementById('pickerSearchInput');
     if (pickerSearch) {
       pickerSearch.addEventListener('input', (e) => {
         this.pickerState.search = e.target.value;
-        this.renderClientLocationPicker();
+        this.renderClientLocationAccordions();
       });
     }
 
@@ -1093,30 +1251,9 @@ const App = {
         document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.pickerState.tier = btn.dataset.pickerTier;
-        this.renderClientLocationPicker();
+        this.renderClientLocationAccordions();
       });
     });
-
-    const clientFilter = document.getElementById('clientFilterInput');
-    if (clientFilter) {
-      clientFilter.addEventListener('input', (e) => {
-        this.clientFilterText = e.target.value;
-        this.renderSelectedLocationClients();
-      });
-    }
-
-    const masterTableBtn = document.getElementById('toggleMasterClientTableBtn');
-    if (masterTableBtn) {
-      masterTableBtn.addEventListener('click', () => this.toggleMasterClientTable());
-    }
-
-    const closeMasterBtn = document.getElementById('closeMasterClientTableBtn');
-    if (closeMasterBtn) {
-      closeMasterBtn.addEventListener('click', () => {
-        const card = document.getElementById('allClientsTableCard');
-        if (card) card.style.display = 'none';
-      });
-    }
 
     // 4. Storage Table Events
     const storageSearch = document.getElementById('storageSearchInput');
