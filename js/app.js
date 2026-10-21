@@ -311,17 +311,8 @@ const App = {
     }
 
     // Sort
-    const col = this.locState.sortCol;
-    const dir = this.locState.sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
-      let va = a[col] || '';
-      let vb = b[col] || '';
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
+    list = this.sortData(list, this.locState.sortCol, this.locState.sortDir === 'asc' ? 1 : -1);
+    this.updateSortIndicators('#view-locations', 'data-loc-sort', this.locState.sortCol, this.locState.sortDir);
 
     // Update counter
     const countLabel = document.getElementById('locResultCountLabel');
@@ -541,19 +532,8 @@ const App = {
     }
 
     // Sort
-    const col = this.serverState.sortCol;
-    const dir = this.serverState.sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
-      let va = a[col];
-      let vb = b[col];
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
+    list = this.sortData(list, this.serverState.sortCol, this.serverState.sortDir === 'asc' ? 1 : -1);
+    this.updateSortIndicators('#view-servers', 'data-srv-sort', this.serverState.sortCol, this.serverState.sortDir);
 
     const countLabel = document.getElementById('serverResultCountLabel');
     if (countLabel) countLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Server`;
@@ -806,19 +786,8 @@ const App = {
     }
 
     // Sort
-    const col = this.allClientsState.sortCol;
-    const dir = this.allClientsState.sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
-      let va = a[col];
-      let vb = b[col];
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
+    list = this.sortData(list, this.allClientsState.sortCol, this.allClientsState.sortDir === 'asc' ? 1 : -1);
+    this.updateSortIndicators('#view-clients', 'data-cl-sort', this.allClientsState.sortCol, this.allClientsState.sortDir);
 
     const badge = document.getElementById('allClientsCountBadge');
     if (badge) badge.textContent = `${list.length.toLocaleString()} Unit`;
@@ -1203,19 +1172,8 @@ const App = {
     }
 
     // Sort
-    const col = this.storageState.sortCol;
-    const dir = this.storageState.sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
-      let va = a[col];
-      let vb = b[col];
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
+    list = this.sortData(list, this.storageState.sortCol, this.storageState.sortDir === 'asc' ? 1 : -1);
+    this.updateSortIndicators('#view-storage', 'data-st-sort', this.storageState.sortCol, this.storageState.sortDir);
 
     const countLabel = document.getElementById('storageResultCountLabel');
     if (countLabel) countLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Server Storage`;
@@ -1729,6 +1687,7 @@ const App = {
           this.allClientsState.sortCol = col;
           this.allClientsState.sortDir = 'asc';
         }
+        this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
       });
     });
@@ -1742,6 +1701,7 @@ const App = {
           this.locState.sortCol = col;
           this.locState.sortDir = 'asc';
         }
+        this.locState.page = 1;
         this.renderLocationsTable();
       });
     });
@@ -1755,6 +1715,7 @@ const App = {
           this.serverState.sortCol = col;
           this.serverState.sortDir = 'asc';
         }
+        this.serverState.page = 1;
         this.renderServersTable();
       });
     });
@@ -1768,6 +1729,7 @@ const App = {
           this.storageState.sortCol = col;
           this.storageState.sortDir = 'asc';
         }
+        this.storageState.page = 1;
         this.renderStorageTable();
       });
     });
@@ -2017,13 +1979,63 @@ const App = {
 
   parseStorageGb(sizeStr) {
     if (!sizeStr) return 0;
-    const s = String(sizeStr).toUpperCase();
+    const s = String(sizeStr).toUpperCase().replace(',', '.');
     if (s.includes('T')) {
-      const val = parseFloat(s.replace('T', ''));
+      const val = parseFloat(s.replace(/[^0-9.]/g, ''));
       return (isNaN(val) ? 1 : val) * 1000;
     }
     const val = parseFloat(s.replace(/[^0-9.]/g, ''));
     return isNaN(val) ? 0 : val;
+  },
+
+  sortData(list, col, dir) {
+    return list.slice().sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+
+      const isNullA = (va === null || va === undefined || va === '' || va === '-');
+      const isNullB = (vb === null || vb === undefined || vb === '' || vb === '-');
+      if (isNullA && isNullB) return 0;
+      if (isNullA) return 1;
+      if (isNullB) return -1;
+
+      if (col === 'ssd_size' || col === 'capacity') {
+        const numA = this.parseStorageGb(va);
+        const numB = this.parseStorageGb(vb);
+        if (numA !== numB) return (numA - numB) * dir;
+      } else if (col === 'ram') {
+        const numA = parseFloat(String(va).replace(',', '.').replace(/[^0-9.]/g, '')) || 0;
+        const numB = parseFloat(String(vb).replace(',', '.').replace(/[^0-9.]/g, '')) || 0;
+        if (numA !== numB) return (numA - numB) * dir;
+      }
+
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return (va - vb) * dir;
+      }
+
+      const strA = String(va).trim();
+      const strB = String(vb).trim();
+      return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+    });
+  },
+
+  updateSortIndicators(tableContainerSelector, attrName, currentSortCol, currentSortDir) {
+    const container = document.querySelector(tableContainerSelector);
+    if (!container) return;
+    container.querySelectorAll(`th[${attrName}]`).forEach(th => {
+      const col = th.getAttribute(attrName);
+      if (!th.dataset.originalLabel) {
+        th.dataset.originalLabel = th.textContent.replace(/[⇅▲▼]/g, '').trim();
+      }
+      const label = th.dataset.originalLabel;
+      if (col === currentSortCol) {
+        th.classList.add('sort-active');
+        th.innerHTML = `${label} <span class="sort-icon">${currentSortDir === 'asc' ? '▲' : '▼'}</span>`;
+      } else {
+        th.classList.remove('sort-active');
+        th.innerHTML = `${label} <span class="sort-icon" style="opacity: 0.35;">⇅</span>`;
+      }
+    });
   },
 
   // =========================================================================
