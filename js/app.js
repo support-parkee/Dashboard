@@ -84,6 +84,16 @@ const App = {
     sortDir: 'asc'
   },
 
+  temperatureState: {
+    search: '',
+    filter: 'all',
+    page: 1,
+    pageSize: 25,
+    sortCol: 'temp',
+    sortDir: 'desc'
+  },
+  temperatureData: null,
+
   // Navigation state
   activeView: 'locations',
 
@@ -105,7 +115,8 @@ const App = {
       this.fetchLocations(),
       this.fetchServers(),
       this.fetchFleet(),
-      this.fetchSummary()
+      this.fetchSummary(),
+      this.fetchTemperature()
     ]);
 
     this.initEventHandlers();
@@ -208,7 +219,8 @@ const App = {
       locations: { title: 'Location Information', crumb: 'Location Information' },
       servers: { title: 'Server Specification', crumb: 'Server Specification' },
       clients: { title: 'Client Specification', crumb: 'Client Specification' },
-      storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' }
+      storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' },
+      temperature: { title: 'Temperature Server', crumb: 'Live Prometheus Telemetry' }
     };
 
     navBtns.forEach(btn => {
@@ -255,6 +267,8 @@ const App = {
       this.renderClientLocationAccordions();
     } else if (this.activeView === 'storage') {
       this.renderStorageTable();
+    } else if (this.activeView === 'temperature') {
+      this.renderTemperatureTable();
     }
   },
 
@@ -1299,6 +1313,235 @@ const App = {
   },
 
   // =========================================================================
+  // MODULE 5: TEMPERATURE SERVER (LIVE PROMETHEUS TELEMETRY)
+  // =========================================================================
+  async fetchTemperature(forceRefresh = false) {
+    const rawUrl = `https://raw.githubusercontent.com/azkiabenington/dashboard-server-client/telemetry/temperature.json?_t=${Date.now()}`;
+    try {
+      const res = await fetch(rawUrl, { cache: 'no-store' });
+      if (res.ok) {
+        this.temperatureData = await res.json();
+        this.renderTemperatureKPIs();
+        if (this.activeView === 'temperature') this.renderTemperatureTable();
+        return;
+      }
+    } catch (e) {
+      console.warn('Could not fetch live telemetry branch:', e);
+    }
+
+    try {
+      const localRes = await fetch('./data/temperature.json?_t=' + Date.now());
+      if (localRes.ok) {
+        this.temperatureData = await localRes.json();
+        this.renderTemperatureKPIs();
+        if (this.activeView === 'temperature') this.renderTemperatureTable();
+      }
+    } catch (err) {
+      console.error('Could not fetch fallback temperature.json:', err);
+    }
+  },
+
+  renderTemperatureKPIs() {
+    if (!this.temperatureData) return;
+    const d = this.temperatureData;
+
+    const badge = document.getElementById('badgeOverheatTemp');
+    if (badge) {
+      badge.textContent = `🔥 ${d.overheat_count || 0}`;
+    }
+
+    const totalEl = document.getElementById('tempTotalMonitored');
+    if (totalEl) totalEl.textContent = (d.total_monitored || 0).toLocaleString();
+
+    const overEl = document.getElementById('tempCountOverheat');
+    if (overEl) overEl.textContent = (d.overheat_count || 0).toLocaleString();
+
+    const warmEl = document.getElementById('tempCountWarm');
+    if (warmEl) warmEl.textContent = (d.warm_count || 0).toLocaleString();
+
+    const normalEl = document.getElementById('tempCountNormal');
+    if (normalEl) normalEl.textContent = (d.normal_count || 0).toLocaleString();
+
+    const avgEl = document.getElementById('tempAvgCelsius');
+    if (avgEl) avgEl.textContent = `${d.avg_temp || 0}°C`;
+
+    const lastSyncEl = document.getElementById('tempLastSyncLabel');
+    if (lastSyncEl && d.updated_at) {
+      lastSyncEl.textContent = `Update: ${d.updated_at}`;
+    }
+  },
+
+  renderTemperatureTable() {
+    const tbody = document.getElementById('tempTableBody');
+    if (!tbody) return;
+
+    if (!this.temperatureData || !this.temperatureData.servers) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
+            Memuat telemetri suhu dari Grafana Prometheus...
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let list = [...this.temperatureData.servers];
+
+    // 1. Search Filter
+    if (this.temperatureState.search) {
+      const q = this.temperatureState.search.toLowerCase();
+      list = list.filter(item =>
+        (item.loc && item.loc.toLowerCase().includes(q)) ||
+        (item.code && item.code.toLowerCase().includes(q)) ||
+        (item.host && item.host.toLowerCase().includes(q)) ||
+        (item.ip && item.ip.toLowerCase().includes(q)) ||
+        (item.cpu && item.cpu.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. Status Filter
+    if (this.temperatureState.filter !== 'all') {
+      list = list.filter(item => item.status === this.temperatureState.filter);
+    }
+
+    // 3. Sorting
+    const col = this.temperatureState.sortCol;
+    const dir = this.temperatureState.sortDir === 'desc' ? -1 : 1;
+
+    list.sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+
+      if (col === 'temp') {
+        va = Number(va) || 0;
+        vb = Number(vb) || 0;
+        return (va - vb) * dir;
+      }
+
+      va = (va || '').toString().toLowerCase();
+      vb = (vb || '').toString().toLowerCase();
+      return va.localeCompare(vb) * dir;
+    });
+
+    // Update Sorting arrows in table headers
+    document.querySelectorAll('#tempTable th.sortable[data-temp-sort]').forEach(th => {
+      const c = th.dataset.tempSort;
+      let label = th.textContent.replace(/[⇅▲▼]/g, '').trim();
+      if (c === this.temperatureState.sortCol) {
+        th.textContent = `${label} ${this.temperatureState.sortDir === 'asc' ? '▲' : '▼'}`;
+        th.style.color = 'var(--accent-primary)';
+      } else {
+        th.textContent = `${label} ⇅`;
+        th.style.color = '';
+      }
+    });
+
+    // 4. Pagination
+    const total = list.length;
+    const pageSize = this.temperatureState.pageSize || 25;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    if (this.temperatureState.page > totalPages) this.temperatureState.page = totalPages;
+    if (this.temperatureState.page < 1) this.temperatureState.page = 1;
+
+    const start = (this.temperatureState.page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginated = list.slice(start, end);
+
+    // Update pagination labels
+    const countLabel = document.getElementById('tempTableCountLabel');
+    if (countLabel) {
+      countLabel.textContent = `Menampilkan ${total === 0 ? 0 : start + 1} - ${Math.min(end, total)} dari ${total.toLocaleString()} unit server`;
+    }
+
+    const pageLabel = document.getElementById('tempCurrentPageLabel');
+    if (pageLabel) {
+      pageLabel.textContent = `Halaman ${this.temperatureState.page} / ${totalPages}`;
+    }
+
+    const prevBtn = document.getElementById('tempPrevPageBtn');
+    if (prevBtn) prevBtn.disabled = this.temperatureState.page <= 1;
+
+    const nextBtn = document.getElementById('tempNextPageBtn');
+    if (nextBtn) nextBtn.disabled = this.temperatureState.page >= totalPages;
+
+    if (paginated.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
+            Tidak ada unit server yang cocok dengan filter suhu saat ini.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = paginated.map((d, index) => {
+      const rowNo = start + index + 1;
+      let statusHtml = '';
+      let fillClass = 'fill-normal';
+      let valClass = 'temp-val-normal';
+
+      if (d.status === 'overheat') {
+        statusHtml = '<span class="temp-status-badge temp-status-overheat">🔥 OVERHEAT</span>';
+        fillClass = 'fill-overheat';
+        valClass = 'temp-val-overheat';
+      } else if (d.status === 'warm') {
+        statusHtml = '<span class="temp-status-badge temp-status-warm">⚠️ WASPADA</span>';
+        fillClass = 'fill-warm';
+        valClass = 'temp-val-warm';
+      } else {
+        statusHtml = '<span class="temp-status-badge temp-status-normal">🟢 NORMAL</span>';
+        fillClass = 'fill-normal';
+        valClass = 'temp-val-normal';
+      }
+
+      // Visual bar fill percentage (20C = 0%, 100C = 100%)
+      const barPercent = Math.min(100, Math.max(8, ((d.temp - 20) / 80) * 100));
+
+      return `
+        <tr>
+          <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
+            ${rowNo}
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+          </td>
+          <td>
+            <span class="version-code-tag">${d.code || '-'}</span>
+          </td>
+          <td>
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
+              ${d.host}
+            </div>
+          </td>
+          <td>
+            ${statusHtml}
+          </td>
+          <td>
+            <div class="temp-bar-container">
+              <div class="temp-bar-bg">
+                <div class="temp-bar-fill ${fillClass}" style="width: ${barPercent}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="temp-val-text ${valClass}">${d.temp.toFixed(1)}°C</span>
+          </td>
+          <td>
+            <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">${d.ip || '-'}</span>
+          </td>
+          <td style="font-size: 0.74rem; color: var(--text-muted);">
+            <div>${d.cpu && d.cpu !== '-' ? d.cpu.split('@')[0].trim() : '-'}</div>
+            ${d.ram && d.ram !== '-' ? `<span class="badge-pill" style="font-size: 0.65rem; margin-top: 2px; display: inline-block;">RAM: ${d.ram}</span>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  // =========================================================================
   // EVENT HANDLERS
   // =========================================================================
   initEventHandlers() {
@@ -1968,6 +2211,79 @@ const App = {
     const manualBtn = document.getElementById('manualSyncBtn');
     if (manualBtn) {
       manualBtn.addEventListener('click', () => this.manualSync());
+    }
+
+    // -----------------------------------------------------------------------
+    // 5. Temperature Table Events
+    // -----------------------------------------------------------------------
+    const tempSearch = document.getElementById('tempSearchInput');
+    if (tempSearch) {
+      tempSearch.addEventListener('input', (e) => {
+        this.temperatureState.search = e.target.value;
+        this.temperatureState.page = 1;
+        this.renderTemperatureTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.temperatureState.filter = btn.dataset.tempFilter;
+        this.temperatureState.page = 1;
+        this.renderTemperatureTable();
+      });
+    });
+
+    document.querySelectorAll('#tempTable th.sortable[data-temp-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.tempSort;
+        if (this.temperatureState.sortCol === col) {
+          this.temperatureState.sortDir = this.temperatureState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.temperatureState.sortCol = col;
+          this.temperatureState.sortDir = col === 'temp' ? 'desc' : 'asc';
+        }
+        this.temperatureState.page = 1;
+        this.renderTemperatureTable();
+      });
+    });
+
+    const tempPrev = document.getElementById('tempPrevPageBtn');
+    if (tempPrev) {
+      tempPrev.addEventListener('click', () => {
+        if (this.temperatureState.page > 1) {
+          this.temperatureState.page--;
+          this.renderTemperatureTable();
+        }
+      });
+    }
+
+    const tempNext = document.getElementById('tempNextPageBtn');
+    if (tempNext) {
+      tempNext.addEventListener('click', () => {
+        this.temperatureState.page++;
+        this.renderTemperatureTable();
+      });
+    }
+
+    const tempRefresh = document.getElementById('tempRefreshBtn');
+    if (tempRefresh) {
+      tempRefresh.addEventListener('click', async () => {
+        this.showToast('Memperbarui telemetry suhu dari Grafana...', 'info');
+        await this.fetchTemperature(true);
+        this.renderTemperatureTable();
+        this.showToast('Data suhu server berhasil diperbarui!', 'success');
+      });
+    }
+
+    const exportTemp = document.getElementById('exportTempBtn');
+    if (exportTemp) {
+      exportTemp.addEventListener('click', () => {
+        if (this.temperatureData && this.temperatureData.servers) {
+          this.exportCsv(this.temperatureData.servers, 'parkee_temperature_servers.csv');
+        }
+      });
     }
   },
 
