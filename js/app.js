@@ -1822,12 +1822,12 @@ const App = {
       const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${d.id}`;
 
       return `
-        <tr>
+        <tr class="ticket-clickable-row" data-ticket-id="${d.id}" title="Klik untuk melihat rincian kendala tiket #${d.id}">
           <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
             ${rowNo}
           </td>
           <td>
-            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI">
+            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI" onclick="event.stopPropagation();">
               #${d.id}
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1843,9 +1843,12 @@ const App = {
             <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
             ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
           </td>
-          <td class="ticket-title-cell">
+          <td class="ticket-title-cell" data-ticket-id="${d.id}">
             <div class="ticket-title-text" title="${d.title}">${d.title}</div>
             ${d.desc ? `<div class="ticket-desc-snippet" title="${d.desc}">${d.desc}</div>` : ''}
+            <div class="ticket-open-hint">
+              <span>👁️ Detail Kendala</span>
+            </div>
           </td>
           <td>
             <span class="ticket-status-pill ${statusClass}">
@@ -1868,6 +1871,147 @@ const App = {
         </tr>
       `;
     }).join('');
+  },
+
+  openTicketDetailModal(ticketId) {
+    if (!this.ticketingData || !this.ticketingData.tickets) return;
+    const ticket = this.ticketingData.tickets.find(t => String(t.id) === String(ticketId));
+    if (!ticket) return;
+
+    const modal = document.getElementById('ticketDetailModal');
+    if (!modal) return;
+
+    const idBadge = document.getElementById('modalTicketIdBadge');
+    if (idBadge) idBadge.textContent = `#${ticket.id}`;
+
+    const titleEl = document.getElementById('modalTicketTitle');
+    if (titleEl) titleEl.textContent = ticket.title || `Tiket #${ticket.id}`;
+
+    // Status Pill
+    let statusClass = 'ticket-status-closed';
+    let statusIcon = '🔒';
+    const st = (ticket.status || '').toLowerCase();
+    if (st === 'processing') {
+      statusClass = 'ticket-status-processing';
+      statusIcon = '⚙️';
+    } else if (st === 'new') {
+      statusClass = 'ticket-status-new';
+      statusIcon = '⚡';
+    } else if (st === 'solved') {
+      statusClass = 'ticket-status-solved';
+      statusIcon = '✅';
+    } else if (st === 'pending') {
+      statusClass = 'ticket-status-pending';
+      statusIcon = '⏳';
+    }
+
+    const statusPill = document.getElementById('modalTicketStatusPill');
+    if (statusPill) {
+      statusPill.className = `ticket-status-pill ${statusClass}`;
+      statusPill.innerHTML = `<span>${statusIcon}</span> <span>${ticket.status_raw || ticket.status || '-'}</span>`;
+    }
+
+    // Priority badge
+    const p = (ticket.priority || 'P2').toLowerCase();
+    const prioBadge = document.getElementById('modalTicketPrioBadge');
+    if (prioBadge) {
+      prioBadge.className = `ticket-prio-badge ticket-prio-${p}`;
+      prioBadge.textContent = ticket.priority || 'P2';
+    }
+
+    // GLPI Link
+    const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${ticket.id}`;
+    const glpiLink = document.getElementById('modalTicketGlpiLink');
+    if (glpiLink) glpiLink.href = glpiUrl;
+
+    // Last update
+    const lastUpdateEl = document.getElementById('modalTicketLastUpdate');
+    if (lastUpdateEl) lastUpdateEl.textContent = ticket.last_update || ticket.open_date || '-';
+
+    this._activeModalTicket = ticket;
+
+    // Body content
+    const bodyEl = document.getElementById('modalTicketBody');
+    if (bodyEl) {
+      const esc = (s) => (s === null || s === undefined || s === '' ? '-' : String(s))
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const descContent = ticket.desc ? esc(ticket.desc) : esc(ticket.title);
+
+      bodyEl.innerHTML = `
+        <div class="ticket-detail-grid">
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">📍 Lokasi Unit / Merchant</span>
+            <span class="ticket-detail-value">${esc(ticket.loc)}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">🏷️ Kategori Kendala</span>
+            <span class="ticket-detail-value">${esc(ticket.cat_full || ticket.cat || 'Uncategorized')}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">📅 Tanggal Buka (Opening)</span>
+            <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.open_date)}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">🏁 Tanggal Selesai (Resolve / Close)</span>
+            <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.close_date || ticket.resolve_date || 'Belum Selesai')}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">👤 Teknisi Ditugaskan (PIC)</span>
+            <span class="ticket-detail-value">${esc(ticket.tech)}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">📢 Pelapor (Requester)</span>
+            <span class="ticket-detail-value">${esc(ticket.req)}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">📡 Sumber Laporan (Source)</span>
+            <span class="ticket-detail-value">${esc(ticket.source)}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">⏱️ Terakhir Diperbarui</span>
+            <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.last_update)}</span>
+          </div>
+        </div>
+
+        <div class="ticket-detail-desc-card">
+          <span class="ticket-detail-label" style="font-size: 0.72rem; color: var(--text-secondary);">
+            📋 Rincian Kendala & Deskripsi Lengkap:
+          </span>
+          <div class="ticket-detail-desc-box">${descContent}</div>
+        </div>
+      `;
+    }
+
+    modal.classList.add('open');
+  },
+
+  closeTicketDetailModal() {
+    const modal = document.getElementById('ticketDetailModal');
+    if (modal) modal.classList.remove('open');
+    this._activeModalTicket = null;
+  },
+
+  copyTicketSummary() {
+    if (!this._activeModalTicket) return;
+    const t = this._activeModalTicket;
+    const summary = `[PARKEE TICKET #${t.id}]
+Lokasi: ${t.loc || '-'}
+Kendala: ${t.title || '-'}
+Status: ${t.status || '-'} (${t.priority || 'P2'})
+Teknisi: ${t.tech || '-'}
+Pelapor: ${t.req || '-'}
+Tanggal Buka: ${t.open_date || '-'}
+Rincian: ${t.desc || t.title || '-'}
+GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
+
+    navigator.clipboard.writeText(summary).then(() => {
+      this.showToast(`Info tiket #${t.id} berhasil disalin!`, 'success');
+    }).catch(() => {
+      this.showToast('Gagal menyalin ringkasan tiket ke clipboard', 'warn');
+    });
   },
 
   // =========================================================================
@@ -2736,6 +2880,17 @@ const App = {
         }
       });
     }
+
+    const ticketTbody = document.getElementById('ticketTableBody');
+    if (ticketTbody) {
+      ticketTbody.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return;
+        const row = e.target.closest('[data-ticket-id]');
+        if (row && row.dataset.ticketId) {
+          this.openTicketDetailModal(row.dataset.ticketId);
+        }
+      });
+    }
   },
 
   parseRamGb(ramStr) {
@@ -2809,6 +2964,7 @@ const App = {
   // MODAL & UTILS
   // =========================================================================
   initModal() {
+    // 1. Device Modal
     const modal = document.getElementById('deviceDetailModal');
     const closeBtn = document.getElementById('modalCloseBtn');
     if (closeBtn && modal) {
@@ -2819,6 +2975,38 @@ const App = {
         if (e.target === modal) modal.classList.remove('open');
       });
     }
+
+    // 2. Ticket Detail Modal
+    const ticketModal = document.getElementById('ticketDetailModal');
+    const ticketCloseBtn = document.getElementById('modalTicketCloseBtn');
+    const ticketCloseBtnBottom = document.getElementById('modalTicketCloseBtnBottom');
+    const ticketCopyBtn = document.getElementById('modalTicketCopyBtn');
+
+    if (ticketCloseBtn && ticketModal) {
+      ticketCloseBtn.addEventListener('click', () => this.closeTicketDetailModal());
+    }
+    if (ticketCloseBtnBottom && ticketModal) {
+      ticketCloseBtnBottom.addEventListener('click', () => this.closeTicketDetailModal());
+    }
+    if (ticketCopyBtn) {
+      ticketCopyBtn.addEventListener('click', () => this.copyTicketSummary());
+    }
+    if (ticketModal) {
+      ticketModal.addEventListener('click', (e) => {
+        if (e.target === ticketModal) this.closeTicketDetailModal();
+      });
+    }
+
+    // Global ESC key listener to close open modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (ticketModal && ticketModal.classList.contains('open')) {
+          this.closeTicketDetailModal();
+        } else if (modal && modal.classList.contains('open')) {
+          modal.classList.remove('open');
+        }
+      }
+    });
   },
 
   formatCpu(raw) {

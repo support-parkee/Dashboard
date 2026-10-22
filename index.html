@@ -8,7 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/><path d=%22M50 20 L75 80 L50 65 L25 80 Z%22 fill=%22%23ffffff%22/></svg>">
   
   <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.7.1">
+  <link rel="stylesheet" href="css/styles.css?v=2.8.2">
 
   <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
@@ -1297,12 +1297,56 @@
     </div>
   </div>
 
+  <!-- Ticket Detail Modal (GLPI Issue Popup) -->
+  <div id="ticketDetailModal" class="modal-backdrop">
+    <div class="modal-dialog ticket-modal-dialog">
+      <div class="modal-header ticket-modal-header">
+        <div class="ticket-modal-header-meta">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="modalTicketIdBadge" class="ticket-id-badge" style="font-size: 0.85rem; padding: 4px 10px;">#--</span>
+            <span id="modalTicketStatusPill" class="ticket-status-pill ticket-status-processing">⚙️ Processing</span>
+            <span id="modalTicketPrioBadge" class="ticket-prio-badge ticket-prio-p2">P2</span>
+          </div>
+          <button id="modalTicketCloseBtn" class="modal-close-btn" title="Tutup (Esc)">✕</button>
+        </div>
+        <div id="modalTicketTitle" class="ticket-modal-title">
+          Judul Kendala
+        </div>
+      </div>
+      <div class="modal-body ticket-modal-body" id="modalTicketBody">
+        <!-- Rendered dynamically -->
+      </div>
+      <div class="modal-footer ticket-modal-footer">
+        <div class="ticket-modal-footer-meta">
+          <span>Pembaruan:</span>
+          <strong id="modalTicketLastUpdate">-</strong>
+        </div>
+        <div class="ticket-modal-footer-actions">
+          <button id="modalTicketCopyBtn" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+            <span>📋 Salin Ringkasan</span>
+          </button>
+          <a id="modalTicketGlpiLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="font-size: 0.76rem; padding: 5px 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <span>Buka di GLPI</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <button id="modalTicketCloseBtnBottom" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px;">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.8.1"></script>
+  <script src="js/summary-data.js?v=2.8.2"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.8.1"></script>
+  <script src="js/app.js?v=2.8.2"></script>
 </body>
 </html>
