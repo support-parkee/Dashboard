@@ -115,6 +115,7 @@ const App = {
 
   async init() {
     this.initTweaks();
+    this.initSidebarToggle();
     this.initNavigation();
     this.initFullscreen();
     this.initModal();
@@ -241,6 +242,68 @@ const App = {
   },
 
   // =========================================================================
+  // SIDEBAR HIDE / UNHIDE (TOGGLE & COLLAPSE)
+  // =========================================================================
+  initSidebarToggle() {
+    const appContainer = document.querySelector('.app-container');
+    const sidebar = document.getElementById('appSidebar');
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    const collapseBtn = document.getElementById('sidebarCollapseBtn');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    const mobBtn = document.getElementById('mobileMenuBtn');
+
+    if (!appContainer || !sidebar) return;
+
+    // Restore desktop preference from localStorage
+    const isSavedCollapsed = localStorage.getItem('parkee_sidebar_collapsed') === 'true';
+    if (isSavedCollapsed && window.innerWidth >= 900) {
+      appContainer.classList.add('sidebar-collapsed');
+      if (toggleBtn) toggleBtn.title = 'Tampilkan Sidebar (Ctrl+B)';
+    }
+
+    const toggleSidebar = () => {
+      const isMobile = window.innerWidth < 900;
+      if (isMobile) {
+        const isOpen = sidebar.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('active', isOpen);
+      } else {
+        const isCollapsed = appContainer.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('parkee_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+        if (toggleBtn) {
+          toggleBtn.title = isCollapsed
+            ? 'Tampilkan Sidebar (Ctrl+B)'
+            : 'Sembunyikan Sidebar (Ctrl+B)';
+        }
+        // Notify window resize so floating scrollbars & table geometries re-calculate smoothly
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 180);
+      }
+    };
+
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+    if (collapseBtn) collapseBtn.addEventListener('click', toggleSidebar);
+    if (mobBtn && mobBtn !== toggleBtn) mobBtn.addEventListener('click', toggleSidebar);
+
+    if (backdrop) {
+      backdrop.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        backdrop.classList.remove('active');
+      });
+    }
+
+    // Keyboard shortcut: Ctrl + B or Cmd + B
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        toggleSidebar();
+      }
+    });
+  },
+
+  // =========================================================================
   // VIEW NAVIGATION & ROUTING
   // =========================================================================
   initNavigation() {
@@ -279,17 +342,12 @@ const App = {
         // Close mobile drawer if open
         const sidebar = document.getElementById('appSidebar');
         if (sidebar) sidebar.classList.remove('open');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        if (backdrop) backdrop.classList.remove('active');
 
         this.renderActiveView();
       });
     });
-
-    // Mobile toggle
-    const mobBtn = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('appSidebar');
-    if (mobBtn && sidebar) {
-      mobBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
-    }
   },
 
   renderActiveView() {
