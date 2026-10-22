@@ -26,20 +26,29 @@
         
         <!-- Brand Header: Support Apps -->
         <div class="sidebar-brand">
-          <div class="brand-badge">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-              <line x1="6" y1="6" x2="6.01" y2="6"></line>
-              <line x1="6" y1="18" x2="6.01" y2="18"></line>
-            </svg>
-          </div>
-          <div class="brand-meta">
-            <div class="brand-name">
-              Support Apps <span class="brand-version">v2.6.2</span>
+          <div class="brand-left">
+            <div class="brand-badge">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
             </div>
-            <span class="brand-tagline">PARKEE Infrastructure Engineering</span>
+            <div class="brand-meta">
+              <div class="brand-name">
+                Support Apps <span class="brand-version">v2.6.2</span>
+              </div>
+              <span class="brand-tagline">PARKEE Infrastructure Engineering</span>
+            </div>
           </div>
+          <button id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="Sembunyikan Sidebar (Ctrl+B)" aria-label="Sembunyikan Sidebar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <path d="M14 9l-3 3 3 3"></path>
+            </svg>
+          </button>
         </div>
 
         <!-- Navigation Menu: 4 Core Modules -->
@@ -164,6 +173,9 @@
       </div>
     </aside>
 
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
     <!-- =========================================================================
          MAIN APPLICATION AREA
          ========================================================================= -->
@@ -172,11 +184,12 @@
       <!-- Top Bar Header -->
       <header class="app-topbar top-bar">
         <div class="top-bar-left">
-          <button id="mobileMenuBtn" class="mobile-toggle-btn" title="Toggle Menu Sidebar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
+          <button id="sidebarToggleBtn" class="sidebar-toggle-btn" title="Sembunyikan / Tampilkan Sidebar (Ctrl+B)" aria-label="Toggle Menu Sidebar">
+            <svg class="sidebar-toggle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <line x1="14" y1="9" x2="18" y2="9"></line>
+              <line x1="14" y1="15" x2="18" y2="15"></line>
             </svg>
           </button>
           
