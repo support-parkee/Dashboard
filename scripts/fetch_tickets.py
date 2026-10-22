@@ -264,6 +264,31 @@ def process_tickets_csv(csv_text=None):
         # Clean title without trailing Loading...
         clean_title = re.sub(r'Loading\.\.\.?$', '', raw_title).strip()
 
+        # Breakdown Category (Product, Kategori Issue, Sub-Kategori)
+        cat_full_clean = raw_cat.strip() if raw_cat else ""
+        cat_parts = [p.strip() for p in cat_full_clean.split(">")] if cat_full_clean else []
+        prod_val = cat_parts[0] if len(cat_parts) > 0 and cat_parts[0] else "Uncategorized"
+        cat_issue_val = cat_parts[1] if len(cat_parts) > 1 and cat_parts[1] else ("Umum / Lainnya" if prod_val != "Uncategorized" else "Uncategorized")
+        sub_issue_val = cat_parts[2] if len(cat_parts) > 2 and cat_parts[2] else ""
+
+        # Calculate Durasi Solving: Resolution Date - Opening Date
+        # (jika resolution date kosong di = dengan opening date nya saja = 0:00:00)
+        dur_solving = "0:00:00"
+        dur_seconds = 0
+        if open_dt and resolve_dt:
+            try:
+                d_open = datetime.strptime(open_dt, "%Y-%m-%d %H:%M")
+                d_res = datetime.strptime(resolve_dt, "%Y-%m-%d %H:%M")
+                sec_diff = int((d_res - d_open).total_seconds())
+                if sec_diff > 0:
+                    dur_seconds = sec_diff
+                    h = sec_diff // 3600
+                    m = (sec_diff % 3600) // 60
+                    s = sec_diff % 60
+                    dur_solving = f"{h}:{m:02d}:{s:02d}"
+            except Exception:
+                dur_solving = "0:00:00"
+
         # Brief description snippet (first 140 chars)
         desc_snippet = re.sub(r'\s+', ' ', raw_desc[:160]).strip() if raw_desc else ""
 
@@ -276,11 +301,16 @@ def process_tickets_csv(csv_text=None):
             "priority": prio_norm,
             "tech": raw_tech or "-",
             "req": raw_req or "-",
-            "cat": cat_short,
+            "product": prod_val,
+            "cat_issue": cat_issue_val,
+            "sub_issue": sub_issue_val,
+            "cat": cat_issue_val,
             "cat_full": raw_cat,
             "open_date": open_dt,
             "close_date": close_dt,
             "resolve_date": resolve_dt,
+            "dur_solving": dur_solving,
+            "dur_seconds": dur_seconds,
             "last_update": update_dt,
             "source": raw_src or "-",
             "desc": desc_snippet

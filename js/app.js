@@ -97,8 +97,9 @@ const App = {
   ticketingState: {
     search: '',
     filter: 'all',
-    priority: 'all',
+    product: 'all',
     category: 'all',
+    priority: 'all',
     startDate: '',
     endDate: '',
     datePreset: 'all',
@@ -2318,24 +2319,65 @@ const App = {
       lastSyncEl.textContent = `Update: ${m.updated_at}`;
     }
 
+    this.populateProductDropdown();
     this.populateCategoryDropdown();
+  },
+
+  populateProductDropdown() {
+    const select = document.getElementById('ticketProductFilter');
+    if (!select || !this.ticketingData || !this.ticketingData.tickets) return;
+
+    const curVal = this.ticketingState.product;
+    const prodCounts = {};
+
+    this.ticketingData.tickets.forEach(t => {
+      if (!t.product) {
+        const rawCat = t.cat_full || t.cat || '';
+        const parts = rawCat ? rawCat.split('>').map(p => p.trim()) : [];
+        t.product = parts[0] || 'Uncategorized';
+        t.cat_issue = parts[1] || (t.product !== 'Uncategorized' ? 'Umum / Lainnya' : 'Uncategorized');
+        t.sub_issue = parts[2] || '';
+      }
+      const p = t.product || 'Uncategorized';
+      prodCounts[p] = (prodCounts[p] || 0) + 1;
+    });
+
+    const sortedProds = Object.entries(prodCounts).sort((a, b) => b[1] - a[1]);
+
+    let html = `<option value="all">Semua Produk (${this.ticketingData.tickets.length.toLocaleString()})</option>`;
+    sortedProds.forEach(([prodName, count]) => {
+      const selected = (prodName === curVal) ? 'selected' : '';
+      html += `<option value="${prodName}" ${selected}>${prodName} (${count.toLocaleString()})</option>`;
+    });
+
+    select.innerHTML = html;
   },
 
   populateCategoryDropdown() {
     const select = document.getElementById('ticketCategoryFilter');
     if (!select || !this.ticketingData || !this.ticketingData.tickets) return;
 
+    const selectedProd = this.ticketingState.product;
     const curVal = this.ticketingState.category;
     const catCounts = {};
 
-    this.ticketingData.tickets.forEach(t => {
-      const c = t.cat || 'Uncategorized';
+    let relevantTickets = this.ticketingData.tickets;
+    if (selectedProd && selectedProd !== 'all') {
+      relevantTickets = relevantTickets.filter(t => (t.product || '').toLowerCase() === selectedProd.toLowerCase());
+    }
+
+    relevantTickets.forEach(t => {
+      const c = t.cat_issue || t.cat || 'Umum / Lainnya';
       catCounts[c] = (catCounts[c] || 0) + 1;
     });
 
     const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
 
-    let html = `<option value="all">Semua Kategori (${this.ticketingData.tickets.length.toLocaleString()})</option>`;
+    const headerLabel = (selectedProd && selectedProd !== 'all')
+      ? `Semua Kategori Issue (${selectedProd})`
+      : `Semua Kategori Issue (${relevantTickets.length.toLocaleString()})`;
+
+    let html = `<option value="all">${headerLabel}</option>`;
     sortedCats.forEach(([catName, count]) => {
       const selected = (catName === curVal) ? 'selected' : '';
       html += `<option value="${catName}" ${selected}>${catName} (${count.toLocaleString()})</option>`;
@@ -2348,6 +2390,37 @@ const App = {
     if (!this.ticketingData || !this.ticketingData.tickets) return [];
     let list = [...this.ticketingData.tickets];
 
+    // Ensure helper fields exist on each ticket
+    list.forEach(t => {
+      if (!t.product) {
+        const rawCat = t.cat_full || t.cat || '';
+        const parts = rawCat ? rawCat.split('>').map(p => p.trim()) : [];
+        t.product = parts[0] || 'Uncategorized';
+        t.cat_issue = parts[1] || (t.product !== 'Uncategorized' ? 'Umum / Lainnya' : 'Uncategorized');
+        t.sub_issue = parts[2] || '';
+      }
+      if (t.dur_solving === undefined) {
+        let dur = '0:00:00';
+        let durSec = 0;
+        if (t.open_date && t.resolve_date) {
+          try {
+            const d1 = new Date(t.open_date.replace(' ', 'T')).getTime();
+            const d2 = new Date(t.resolve_date.replace(' ', 'T')).getTime();
+            const diff = Math.floor((d2 - d1) / 1000);
+            if (diff > 0) {
+              durSec = diff;
+              const h = Math.floor(diff / 3600);
+              const m = Math.floor((diff % 3600) / 60);
+              const s = diff % 60;
+              dur = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+          } catch (e) {}
+        }
+        t.dur_solving = dur;
+        t.dur_seconds = durSec;
+      }
+    });
+
     // 1. Search Filter
     if (this.ticketingState.search) {
       const q = this.ticketingState.search.toLowerCase();
@@ -2356,6 +2429,8 @@ const App = {
         (t.title && t.title.toLowerCase().includes(q)) ||
         (t.loc && t.loc.toLowerCase().includes(q)) ||
         (t.tech && t.tech.toLowerCase().includes(q)) ||
+        (t.product && t.product.toLowerCase().includes(q)) ||
+        (t.cat_issue && t.cat_issue.toLowerCase().includes(q)) ||
         (t.cat && t.cat.toLowerCase().includes(q)) ||
         (t.desc && t.desc.toLowerCase().includes(q))
       );
@@ -2384,17 +2459,24 @@ const App = {
       }
     }
 
-    // 3. Category Dropdown Filter
-    if (this.ticketingState.category !== 'all') {
-      list = list.filter(t => (t.cat || 'Uncategorized') === this.ticketingState.category);
+    // 3. Product Dropdown Filter
+    if (this.ticketingState.product && this.ticketingState.product !== 'all') {
+      const prod = this.ticketingState.product.toLowerCase();
+      list = list.filter(t => (t.product || '').toLowerCase() === prod);
     }
 
-    // 4. Priority Dropdown Filter
+    // 4. Category Issue Dropdown Filter
+    if (this.ticketingState.category && this.ticketingState.category !== 'all') {
+      const cat = this.ticketingState.category.toLowerCase();
+      list = list.filter(t => (t.cat_issue || t.cat || '').toLowerCase() === cat);
+    }
+
+    // 5. Priority Dropdown Filter
     if (this.ticketingState.priority !== 'all') {
       list = list.filter(t => t.priority === this.ticketingState.priority);
     }
 
-    // 5. Date Range Filter (Rentang Tanggal)
+    // 6. Date Range Filter (Rentang Tanggal)
     if (this.ticketingState.startDate) {
       const s = this.ticketingState.startDate;
       list = list.filter(t => t.open_date && t.open_date >= s);
@@ -2414,7 +2496,7 @@ const App = {
     if (!this.ticketingData || !this.ticketingData.tickets) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+          <td colspan="10" style="text-align: center; padding: 3rem; color: var(--text-muted);">
             <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
             Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
           </td>
@@ -2440,6 +2522,9 @@ const App = {
       let vb = b[col];
 
       if (col === 'id') {
+        return ((parseInt(va, 10) || 0) - (parseInt(vb, 10) || 0)) * dir;
+      }
+      if (col === 'dur_seconds') {
         return ((parseInt(va, 10) || 0) - (parseInt(vb, 10) || 0)) * dir;
       }
       if (col === 'open_date') {
@@ -2495,7 +2580,7 @@ const App = {
     if (paginated.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
+          <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
             Tidak ada tiket kendala yang cocok dengan kriteria pencarian / filter saat ini.
           </td>
         </tr>
@@ -2559,6 +2644,11 @@ const App = {
           <td style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; font-family: var(--font-mono);">
             ${d.open_date || '-'}
           </td>
+          <td style="text-align: center; white-space: nowrap;">
+            <span class="badge-duration ${d.dur_seconds > 0 ? 'badge-duration-solved' : 'badge-duration-empty'}" title="Durasi Solving: Resolution Date (${d.resolve_date || '-'}) dikurangi Opening Date (${d.open_date || '-'})">
+              ⏱️ ${d.dur_solving || '0:00:00'}
+            </span>
+          </td>
           <td class="ticket-loc-cell">
             <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
             ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
@@ -2584,8 +2674,11 @@ const App = {
             ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
           </td>
           <td style="font-size: 0.74rem; color: var(--text-secondary);">
-            <span class="badge-pill" style="font-size: 0.68rem; display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cat_full || d.cat}">
-              ${d.cat || '-'}
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.74rem; margin-bottom: 2px;">
+              ${d.product || 'Uncategorized'}
+            </div>
+            <span class="badge-category-tag" title="${d.cat_full || d.cat_issue || d.cat || '-'}">
+              ${d.cat_issue || d.cat || '-'}
             </span>
           </td>
         </tr>
@@ -2671,16 +2764,32 @@ const App = {
             <span class="ticket-detail-value">${esc(ticket.loc)}</span>
           </div>
           <div class="ticket-detail-field">
-            <span class="ticket-detail-label">🏷️ Kategori Kendala</span>
-            <span class="ticket-detail-value">${esc(ticket.cat_full || ticket.cat || 'Uncategorized')}</span>
+            <span class="ticket-detail-label">📦 Produk PARKEE</span>
+            <span class="ticket-detail-value" style="font-weight: 700; color: var(--accent-primary);">${esc(ticket.product || 'Uncategorized')}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">🏷️ Kategori Issue</span>
+            <span class="ticket-detail-value" style="font-weight: 600;">${esc(ticket.cat_issue || ticket.cat || '-')}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">⏱️ Durasi Solving</span>
+            <span class="ticket-detail-value">
+              <span class="badge-duration ${ticket.dur_seconds > 0 ? 'badge-duration-solved' : 'badge-duration-empty'}" style="font-size: 0.8rem; padding: 3px 8px;">
+                ⏱️ ${esc(ticket.dur_solving || '0:00:00')}
+              </span>
+            </span>
           </div>
           <div class="ticket-detail-field">
             <span class="ticket-detail-label">📅 Tanggal Buka (Opening)</span>
             <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.open_date)}</span>
           </div>
           <div class="ticket-detail-field">
-            <span class="ticket-detail-label">🏁 Tanggal Selesai (Resolve / Close)</span>
-            <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.close_date || ticket.resolve_date || 'Belum Selesai')}</span>
+            <span class="ticket-detail-label">🏁 Tanggal Selesai (Resolution)</span>
+            <span class="ticket-detail-value" style="font-family: var(--font-mono);">${esc(ticket.resolve_date || ticket.close_date || 'Belum Selesai (0:00:00)')}</span>
+          </div>
+          <div class="ticket-detail-field">
+            <span class="ticket-detail-label">📂 Sub-Kategori / Jalur Rincian</span>
+            <span class="ticket-detail-value" style="font-size: 0.8rem; color: var(--text-secondary);">${esc(ticket.cat_full || ticket.cat || '-')}</span>
           </div>
           <div class="ticket-detail-field">
             <span class="ticket-detail-label">👤 Teknisi Ditugaskan (PIC)</span>
@@ -3525,6 +3634,17 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
+    const ticketProdFilter = document.getElementById('ticketProductFilter');
+    if (ticketProdFilter) {
+      ticketProdFilter.addEventListener('change', (e) => {
+        this.ticketingState.product = e.target.value;
+        this.ticketingState.category = 'all';
+        this.populateCategoryDropdown();
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
     const ticketCatFilter = document.getElementById('ticketCategoryFilter');
     if (ticketCatFilter) {
       ticketCatFilter.addEventListener('change', (e) => {
@@ -3623,6 +3743,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         this.ticketingState.search = '';
         this.ticketingState.filter = 'all';
         this.ticketingState.priority = 'all';
+        this.ticketingState.product = 'all';
         this.ticketingState.category = 'all';
         this.ticketingState.startDate = '';
         this.ticketingState.endDate = '';
@@ -3632,6 +3753,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         if (ticketSearch) ticketSearch.value = '';
         if (ticketStatusFilter) ticketStatusFilter.value = 'all';
         if (ticketPrioFilter) ticketPrioFilter.value = 'all';
+        if (ticketProdFilter) ticketProdFilter.value = 'all';
+        this.populateCategoryDropdown();
         if (ticketCatFilter) ticketCatFilter.value = 'all';
         if (ticketStartDate) ticketStartDate.value = '';
         if (ticketEndDate) ticketEndDate.value = '';

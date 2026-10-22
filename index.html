@@ -1507,11 +1507,19 @@
                   </select>
                 </div>
 
-                <!-- Filter Kategori -->
+                <!-- Filter Produk -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Kategori:</span>
-                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 260px;">
-                    <option value="all">Semua Kategori</option>
+                  <span class="filter-group-label">Produk:</span>
+                  <select id="ticketProductFilter" class="filter-select" style="max-width: 195px;">
+                    <option value="all">Semua Produk</option>
+                  </select>
+                </div>
+
+                <!-- Filter Kategori Issue (Cascading / Dependent) -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Kategori Issue:</span>
+                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 235px;">
+                    <option value="all">Semua Kategori Issue</option>
                   </select>
                 </div>
 
@@ -1556,15 +1564,16 @@
               <table class="fleet-table" id="ticketTable">
                 <thead>
                   <tr>
-                    <th style="width: 45px; text-align: center;">No</th>
-                    <th class="sortable" data-ticket-sort="id" style="width: 105px;">ID Tiket ⇅</th>
-                    <th class="sortable" data-ticket-sort="open_date" style="width: 140px;">Tanggal Buka ⇅</th>
-                    <th class="sortable" data-ticket-sort="loc" style="min-width: 190px;">Lokasi Unit ⇅</th>
-                    <th class="sortable" data-ticket-sort="title" style="min-width: 280px;">Judul Kendala & Rincian ⇅</th>
-                    <th class="sortable" data-ticket-sort="status" style="width: 130px;">Status Tiket ⇅</th>
-                    <th class="sortable" data-ticket-sort="priority" style="width: 90px; text-align: center;">Prioritas ⇅</th>
-                    <th class="sortable" data-ticket-sort="tech" style="min-width: 130px;">Teknisi Ditugaskan ⇅</th>
-                    <th class="sortable" data-ticket-sort="cat" style="min-width: 160px;">Kategori ⇅</th>
+                    <th style="width: 40px; text-align: center;">No</th>
+                    <th class="sortable" data-ticket-sort="id" style="width: 95px;">ID Tiket ⇅</th>
+                    <th class="sortable" data-ticket-sort="open_date" style="width: 130px;">Tanggal Buka ⇅</th>
+                    <th class="sortable" data-ticket-sort="dur_seconds" style="width: 115px; text-align: center;">Durasi Solving ⇅</th>
+                    <th class="sortable" data-ticket-sort="loc" style="min-width: 170px;">Lokasi Unit ⇅</th>
+                    <th class="sortable" data-ticket-sort="title" style="min-width: 250px;">Judul Kendala & Rincian ⇅</th>
+                    <th class="sortable" data-ticket-sort="status" style="width: 135px;">Status Tiket ⇅</th>
+                    <th class="sortable" data-ticket-sort="priority" style="width: 80px; text-align: center;">Prioritas ⇅</th>
+                    <th class="sortable" data-ticket-sort="tech" style="min-width: 130px;">Teknisi ⇅</th>
+                    <th class="sortable" data-ticket-sort="product" style="min-width: 180px;">Produk & Kategori ⇅</th>
                   </tr>
                 </thead>
                 <tbody id="ticketTableBody">
