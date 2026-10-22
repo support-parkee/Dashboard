@@ -1162,59 +1162,91 @@
 
           <!-- Main Ticketing Table Card -->
           <div class="glass-panel table-card" style="margin-top: 1.25rem;">
-            <!-- Toolbar -->
-            <div class="table-toolbar">
-              <div class="search-input-wrap">
+            <!-- Top Controls Row (Search & Actions) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
+              <div class="search-input-wrap" style="flex: 1; max-width: 440px; min-width: 240px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="ticketSearchInput" class="search-input" placeholder="Cari ID tiket, judul kendala, nama lokasi, teknisi, atau kategori...">
+                <input type="text" id="ticketSearchInput" class="search-input" placeholder="Cari ID tiket, judul kendala, lokasi, teknisi, kategori...">
               </div>
 
-              <div class="filter-pills-group">
-                <button class="filter-pill active" data-ticket-filter="all">Semua Tiket</button>
-                <button class="filter-pill" data-ticket-filter="Processing" style="color: #3b82f6; font-weight: 600;">⚙️ Processing</button>
-                <button class="filter-pill" data-ticket-filter="New" style="color: var(--color-warning); font-weight: 600;">⚡ Baru / Pending</button>
-                <button class="filter-pill" data-ticket-filter="Closed" style="color: #64748b; font-weight: 600;">🔒 Closed</button>
-                <button class="filter-pill" data-ticket-filter="Critical" style="color: var(--color-danger); font-weight: 600;">🚨 P0/P1 Kritis</button>
-              </div>
-
-              <!-- Filter Dropdowns for Priority & Page Size -->
-              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <select id="ticketPriorityFilter" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--text-main);">
-                  <option value="all">Semua Prioritas</option>
-                  <option value="P0">P0 - Kritis (Critical)</option>
-                  <option value="P1">P1 - Tinggi (High)</option>
-                  <option value="P2">P2 - Sedang (Medium)</option>
-                  <option value="P3">P3 - Rendah (Low)</option>
-                  <option value="P4">P4 - Sangat Rendah</option>
-                </select>
-
-                <select id="ticketPageSizeSelect" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--text-main);">
-                  <option value="25">25 per halaman</option>
-                  <option value="50">50 per halaman</option>
-                  <option value="100">100 per halaman</option>
-                  <option value="250">250 per halaman</option>
-                </select>
-              </div>
-
-              <div class="toolbar-actions">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
                   <span>Portal: <strong>parkee-ticket.nusa.technology</strong></span>
                   <span id="ticketLastSyncLabel" class="version-code-tag">Memuat...</span>
                 </div>
-                <button class="btn btn-outline" id="ticketRefreshBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Tampilkan:</span>
+                  <select id="ticketPageSizeSelect" class="filter-select" style="max-width: 120px; font-size: 0.75rem;">
+                    <option value="25" selected>25 Baris</option>
+                    <option value="50">50 Baris</option>
+                    <option value="100">100 Baris</option>
+                    <option value="250">250 Baris</option>
+                  </select>
+                </div>
+
+                <button class="btn btn-outline" id="ticketRefreshBtn" style="padding: 4px 10px; font-size: 0.74rem;">
                   ↻ Refresh
                 </button>
-                <button class="btn btn-outline" id="exportTicketsBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+                <button class="btn btn-outline" id="exportTicketsBtn" style="padding: 4px 10px; font-size: 0.74rem;">
                   ⬇ Ekspor CSV
                 </button>
               </div>
             </div>
 
+            <!-- Filter Controls Row (Status Pills & Dropdowns) -->
+            <div style="display: flex; flex-direction: column; gap: 0.65rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Status:</span>
+                  <div class="filter-pills-group">
+                    <button class="filter-pill active" data-ticket-filter="all">Semua Tiket</button>
+                    <button class="filter-pill" data-ticket-filter="Processing" style="color: #3b82f6; font-weight: 600;">⚙️ Processing</button>
+                    <button class="filter-pill" data-ticket-filter="New" style="color: var(--color-warning); font-weight: 600;">⚡ Baru / Pending</button>
+                    <button class="filter-pill" data-ticket-filter="Closed" style="color: #64748b; font-weight: 600;">🔒 Closed</button>
+                    <button class="filter-pill hazard" data-ticket-filter="Critical">🚨 P0/P1 Kritis</button>
+                  </div>
+                </div>
+
+                <div id="ticketResultCountLabel" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
+                  Menampilkan 9.082 Tiket
+                </div>
+              </div>
+
+              <!-- Specific Dropdown Filters Bar (Kategori & Prioritas) -->
+              <div class="filter-bar-grid" style="margin-top: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <!-- Filter Kategori -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Kategori:</span>
+                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 260px;">
+                    <option value="all">Semua Kategori</option>
+                  </select>
+                </div>
+
+                <!-- Filter Prioritas -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Prioritas:</span>
+                  <select id="ticketPriorityFilter" class="filter-select" style="max-width: 190px;">
+                    <option value="all">Semua Prioritas</option>
+                    <option value="P0">P0 - Kritis (Critical)</option>
+                    <option value="P1">P1 - Tinggi (High)</option>
+                    <option value="P2">P2 - Sedang (Medium)</option>
+                    <option value="P3">P3 - Rendah (Low)</option>
+                    <option value="P4">P4 - Sangat Rendah</option>
+                  </select>
+                </div>
+
+                <button class="btn-reset-filters" id="ticketResetFiltersBtn">
+                  ↺ Reset Filter
+                </button>
+              </div>
+            </div>
+
             <!-- Table Container -->
-            <div class="table-container">
+            <div class="table-responsive" style="margin-top: 0.85rem;">
               <table class="fleet-table" id="ticketTable">
                 <thead>
                   <tr>
@@ -1269,8 +1301,8 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.8.0"></script>
+  <script src="js/summary-data.js?v=2.8.1"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.8.0"></script>
+  <script src="js/app.js?v=2.8.1"></script>
 </body>
 </html>
