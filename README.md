@@ -4,7 +4,7 @@
 > Visualisasi interaktif performa 7,518 node perangkat (Server Sentral, Admin POS, Gate, Kiosk) di 961 lokasi komersial seluruh Indonesia.
 
 🔗 **Live Demo (GitHub Pages):**  
-👉 **[https://azkiabenington.github.io/dashboard-server-client/](https://azkiabenington.github.io/dashboard-server-client/)**
+👉 **[https://support-parkee.github.io/Dashboard/](https://support-parkee.github.io/Dashboard/)**
 
 ---
 

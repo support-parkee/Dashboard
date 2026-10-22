@@ -1332,9 +1332,13 @@ const App = {
   // MODULE 5: TEMPERATURE SERVER (LIVE PROMETHEUS TELEMETRY)
   // =========================================================================
   async fetchTemperature(forceRefresh = false) {
-    const rawUrl = `https://raw.githubusercontent.com/azkiabenington/dashboard-server-client/telemetry/temperature.json?_t=${Date.now()}`;
+    const rawUrl = `https://raw.githubusercontent.com/support-parkee/Dashboard/telemetry/temperature.json?_t=${Date.now()}`;
+    const fallbackUrl = `https://raw.githubusercontent.com/azkiabenington/dashboard-server-client/telemetry/temperature.json?_t=${Date.now()}`;
     try {
-      const res = await fetch(rawUrl, { cache: 'no-store' });
+      let res = await fetch(rawUrl, { cache: 'no-store' });
+      if (!res.ok) {
+        res = await fetch(fallbackUrl, { cache: 'no-store' });
+      }
       if (res.ok) {
         this.temperatureData = await res.json();
         this.renderTemperatureKPIs();
