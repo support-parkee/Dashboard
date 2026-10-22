@@ -108,6 +108,17 @@
             </div>
             <span class="badge-pill" id="badgeOverheatTemp" style="background: var(--color-danger-light); color: var(--color-danger); font-weight: 700;">🔥 --</span>
           </button>
+
+          <!-- 6. Ticketing (GLPI) -->
+          <button class="sidebar-nav-btn" data-view="ticketing" title="Monitoring Tiket Kendala Parkee (GLPI 3 Bulan Terakhir)">
+            <div class="nav-btn-left">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 0 0-2 2v3a2 2 0 1 1 0 4v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 1 1 0-4V7a2 2 0 0 0-2-2H5z"></path>
+              </svg>
+              <span>Ticketing</span>
+            </div>
+            <span class="badge-pill" id="badgeTotalTickets" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 700;">--</span>
+          </button>
         </nav>
 
         <!-- Auto-Sync Schedule Card -->
@@ -1082,6 +1093,161 @@
           </div>
         </section>
 
+        <!-- =============================================================== -->
+        <!-- VIEW 6: TICKETING (GLPI 3 BULAN TERAKHIR)                       -->
+        <!-- =============================================================== -->
+        <section id="view-ticketing" class="view-section">
+          <!-- KPI Deck Row -->
+          <div class="kpi-deck-row" style="grid-template-columns: repeat(5, 1fr);">
+            <!-- Total Tickets 3 Bulan -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Total Tiket (3 Bulan)</span>
+                <span class="kpi-icon">🎫</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiTotal">--</span>
+                <span class="kpi-sub" id="ticketKpiRangeLabel">90 Hari Terakhir</span>
+              </div>
+            </div>
+
+            <!-- Tiket Selesai (Closed & Solved) -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Tiket Selesai</span>
+                <span class="kpi-icon">✅</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiResolved" style="color: var(--color-success);">--</span>
+                <span class="kpi-sub" id="ticketKpiResolvedPct">Closed & Solved</span>
+              </div>
+            </div>
+
+            <!-- Dalam Pengerjaan (Processing) -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Dalam Pengerjaan</span>
+                <span class="kpi-icon">⚙️</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiProcessing" style="color: #3b82f6;">--</span>
+                <span class="kpi-sub">Assigned / Planned</span>
+              </div>
+            </div>
+
+            <!-- Tiket Baru & Menunggu -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Baru & Pending</span>
+                <span class="kpi-icon">⏳</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiNewPending" style="color: var(--color-warning);">--</span>
+                <span class="kpi-sub">Membutuhkan Respon</span>
+              </div>
+            </div>
+
+            <!-- Prioritas Tinggi / Kritis (P0 & P1) -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Prioritas P0 & P1</span>
+                <span class="kpi-icon">🚨</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiHighPrio" style="color: var(--color-danger);">--</span>
+                <span class="kpi-sub">Critical & High Priority</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Ticketing Table Card -->
+          <div class="glass-panel table-card" style="margin-top: 1.25rem;">
+            <!-- Toolbar -->
+            <div class="table-toolbar">
+              <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="ticketSearchInput" class="search-input" placeholder="Cari ID tiket, judul kendala, nama lokasi, teknisi, atau kategori...">
+              </div>
+
+              <div class="filter-pills-group">
+                <button class="filter-pill active" data-ticket-filter="all">Semua Tiket</button>
+                <button class="filter-pill" data-ticket-filter="Processing" style="color: #3b82f6; font-weight: 600;">⚙️ Processing</button>
+                <button class="filter-pill" data-ticket-filter="New" style="color: var(--color-warning); font-weight: 600;">⚡ Baru / Pending</button>
+                <button class="filter-pill" data-ticket-filter="Closed" style="color: #64748b; font-weight: 600;">🔒 Closed</button>
+                <button class="filter-pill" data-ticket-filter="Critical" style="color: var(--color-danger); font-weight: 600;">🚨 P0/P1 Kritis</button>
+              </div>
+
+              <!-- Filter Dropdowns for Priority & Page Size -->
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <select id="ticketPriorityFilter" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--text-main);">
+                  <option value="all">Semua Prioritas</option>
+                  <option value="P0">P0 - Kritis (Critical)</option>
+                  <option value="P1">P1 - Tinggi (High)</option>
+                  <option value="P2">P2 - Sedang (Medium)</option>
+                  <option value="P3">P3 - Rendah (Low)</option>
+                  <option value="P4">P4 - Sangat Rendah</option>
+                </select>
+
+                <select id="ticketPageSizeSelect" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--text-main);">
+                  <option value="25">25 per halaman</option>
+                  <option value="50">50 per halaman</option>
+                  <option value="100">100 per halaman</option>
+                  <option value="250">250 per halaman</option>
+                </select>
+              </div>
+
+              <div class="toolbar-actions">
+                <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                  <span>Portal: <strong>parkee-ticket.nusa.technology</strong></span>
+                  <span id="ticketLastSyncLabel" class="version-code-tag">Memuat...</span>
+                </div>
+                <button class="btn btn-outline" id="ticketRefreshBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+                  ↻ Refresh
+                </button>
+                <button class="btn btn-outline" id="exportTicketsBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+                  ⬇ Ekspor CSV
+                </button>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-container">
+              <table class="fleet-table" id="ticketTable">
+                <thead>
+                  <tr>
+                    <th style="width: 45px; text-align: center;">No</th>
+                    <th class="sortable" data-ticket-sort="id" style="width: 105px;">ID Tiket ⇅</th>
+                    <th class="sortable" data-ticket-sort="open_date" style="width: 140px;">Tanggal Buka ⇅</th>
+                    <th class="sortable" data-ticket-sort="loc" style="min-width: 190px;">Lokasi Unit ⇅</th>
+                    <th class="sortable" data-ticket-sort="title" style="min-width: 280px;">Judul Kendala & Rincian ⇅</th>
+                    <th class="sortable" data-ticket-sort="status" style="width: 130px;">Status Tiket ⇅</th>
+                    <th class="sortable" data-ticket-sort="priority" style="width: 90px; text-align: center;">Prioritas ⇅</th>
+                    <th class="sortable" data-ticket-sort="tech" style="min-width: 130px;">Teknisi Ditugaskan ⇅</th>
+                    <th class="sortable" data-ticket-sort="cat" style="min-width: 160px;">Kategori ⇅</th>
+                  </tr>
+                </thead>
+                <tbody id="ticketTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="table-pagination">
+              <span id="ticketTableCountLabel">Memuat data tiket...</span>
+              <div class="pagination-btn-group">
+                <button id="ticketPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <span id="ticketCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
+                <button id="ticketNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
@@ -1099,14 +1265,12 @@
     </div>
   </div>
 
-
-
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.7.1"></script>
+  <script src="js/summary-data.js?v=2.8.0"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.7.1"></script>
+  <script src="js/app.js?v=2.8.0"></script>
 </body>
 </html>
