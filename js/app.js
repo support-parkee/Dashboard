@@ -4215,186 +4215,299 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
   // =========================================================================
   // FLOATING HORIZONTAL SCROLLBAR SYSTEM (Cross-Table Sticky Horizontal Scroll)
+  // Ultra-Smooth, Zero-Lag Custom Slider with Pointer Capture & RAF Sync
   // =========================================================================
   initFloatingScrollbar() {
     const floatBar = document.getElementById('floatingTableScrollbar');
-    const floatTrack = document.getElementById('floatScrollTrackWrapper');
-    const floatDummy = document.getElementById('floatScrollTrackDummy');
+    const track = document.getElementById('floatScrollTrack');
+    const thumb = document.getElementById('floatScrollThumb');
     const leftBtn = document.getElementById('floatScrollLeftBtn');
     const rightBtn = document.getElementById('floatScrollRightBtn');
     const badge = document.getElementById('floatScrollBadge');
 
-    if (!floatBar || !floatTrack || !floatDummy) return;
+    if (!floatBar || !track || !thumb) return;
 
     let activeTarget = null;
-    let isSyncingFromFloat = false;
-    let isSyncingFromTarget = false;
+    let isDraggingThumb = false;
+    let dragStartPointerX = 0;
+    let dragStartScrollLeft = 0;
+    let cachedMaxScroll = 0;
+    let cachedTrackWidth = 0;
+    let cachedThumbWidth = 36;
+    let cachedMaxThumbTravel = 1;
+    let prevLeft = -9999;
+    let prevWidth = -9999;
+    let holdTimer = null;
+    let holdInterval = null;
 
-    // Helper to update badge & arrows
-    const updateScrollState = () => {
-      if (!activeTarget) return;
-      const maxScroll = activeTarget.scrollWidth - activeTarget.clientWidth;
-      if (maxScroll <= 0) {
-        if (badge) badge.textContent = '↔ 0%';
-        if (leftBtn) leftBtn.disabled = true;
-        if (rightBtn) rightBtn.disabled = true;
-        return;
+    // Recalculate metrics for current target and track dimensions
+    const updateMetrics = () => {
+      if (!activeTarget) return false;
+      const scrollW = activeTarget.scrollWidth;
+      const clientW = activeTarget.clientWidth;
+      cachedMaxScroll = scrollW - clientW;
+
+      if (cachedMaxScroll <= 2) {
+        return false;
       }
-      const cur = activeTarget.scrollLeft;
-      const pct = Math.round(Math.min(100, Math.max(0, (cur / maxScroll) * 100)));
-      if (badge) badge.textContent = `↔ ${pct}%`;
-      if (leftBtn) leftBtn.disabled = cur <= 2;
-      if (rightBtn) rightBtn.disabled = cur >= maxScroll - 2;
+
+      cachedTrackWidth = track.clientWidth;
+      if (cachedTrackWidth <= 0) return false;
+
+      const visibleRatio = Math.min(1, Math.max(0.08, clientW / scrollW));
+      cachedThumbWidth = Math.max(36, Math.min(cachedTrackWidth - 8, Math.round(cachedTrackWidth * visibleRatio)));
+      cachedMaxThumbTravel = Math.max(1, cachedTrackWidth - cachedThumbWidth);
+
+      thumb.style.width = `${cachedThumbWidth}px`;
+      return true;
     };
 
-    // When user scrolls on the floating bar
-    floatTrack.addEventListener('scroll', () => {
-      if (activeTarget && !isSyncingFromTarget) {
-        isSyncingFromFloat = true;
-        activeTarget.scrollLeft = floatTrack.scrollLeft;
-        updateScrollState();
-        requestAnimationFrame(() => {
-          isSyncingFromFloat = false;
-        });
+    // Update thumb position and badge from activeTarget.scrollLeft
+    const updateThumbUI = (scrollLeft) => {
+      if (!activeTarget || cachedMaxScroll <= 0) return;
+      const ratio = Math.max(0, Math.min(1, scrollLeft / cachedMaxScroll));
+      const thumbX = Math.round(ratio * cachedMaxThumbTravel);
+
+      // Hardware-accelerated translate3d
+      thumb.style.transform = `translate3d(${thumbX}px, 0, 0)`;
+      thumb.setAttribute('aria-valuenow', Math.round(ratio * 100));
+
+      const pct = Math.round(ratio * 100);
+      if (badge) badge.textContent = `↔ ${pct}%`;
+      if (leftBtn) leftBtn.disabled = scrollLeft <= 2;
+      if (rightBtn) rightBtn.disabled = scrollLeft >= cachedMaxScroll - 2;
+    };
+
+    // Scroll listener on the active table (debounced with RAF)
+    let targetRafId = null;
+    const onTargetScroll = () => {
+      if (isDraggingThumb) return; // Pointermove already updates thumb instantaneously
+      if (targetRafId) return;
+      targetRafId = requestAnimationFrame(() => {
+        targetRafId = null;
+        if (activeTarget) {
+          updateThumbUI(activeTarget.scrollLeft);
+        }
+      });
+    };
+
+    // POINTER DRAG ON THUMB (Smooth 60/120fps with Pointer Capture)
+    thumb.addEventListener('pointerdown', (e) => {
+      if (!activeTarget || cachedMaxScroll <= 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      isDraggingThumb = true;
+      thumb.classList.add('dragging');
+      dragStartPointerX = e.clientX;
+      dragStartScrollLeft = activeTarget.scrollLeft;
+
+      try {
+        thumb.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    });
+
+    const onPointerMove = (e) => {
+      if (!isDraggingThumb || !activeTarget || cachedMaxScroll <= 0) return;
+      const deltaX = e.clientX - dragStartPointerX;
+      const scrollDelta = (deltaX / cachedMaxThumbTravel) * cachedMaxScroll;
+      const targetScroll = Math.max(0, Math.min(cachedMaxScroll, dragStartScrollLeft + scrollDelta));
+
+      activeTarget.scrollLeft = targetScroll;
+      updateThumbUI(targetScroll);
+    };
+
+    const onPointerUp = (e) => {
+      if (!isDraggingThumb) return;
+      isDraggingThumb = false;
+      thumb.classList.remove('dragging');
+      try {
+        thumb.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    };
+
+    thumb.addEventListener('pointermove', onPointerMove);
+    thumb.addEventListener('pointerup', onPointerUp);
+    thumb.addEventListener('pointercancel', onPointerUp);
+
+    // CLICK ON TRACK (Jump / Smooth Slide to click location)
+    track.addEventListener('pointerdown', (e) => {
+      if (e.target === thumb || thumb.contains(e.target)) return;
+      if (!activeTarget || cachedMaxScroll <= 0) return;
+
+      const rect = track.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const desiredThumbLeft = clickX - (cachedThumbWidth / 2);
+      const ratio = Math.max(0, Math.min(1, desiredThumbLeft / cachedMaxThumbTravel));
+      const targetScroll = Math.round(ratio * cachedMaxScroll);
+
+      activeTarget.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth'
+      });
+    });
+
+    // KEYBOARD NAVIGATION ON THUMB
+    thumb.addEventListener('keydown', (e) => {
+      if (!activeTarget) return;
+      const step = 80;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        activeTarget.scrollBy({ left: -step, behavior: 'smooth' });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        activeTarget.scrollBy({ left: step, behavior: 'smooth' });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        activeTarget.scrollTo({ left: 0, behavior: 'smooth' });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        activeTarget.scrollTo({ left: activeTarget.scrollWidth, behavior: 'smooth' });
       }
     });
 
-    // Translate mouse wheel on the floating bar to horizontal scroll
-    floatTrack.addEventListener('wheel', (e) => {
-      if (e.deltaY !== 0 && e.deltaX === 0) {
-        e.preventDefault();
-        floatTrack.scrollLeft += e.deltaY;
-      }
+    // MOUSE WHEEL ON FLOATING BAR (Translate to Horizontal Scroll)
+    floatBar.addEventListener('wheel', (e) => {
+      if (!activeTarget || cachedMaxScroll <= 0) return;
+      e.preventDefault();
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      activeTarget.scrollLeft += delta;
     }, { passive: false });
 
-    // Click ◀ / ▶ buttons (smooth scroll by 280px)
-    if (leftBtn) {
-      leftBtn.addEventListener('click', (e) => {
+    // ARROW BUTTONS: CLICK (Smooth Step) + PRESS & HOLD (Continuous Glide)
+    const setupArrowButton = (btn, direction) => {
+      if (!btn) return;
+      let startTime = 0;
+
+      const stopHold = () => {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+      };
+
+      btn.addEventListener('pointerdown', (e) => {
+        if (!activeTarget || cachedMaxScroll <= 0) return;
         e.preventDefault();
-        e.stopPropagation();
-        if (activeTarget) {
-          activeTarget.scrollBy({ left: -280, behavior: 'smooth' });
+        startTime = Date.now();
+        stopHold();
+
+        holdTimer = setTimeout(() => {
+          holdInterval = setInterval(() => {
+            if (!activeTarget) return stopHold();
+            activeTarget.scrollLeft += direction * 24;
+          }, 16);
+        }, 220);
+      });
+
+      btn.addEventListener('pointerup', () => {
+        const elapsed = Date.now() - startTime;
+        stopHold();
+        if (elapsed < 220 && activeTarget) {
+          activeTarget.scrollBy({ left: direction * 320, behavior: 'smooth' });
         }
       });
-    }
 
-    if (rightBtn) {
-      rightBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (activeTarget) {
-          activeTarget.scrollBy({ left: 280, behavior: 'smooth' });
-        }
-      });
-    }
-
-    // Scroll listener on active target
-    const targetScrollHandler = () => {
-      if (!isSyncingFromFloat && activeTarget) {
-        isSyncingFromTarget = true;
-        floatTrack.scrollLeft = activeTarget.scrollLeft;
-        updateScrollState();
-        requestAnimationFrame(() => {
-          isSyncingFromTarget = false;
-        });
-      }
+      btn.addEventListener('pointerleave', stopHold);
+      btn.addEventListener('pointercancel', stopHold);
     };
 
-    // Core check function
+    setupArrowButton(leftBtn, -1);
+    setupArrowButton(rightBtn, 1);
+
+    // CORE VISIBILITY & POSITIONING LOGIC
     const checkFloatingScrollbar = () => {
       const wrappers = document.querySelectorAll(
         '.table-responsive, .table-container, .client-table-wrap'
       );
       const vh = window.innerHeight;
-      let newActiveTarget = null;
-      let targetRect = null;
+      let candidate = null;
+      let candidateRect = null;
 
       for (const el of wrappers) {
-        // Must be visible in DOM
         if (el.offsetParent === null) continue;
-
-        // Must have horizontal overflow
         if (el.scrollWidth <= el.clientWidth + 2) continue;
 
         const rect = el.getBoundingClientRect();
+        const topInView = rect.top < vh - 40;
+        const bottomBelowScreen = rect.bottom > vh - 12;
+        const bottomStillVisible = rect.bottom > 80;
 
-        // Must intersect viewport vertically:
-        // Table top has entered screen, and table bottom is still below the top
-        const isPartiallyVisible = rect.top < vh - 40 && rect.bottom > 80;
-
-        // Crucial condition: The table's actual bottom (and its native scrollbar) is BELOW the bottom of the viewport
-        const nativeScrollbarIsOffscreen = rect.bottom > vh - 10;
-
-        if (isPartiallyVisible && nativeScrollbarIsOffscreen) {
-          newActiveTarget = el;
-          targetRect = rect;
-          break; // First matching table in viewport
+        if (topInView && bottomBelowScreen && bottomStillVisible) {
+          candidate = el;
+          candidateRect = rect;
+          break;
         }
       }
 
-      if (!newActiveTarget) {
+      if (!candidate) {
         if (activeTarget) {
-          activeTarget.removeEventListener('scroll', targetScrollHandler);
+          activeTarget.removeEventListener('scroll', onTargetScroll);
           activeTarget = null;
         }
         floatBar.classList.remove('visible');
-        setTimeout(() => {
-          if (!activeTarget) floatBar.style.display = 'none';
-        }, 220);
         return;
       }
 
-      // Switch target if changed
-      if (activeTarget !== newActiveTarget) {
-        if (activeTarget) activeTarget.removeEventListener('scroll', targetScrollHandler);
-        activeTarget = newActiveTarget;
-        activeTarget.addEventListener('scroll', targetScrollHandler, { passive: true });
+      // Switch active target
+      if (activeTarget !== candidate) {
+        if (activeTarget) activeTarget.removeEventListener('scroll', onTargetScroll);
+        activeTarget = candidate;
+        activeTarget.addEventListener('scroll', onTargetScroll, { passive: true });
       }
 
-      // Position and size the floating bar
+      // Calculate position and width
       const paddingX = 16;
-      const left = Math.max(paddingX, targetRect.left + 8);
-      // Leave space on the right for the tweaks button if screen is wide
+      const left = Math.round(Math.max(paddingX, candidateRect.left + 8));
       const rightMargin = (window.innerWidth >= 900) ? 140 : 16;
       const maxWidth = window.innerWidth - left - rightMargin;
-      const width = Math.min(targetRect.width - 16, maxWidth);
+      const width = Math.round(Math.min(candidateRect.width - 16, maxWidth));
 
-      floatBar.style.left = `${left}px`;
-      floatBar.style.width = `${Math.max(180, width)}px`;
-      floatBar.style.display = 'block';
-
-      // Update dummy content width
-      floatDummy.style.width = `${activeTarget.scrollWidth}px`;
-
-      // Sync scrollLeft
-      if (!isSyncingFromFloat) {
-        floatTrack.scrollLeft = activeTarget.scrollLeft;
+      if (Math.abs(prevLeft - left) >= 1) {
+        floatBar.style.left = `${left}px`;
+        prevLeft = left;
+      }
+      if (Math.abs(prevWidth - width) >= 1) {
+        floatBar.style.width = `${Math.max(200, width)}px`;
+        prevWidth = width;
       }
 
-      updateScrollState();
+      const hasOverflow = updateMetrics();
+      if (!hasOverflow) {
+        floatBar.classList.remove('visible');
+        return;
+      }
 
-      // Show bar
-      requestAnimationFrame(() => {
-        floatBar.classList.add('visible');
+      updateThumbUI(activeTarget.scrollLeft);
+      floatBar.classList.add('visible');
+    };
+
+    // Throttled scroll and resize listeners using requestAnimationFrame
+    let checkRaf = null;
+    const requestCheck = () => {
+      if (checkRaf) return;
+      checkRaf = requestAnimationFrame(() => {
+        checkRaf = null;
+        checkFloatingScrollbar();
       });
     };
 
-    window.addEventListener('scroll', checkFloatingScrollbar, { passive: true });
-    window.addEventListener('resize', checkFloatingScrollbar, { passive: true });
+    window.addEventListener('scroll', requestCheck, { passive: true });
+    window.addEventListener('resize', requestCheck, { passive: true });
 
-    // MutationObserver to auto-update whenever table data is rendered or view switches
+    // Debounced mutation observer to re-check when views switch or tables render
+    let mutationTimer = null;
+    const debouncedCheck = () => {
+      clearTimeout(mutationTimer);
+      mutationTimer = setTimeout(checkFloatingScrollbar, 80);
+    };
+
     const mainWrapper = document.querySelector('.view-wrapper') || document.body;
     if (window.MutationObserver) {
-      const observer = new MutationObserver(() => {
-        checkFloatingScrollbar();
-      });
+      const observer = new MutationObserver(debouncedCheck);
       observer.observe(mainWrapper, { childList: true, subtree: true });
     }
 
     this.updateFloatingScrollbar = checkFloatingScrollbar;
-
-    // Initial check
-    setTimeout(checkFloatingScrollbar, 250);
+    setTimeout(checkFloatingScrollbar, 200);
   },
 
   // =========================================================================

@@ -1657,17 +1657,17 @@
   </div>
 
   <!-- Floating Horizontal Scrollbar Component for all wide tables -->
-  <div id="floatingTableScrollbar" class="floating-table-scrollbar" style="display: none;" aria-hidden="true">
+  <div id="floatingTableScrollbar" class="floating-table-scrollbar" aria-hidden="true">
     <div class="floating-scrollbar-inner">
-      <button type="button" class="float-scroll-arrow float-scroll-left" id="floatScrollLeftBtn" title="Geser ke Kiri (Scroll Left)">
+      <button type="button" class="float-scroll-arrow float-scroll-left" id="floatScrollLeftBtn" title="Geser ke Kiri (Klik untuk step, Tahan untuk meluncur)" aria-label="Geser ke kiri">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
 
-      <div class="float-scroll-track-wrapper" id="floatScrollTrackWrapper" title="Geser horizontal">
-        <div class="float-scroll-track-dummy" id="floatScrollTrackDummy"></div>
+      <div class="float-scroll-track" id="floatScrollTrack" title="Geser horizontal (drag thumb atau klik track)">
+        <div class="float-scroll-thumb" id="floatScrollThumb" role="scrollbar" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"></div>
       </div>
 
-      <button type="button" class="float-scroll-arrow float-scroll-right" id="floatScrollRightBtn" title="Geser ke Kanan (Scroll Right)">
+      <button type="button" class="float-scroll-arrow float-scroll-right" id="floatScrollRightBtn" title="Geser ke Kanan (Klik untuk step, Tahan untuk meluncur)" aria-label="Geser ke kanan">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
 
