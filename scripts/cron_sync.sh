@@ -9,8 +9,9 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Starting Dashboard Sync..." >> "$LOG_FI
 
 cd "$REPO_DIR"
 
-# Pull latest commits
-git pull --rebase origin main >> "$LOG_FILE" 2>&1 || true
+# Clean any working tree noise and pull latest
+git checkout -- . 2>/dev/null || true
+git pull origin main >> "$LOG_FILE" 2>&1 || true
 
 # Run Python data sync
 /usr/bin/python3 sync_data.py >> "$LOG_FILE" 2>&1
