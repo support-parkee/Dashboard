@@ -1528,6 +1528,23 @@
                   </select>
                 </div>
 
+                <!-- Filter Rentang Tanggal (Date Range) -->
+                <div class="filter-group-item" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <span class="filter-group-label">Tanggal:</span>
+                  <select id="ticketDatePreset" class="filter-select" style="max-width: 135px;" title="Pilihan Cepat Waktu">
+                    <option value="all">Semua Waktu</option>
+                    <option value="today">Hari Ini</option>
+                    <option value="7days">7 Hari Terakhir</option>
+                    <option value="30days">30 Hari Terakhir</option>
+                    <option value="this_month">Bulan Ini</option>
+                    <option value="last_month">Bulan Lalu</option>
+                    <option value="custom">Kustom...</option>
+                  </select>
+                  <input type="date" id="ticketStartDate" class="filter-date-input" title="Tanggal Mulai">
+                  <span style="color: var(--text-muted); font-size: 0.75rem; font-weight: 600;">s/d</span>
+                  <input type="date" id="ticketEndDate" class="filter-date-input" title="Tanggal Akhir">
+                </div>
+
                 <button class="btn-reset-filters" id="ticketResetFiltersBtn">
                   ↺ Reset Filter
                 </button>

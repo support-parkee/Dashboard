@@ -1039,6 +1039,31 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 2px var(--border-focus);
 }
 
+.filter-date-input {
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-light);
+  background: var(--surface-card);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 125px;
+}
+
+.filter-date-input:hover, .filter-date-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.filter-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+
 .btn-reset-filters {
   background: var(--surface-card);
   border: 1px dashed var(--border-light);

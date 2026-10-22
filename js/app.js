@@ -99,6 +99,9 @@ const App = {
     filter: 'all',
     priority: 'all',
     category: 'all',
+    startDate: '',
+    endDate: '',
+    datePreset: 'all',
     page: 1,
     pageSize: 25,
     sortCol: 'open_date',
@@ -2341,22 +2344,8 @@ const App = {
     select.innerHTML = html;
   },
 
-  renderTicketingTable() {
-    const tbody = document.getElementById('ticketTableBody');
-    if (!tbody) return;
-
-    if (!this.ticketingData || !this.ticketingData.tickets) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
-            Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
+  getFilteredTickets() {
+    if (!this.ticketingData || !this.ticketingData.tickets) return [];
     let list = [...this.ticketingData.tickets];
 
     // 1. Search Filter
@@ -2404,6 +2393,37 @@ const App = {
     if (this.ticketingState.priority !== 'all') {
       list = list.filter(t => t.priority === this.ticketingState.priority);
     }
+
+    // 5. Date Range Filter (Rentang Tanggal)
+    if (this.ticketingState.startDate) {
+      const s = this.ticketingState.startDate;
+      list = list.filter(t => t.open_date && t.open_date >= s);
+    }
+    if (this.ticketingState.endDate) {
+      const e = this.ticketingState.endDate + ' 23:59:59';
+      list = list.filter(t => t.open_date && t.open_date <= e);
+    }
+
+    return list;
+  },
+
+  renderTicketingTable() {
+    const tbody = document.getElementById('ticketTableBody');
+    if (!tbody) return;
+
+    if (!this.ticketingData || !this.ticketingData.tickets) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
+            Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let list = this.getFilteredTickets();
 
     // Update Result Count Label
     const resCountLabel = document.getElementById('ticketResultCountLabel');
@@ -3523,6 +3543,80 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
+    // Rentang Tanggal (Date Range) Events
+    const ticketDatePreset = document.getElementById('ticketDatePreset');
+    const ticketStartDate = document.getElementById('ticketStartDate');
+    const ticketEndDate = document.getElementById('ticketEndDate');
+
+    const formatDateLocal = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    if (ticketDatePreset) {
+      ticketDatePreset.addEventListener('change', (e) => {
+        const val = e.target.value;
+        const now = new Date();
+        let start = '';
+        let end = '';
+
+        if (val === 'today') {
+          start = formatDateLocal(now);
+          end = start;
+        } else if (val === '7days') {
+          const d = new Date();
+          d.setDate(d.getDate() - 7);
+          start = formatDateLocal(d);
+          end = formatDateLocal(now);
+        } else if (val === '30days') {
+          const d = new Date();
+          d.setDate(d.getDate() - 30);
+          start = formatDateLocal(d);
+          end = formatDateLocal(now);
+        } else if (val === 'this_month') {
+          start = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
+          end = formatDateLocal(now);
+        } else if (val === 'last_month') {
+          start = formatDateLocal(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+          end = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 0));
+        } else if (val === 'all') {
+          start = '';
+          end = '';
+        }
+
+        if (ticketStartDate) ticketStartDate.value = start;
+        if (ticketEndDate) ticketEndDate.value = end;
+
+        this.ticketingState.startDate = start;
+        this.ticketingState.endDate = end;
+        this.ticketingState.datePreset = val;
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
+    if (ticketStartDate) {
+      ticketStartDate.addEventListener('change', (e) => {
+        this.ticketingState.startDate = e.target.value;
+        this.ticketingState.datePreset = 'custom';
+        if (ticketDatePreset) ticketDatePreset.value = 'custom';
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
+    if (ticketEndDate) {
+      ticketEndDate.addEventListener('change', (e) => {
+        this.ticketingState.endDate = e.target.value;
+        this.ticketingState.datePreset = 'custom';
+        if (ticketDatePreset) ticketDatePreset.value = 'custom';
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
     const ticketResetBtn = document.getElementById('ticketResetFiltersBtn');
     if (ticketResetBtn) {
       ticketResetBtn.addEventListener('click', () => {
@@ -3530,12 +3624,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         this.ticketingState.filter = 'all';
         this.ticketingState.priority = 'all';
         this.ticketingState.category = 'all';
+        this.ticketingState.startDate = '';
+        this.ticketingState.endDate = '';
+        this.ticketingState.datePreset = 'all';
         this.ticketingState.page = 1;
 
         if (ticketSearch) ticketSearch.value = '';
         if (ticketStatusFilter) ticketStatusFilter.value = 'all';
         if (ticketPrioFilter) ticketPrioFilter.value = 'all';
         if (ticketCatFilter) ticketCatFilter.value = 'all';
+        if (ticketStartDate) ticketStartDate.value = '';
+        if (ticketEndDate) ticketEndDate.value = '';
+        if (ticketDatePreset) ticketDatePreset.value = 'all';
 
         document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
           b.classList.toggle('active', b.dataset.ticketFilter === 'all');
@@ -3601,7 +3701,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (exportTickets) {
       exportTickets.addEventListener('click', () => {
         if (this.ticketingData && this.ticketingData.tickets) {
-          this.exportCsv(this.ticketingData.tickets, 'parkee_glpi_tickets_3months.csv');
+          const list = this.getFilteredTickets();
+          this.exportCsv(list, `parkee_glpi_tickets_${list.length}.csv`);
         }
       });
     }
