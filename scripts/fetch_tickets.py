@@ -266,10 +266,19 @@ def process_tickets_csv(csv_text=None):
 
         # Breakdown Category (Product, Kategori Issue, Sub-Kategori)
         cat_full_clean = raw_cat.strip() if raw_cat else ""
-        cat_parts = [p.strip() for p in cat_full_clean.split(">")] if cat_full_clean else []
-        prod_val = cat_parts[0] if len(cat_parts) > 0 and cat_parts[0] else "Uncategorized"
-        cat_issue_val = cat_parts[1] if len(cat_parts) > 1 and cat_parts[1] else ("Umum / Lainnya" if prod_val != "Uncategorized" else "Uncategorized")
-        sub_issue_val = cat_parts[2] if len(cat_parts) > 2 and cat_parts[2] else ""
+        cat_parts = [p.strip() for p in cat_full_clean.split(">") if p.strip()] if cat_full_clean else []
+        if len(cat_parts) >= 2:
+            prod_val = cat_parts[0]
+            cat_issue_val = cat_parts[1]
+            sub_issue_val = cat_parts[2] if len(cat_parts) > 2 else ""
+        elif len(cat_parts) == 1:
+            prod_val = cat_parts[0]
+            cat_issue_val = cat_parts[0]
+            sub_issue_val = ""
+        else:
+            prod_val = "Uncategorized"
+            cat_issue_val = "Uncategorized"
+            sub_issue_val = ""
 
         # Calculate Durasi Solving: Resolution Date - Opening Date
         # (jika resolution date kosong di = dengan opening date nya saja = 0:00:00)

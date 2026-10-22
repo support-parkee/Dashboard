@@ -2163,7 +2163,7 @@ const App = {
     if (!t1m || !t1m.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+          <td colspan="10" style="text-align: center; padding: 2rem; color: var(--text-muted);">
             Memuat data tiket...
           </td>
         </tr>
@@ -2188,7 +2188,7 @@ const App = {
     if (criticalList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600;">
+          <td colspan="10" style="text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600;">
             ✅ Tidak ada tiket kendala kritis P0/P1 yang aktif dalam 30 hari terakhir. Semua terkendali!
           </td>
         </tr>
@@ -2197,6 +2197,13 @@ const App = {
     }
 
     tbody.innerHTML = criticalList.map((d, index) => {
+      if (!d.product || d.product === 'Uncategorized') {
+        const parsed = this.parseTicketCategory(d.cat_full, d.cat);
+        d.product = parsed.product;
+        d.cat_issue = parsed.cat_issue;
+        d.sub_issue = parsed.sub_issue;
+      }
+
       let statusClass = 'ticket-status-closed';
       let statusIcon = '🔒';
       let statusLabel = d.status_raw || d.status || '-';
@@ -2271,9 +2278,12 @@ const App = {
             <div>${d.tech || '-'}</div>
             ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
           </td>
+          <td style="font-size: 0.76rem;">
+            ${this.renderProductPill(d.product)}
+          </td>
           <td style="font-size: 0.74rem; color: var(--text-secondary);">
-            <span class="badge-pill" style="font-size: 0.68rem; display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cat_full || d.cat}">
-              ${d.cat || '-'}
+            <span class="badge-category-tag" title="${this.escapeHtml(d.cat_full || d.cat_issue || d.cat || '-')}">
+              ${this.escapeHtml(d.cat_issue || d.cat || '-')}
             </span>
           </td>
         </tr>
@@ -2378,6 +2388,53 @@ const App = {
     this.populateCategoryDropdown();
   },
 
+  escapeHtml(str) {
+    if (str === null || str === undefined || str === '') return '-';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
+  // Parse category hierarchy into Product, Kategori Issue, and Sub Issue
+  // Rule:
+  // - Multi-level: "PARKEE OS > Software PARKEE > Human Error" -> Product: "PARKEE OS", Kategori Issue: "Software PARKEE"
+  // - Single-level: "PARKEE Wuzz" -> Product: "PARKEE Wuzz", Kategori Issue: "PARKEE Wuzz"
+  parseTicketCategory(catFull, catShort) {
+    const raw = (catFull || catShort || '').trim();
+    if (!raw || raw === '-' || raw.toLowerCase() === 'uncategorized') {
+      return { product: 'Uncategorized', cat_issue: 'Uncategorized', sub_issue: '' };
+    }
+    const parts = raw.split('>').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      return {
+        product: parts[0],
+        cat_issue: parts[1],
+        sub_issue: parts[2] || ''
+      };
+    } else if (parts.length === 1) {
+      return {
+        product: parts[0],
+        cat_issue: parts[0],
+        sub_issue: ''
+      };
+    }
+    return { product: 'Uncategorized', cat_issue: 'Uncategorized', sub_issue: '' };
+  },
+
+  renderProductPill(product) {
+    const p = (product || 'Uncategorized').trim();
+    let extraClass = '';
+    const pLower = p.toLowerCase();
+    if (pLower.includes('wuzz')) extraClass = 'badge-product-wuzz';
+    else if (pLower.includes('apps')) extraClass = 'badge-product-apps';
+    else if (pLower.includes('reader')) extraClass = 'badge-product-reader';
+    const escVal = this.escapeHtml(p);
+    return `<span class="badge-product-pill ${extraClass}" title="${escVal}">${escVal}</span>`;
+  },
+
   populateProductDropdown() {
     const select = document.getElementById('ticketProductFilter');
     if (!select || !this.ticketingData || !this.ticketingData.tickets) return;
@@ -2386,12 +2443,11 @@ const App = {
     const prodCounts = {};
 
     this.ticketingData.tickets.forEach(t => {
-      if (!t.product) {
-        const rawCat = t.cat_full || t.cat || '';
-        const parts = rawCat ? rawCat.split('>').map(p => p.trim()) : [];
-        t.product = parts[0] || 'Uncategorized';
-        t.cat_issue = parts[1] || (t.product !== 'Uncategorized' ? 'Umum / Lainnya' : 'Uncategorized');
-        t.sub_issue = parts[2] || '';
+      if (!t.product || t.product === 'Uncategorized') {
+        const parsed = this.parseTicketCategory(t.cat_full, t.cat);
+        t.product = parsed.product;
+        t.cat_issue = parsed.cat_issue;
+        t.sub_issue = parsed.sub_issue;
       }
       const p = t.product || 'Uncategorized';
       prodCounts[p] = (prodCounts[p] || 0) + 1;
@@ -2414,25 +2470,35 @@ const App = {
 
     const selectedProd = this.ticketingState.product;
     const curVal = this.ticketingState.category;
-    const catCounts = {};
 
-    let relevantTickets = this.ticketingData.tickets;
-    if (selectedProd && selectedProd !== 'all') {
-      relevantTickets = relevantTickets.filter(t => (t.product || '').toLowerCase() === selectedProd.toLowerCase());
+    // Requirement: "di bagian filter juga nanti pilih produk dulu baru ada dropdown ya"
+    if (!selectedProd || selectedProd === 'all') {
+      select.disabled = true;
+      select.style.opacity = '0.55';
+      select.style.cursor = 'not-allowed';
+      select.innerHTML = '<option value="all">-- Pilih Produk Dahulu --</option>';
+      this.ticketingState.category = 'all';
+      return;
     }
 
+    // A specific product is selected! Enable and populate its specific category issues
+    select.disabled = false;
+    select.style.opacity = '1';
+    select.style.cursor = 'default';
+
+    const catCounts = {};
+    const relevantTickets = this.ticketingData.tickets.filter(t =>
+      (t.product || '').toLowerCase() === selectedProd.toLowerCase()
+    );
+
     relevantTickets.forEach(t => {
-      const c = t.cat_issue || t.cat || 'Umum / Lainnya';
+      const c = t.cat_issue || t.product || 'Uncategorized';
       catCounts[c] = (catCounts[c] || 0) + 1;
     });
 
     const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
 
-    const headerLabel = (selectedProd && selectedProd !== 'all')
-      ? `Semua Kategori Issue (${selectedProd})`
-      : `Semua Kategori Issue (${relevantTickets.length.toLocaleString()})`;
-
-    let html = `<option value="all">${headerLabel}</option>`;
+    let html = `<option value="all">Semua Kategori (${selectedProd})</option>`;
     sortedCats.forEach(([catName, count]) => {
       const selected = (catName === curVal) ? 'selected' : '';
       html += `<option value="${catName}" ${selected}>${catName} (${count.toLocaleString()})</option>`;
@@ -2447,12 +2513,11 @@ const App = {
 
     // Ensure helper fields exist on each ticket
     list.forEach(t => {
-      if (!t.product) {
-        const rawCat = t.cat_full || t.cat || '';
-        const parts = rawCat ? rawCat.split('>').map(p => p.trim()) : [];
-        t.product = parts[0] || 'Uncategorized';
-        t.cat_issue = parts[1] || (t.product !== 'Uncategorized' ? 'Umum / Lainnya' : 'Uncategorized');
-        t.sub_issue = parts[2] || '';
+      if (!t.product || t.product === 'Uncategorized') {
+        const parsed = this.parseTicketCategory(t.cat_full, t.cat);
+        t.product = parsed.product;
+        t.cat_issue = parsed.cat_issue;
+        t.sub_issue = parsed.sub_issue;
       }
       if (t.dur_solving === undefined) {
         let dur = '0:00:00';
@@ -2551,7 +2616,7 @@ const App = {
     if (!this.ticketingData || !this.ticketingData.tickets) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="10" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+          <td colspan="11" style="text-align: center; padding: 3rem; color: var(--text-muted);">
             <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
             Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
           </td>
@@ -2584,6 +2649,17 @@ const App = {
       }
       if (col === 'open_date') {
         return (new Date(va || 0).getTime() - new Date(vb || 0).getTime()) * dir;
+      }
+
+      if (col === 'product') {
+        va = (a.product || 'Uncategorized').toLowerCase();
+        vb = (b.product || 'Uncategorized').toLowerCase();
+        return va.localeCompare(vb) * dir;
+      }
+      if (col === 'cat_issue' || col === 'category') {
+        va = (a.cat_issue || 'Uncategorized').toLowerCase();
+        vb = (b.cat_issue || 'Uncategorized').toLowerCase();
+        return va.localeCompare(vb) * dir;
       }
 
       va = (va || '').toString().toLowerCase();
@@ -2728,12 +2804,12 @@ const App = {
             <div>${d.tech || '-'}</div>
             ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
           </td>
-          <td style="font-size: 0.74rem; color: var(--text-secondary);">
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.74rem; margin-bottom: 2px;">
-              ${d.product || 'Uncategorized'}
-            </div>
-            <span class="badge-category-tag" title="${d.cat_full || d.cat_issue || d.cat || '-'}">
-              ${d.cat_issue || d.cat || '-'}
+          <td style="font-size: 0.76rem;">
+            ${this.renderProductPill(d.product)}
+          </td>
+          <td style="font-size: 0.76rem;">
+            <span class="badge-category-tag" title="${this.escapeHtml(d.cat_full || d.cat_issue || '-')}">
+              ${this.escapeHtml(d.cat_issue || 'Uncategorized')}
             </span>
           </td>
         </tr>
