@@ -1679,6 +1679,7 @@ const App = {
       titleColor: isDark ? '#f8fafc' : '#090d16',
       tooltipBg: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.95)',
       cobalt: isDark ? '#3b82f6' : '#2563eb',
+      cyan: isDark ? '#06b6d4' : '#0891b2',
       emerald: isDark ? '#10b981' : '#059669',
       amber: isDark ? '#f59e0b' : '#d97706',
       rose: isDark ? '#ef4444' : '#dc2626',
@@ -1693,7 +1694,7 @@ const App = {
     if (!window.Chart || !t1m || !t1m.length) return;
     const tc = this.getChartThemeColors();
 
-    // 1. Chart Donut Status
+    // 1. Chart Donut Status (Bagan 1 - Kiri)
     const canvasStatus = document.getElementById('chartDashStatus');
     if (canvasStatus) {
       if (this.dashboardCharts.status) this.dashboardCharts.status.destroy();
@@ -1732,9 +1733,10 @@ const App = {
               position: 'bottom',
               labels: {
                 color: tc.textColor,
-                font: { size: 11, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
+                font: { size: 10, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
                 usePointStyle: true,
-                padding: 14
+                padding: 10,
+                boxWidth: 8
               }
             },
             tooltip: {
@@ -1755,7 +1757,7 @@ const App = {
       });
     }
 
-    // 2. Chart Donut Priority
+    // 2. Chart Donut Priority (Bagan 2 - Tengah)
     const canvasPrio = document.getElementById('chartDashPriority');
     if (canvasPrio) {
       if (this.dashboardCharts.priority) this.dashboardCharts.priority.destroy();
@@ -1793,9 +1795,92 @@ const App = {
               position: 'bottom',
               labels: {
                 color: tc.textColor,
-                font: { size: 11, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
+                font: { size: 10, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
                 usePointStyle: true,
-                padding: 14
+                padding: 10,
+                boxWidth: 8
+              }
+            },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              titleColor: '#ffffff',
+              bodyColor: '#e2e8f0',
+              padding: 10,
+              callbacks: {
+                label: (ctx) => {
+                  const val = ctx.raw || 0;
+                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Chart Donut Category (Bagan 3 - Paling Kanan untuk Kategori)
+    const canvasCatDonut = document.getElementById('chartDashCatDonut');
+    if (canvasCatDonut) {
+      if (this.dashboardCharts.catDonut) this.dashboardCharts.catDonut.destroy();
+
+      const catCounts = {};
+      t1m.forEach(t => {
+        const c = t.cat || 'Lainnya';
+        catCounts[c] = (catCounts[c] || 0) + 1;
+      });
+
+      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+      const top5 = sortedCats.slice(0, 5);
+      const rest = sortedCats.slice(5);
+      const restSum = rest.reduce((sum, item) => sum + item[1], 0);
+
+      const labels = top5.map(x => x[0]);
+      const data = top5.map(x => x[1]);
+      if (restSum > 0) {
+        labels.push('Kategori Lain');
+        data.push(restSum);
+      }
+
+      const topCatBadge = document.getElementById('dashTopCatBadge');
+      if (topCatBadge && top5.length > 0) {
+        topCatBadge.textContent = `${top5[0][0]} (${top5[0][1]})`;
+      }
+
+      const catColors = [
+        tc.violet,
+        tc.cyan,
+        tc.cobalt,
+        tc.amber,
+        tc.rose,
+        tc.slate
+      ];
+
+      this.dashboardCharts.catDonut = new Chart(canvasCatDonut.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: catColors.slice(0, labels.length),
+            borderWidth: 2,
+            borderColor: tc.isDark ? '#131b2e' : '#ffffff',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '68%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: tc.textColor,
+                font: { size: 10, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
+                usePointStyle: true,
+                padding: 10,
+                boxWidth: 8
               }
             },
             tooltip: {
