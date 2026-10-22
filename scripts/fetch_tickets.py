@@ -185,7 +185,16 @@ def process_tickets_csv(csv_text=None):
             col_map["desc"] = idx
 
     tickets = []
-    status_counts = {"New": 0, "Processing": 0, "Solved": 0, "Closed": 0, "Pending": 0, "Other": 0}
+    status_counts = {
+        "New": 0,
+        "Processing": 0,
+        "Processing (assigned)": 0,
+        "Processing (planned)": 0,
+        "Solved": 0,
+        "Closed": 0,
+        "Pending": 0,
+        "Other": 0
+    }
     priority_counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0, "P4": 0, "Other": 0}
     location_counts = {}
     category_counts = {}
@@ -216,19 +225,24 @@ def process_tickets_csv(csv_text=None):
 
         loc = extract_location(raw_title, raw_desc, raw_loc)
 
-        # Normalize status
+        # Normalize status (Differentiate Processing planned vs assigned)
         st_norm = "Other"
         if "closed" in raw_status.lower():
             st_norm = "Closed"
+        elif "planned" in raw_status.lower():
+            st_norm = "Processing (planned)"
         elif "process" in raw_status.lower() or "assign" in raw_status.lower():
-            st_norm = "Processing"
+            st_norm = "Processing (assigned)"
         elif "solved" in raw_status.lower():
             st_norm = "Solved"
         elif "new" in raw_status.lower():
             st_norm = "New"
         elif "pending" in raw_status.lower() or "waiting" in raw_status.lower():
             st_norm = "Pending"
+
         status_counts[st_norm] = status_counts.get(st_norm, 0) + 1
+        if st_norm.startswith("Processing"):
+            status_counts["Processing"] = status_counts.get("Processing", 0) + 1
 
         # Normalize priority
         prio_norm = raw_priority if raw_priority in ["P0", "P1", "P2", "P3", "P4"] else "Other"
@@ -293,6 +307,8 @@ def process_tickets_csv(csv_text=None):
             "total": len(tickets),
             "closed": status_counts.get("Closed", 0),
             "processing": status_counts.get("Processing", 0),
+            "processing_assigned": status_counts.get("Processing (assigned)", 0),
+            "processing_planned": status_counts.get("Processing (planned)", 0),
             "new": status_counts.get("New", 0),
             "solved": status_counts.get("Solved", 0),
             "pending": status_counts.get("Pending", 0),

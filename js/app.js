@@ -1604,11 +1604,12 @@ const App = {
 
     t1m.forEach(t => {
       const st = (t.status || '').toLowerCase();
-      if (st === 'closed') closed++;
-      else if (st === 'solved') solved++;
-      else if (st === 'processing') processing++;
-      else if (st === 'new') newCount++;
-      else if (st === 'pending') pending++;
+      const raw = (t.status_raw || '').toLowerCase();
+      if (st === 'closed' || raw.includes('closed')) closed++;
+      else if (st === 'solved' || raw.includes('solved')) solved++;
+      else if (st.includes('process') || raw.includes('process')) processing++;
+      else if (st === 'new' || raw.includes('new')) newCount++;
+      else if (st === 'pending' || raw.includes('pending')) pending++;
 
       const p = (t.priority || '').toUpperCase();
       if (p === 'P0') p0++;
@@ -1698,27 +1699,36 @@ const App = {
     const canvasStatus = document.getElementById('chartDashStatus');
     if (canvasStatus) {
       if (this.dashboardCharts.status) this.dashboardCharts.status.destroy();
-      const statusCounts = { Closed: 0, Processing: 0, 'Baru / Pending': 0, Solved: 0 };
+      const statusCounts = {
+        Closed: 0,
+        ProcessingAssigned: 0,
+        ProcessingPlanned: 0,
+        'Baru / Pending': 0,
+        Solved: 0
+      };
       t1m.forEach(t => {
+        const raw = (t.status_raw || '').toLowerCase();
         const st = (t.status || '').toLowerCase();
-        if (st === 'closed') statusCounts.Closed++;
-        else if (st === 'processing') statusCounts.Processing++;
-        else if (st === 'new' || st === 'pending') statusCounts['Baru / Pending']++;
-        else if (st === 'solved') statusCounts.Solved++;
+        if (st === 'closed' || raw.includes('closed')) statusCounts.Closed++;
+        else if (raw.includes('planned') || st.includes('planned')) statusCounts.ProcessingPlanned++;
+        else if (raw.includes('assign') || st.includes('process')) statusCounts.ProcessingAssigned++;
+        else if (st === 'new' || st === 'pending' || raw.includes('new') || raw.includes('pending')) statusCounts['Baru / Pending']++;
+        else if (st === 'solved' || raw.includes('solved')) statusCounts.Solved++;
       });
 
       this.dashboardCharts.status = new Chart(canvasStatus.getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels: ['Closed', 'Dalam Pengerjaan', 'Baru & Pending', 'Solved'],
+          labels: ['Closed', 'Processing (assigned)', 'Processing (planned)', 'Baru & Pending', 'Solved'],
           datasets: [{
             data: [
               statusCounts.Closed,
-              statusCounts.Processing,
+              statusCounts.ProcessingAssigned,
+              statusCounts.ProcessingPlanned,
               statusCounts['Baru / Pending'],
               statusCounts.Solved
             ],
-            backgroundColor: [tc.slate, tc.cobalt, tc.amber, tc.emerald],
+            backgroundColor: [tc.slate, tc.cobalt, tc.amber, '#ef4444', tc.emerald],
             borderWidth: 2,
             borderColor: tc.isDark ? '#131b2e' : '#ffffff',
             hoverOffset: 6
@@ -2120,7 +2130,8 @@ const App = {
     const criticalList = t1m.filter(t => {
       const p = (t.priority || '').toUpperCase();
       const st = (t.status || '').toLowerCase();
-      return p === 'P0' || p === 'P1' || st === 'processing' || st === 'new';
+      const raw = (t.status_raw || '').toLowerCase();
+      return p === 'P0' || p === 'P1' || st.includes('process') || raw.includes('process') || st === 'new';
     }).sort((a, b) => {
       const wa = priorityWeight[(a.priority || '').toUpperCase()] || 0;
       const wb = priorityWeight[(b.priority || '').toUpperCase()] || 0;
@@ -2142,19 +2153,30 @@ const App = {
     tbody.innerHTML = criticalList.map((d, index) => {
       let statusClass = 'ticket-status-closed';
       let statusIcon = '🔒';
-      const st = (d.status || '').toLowerCase();
-      if (st === 'processing') {
+      let statusLabel = d.status_raw || d.status || '-';
+      const rawLower = (d.status_raw || '').toLowerCase();
+      const stLower = (d.status || '').toLowerCase();
+
+      if (rawLower.includes('planned') || stLower.includes('planned')) {
+        statusClass = 'ticket-status-planned';
+        statusIcon = '📅';
+        statusLabel = 'Processing (planned)';
+      } else if (rawLower.includes('assign') || stLower.includes('process')) {
         statusClass = 'ticket-status-processing';
         statusIcon = '⚙️';
-      } else if (st === 'new') {
+        statusLabel = d.status_raw || 'Processing (assigned)';
+      } else if (stLower === 'new' || rawLower.includes('new')) {
         statusClass = 'ticket-status-new';
         statusIcon = '⚡';
-      } else if (st === 'solved') {
+        statusLabel = 'New';
+      } else if (stLower === 'solved' || rawLower.includes('solved')) {
         statusClass = 'ticket-status-solved';
         statusIcon = '✅';
-      } else if (st === 'pending') {
+        statusLabel = 'Solved';
+      } else if (stLower === 'pending' || rawLower.includes('pending')) {
         statusClass = 'ticket-status-pending';
         statusIcon = '⏳';
+        statusLabel = 'Pending';
       }
 
       const p = (d.priority || 'P2').toLowerCase();
@@ -2193,7 +2215,7 @@ const App = {
           <td>
             <span class="ticket-status-pill ${statusClass}">
               <span>${statusIcon}</span>
-              <span>${d.status}</span>
+              <span>${statusLabel}</span>
             </span>
           </td>
           <td style="text-align: center;">
@@ -2350,16 +2372,25 @@ const App = {
       );
     }
 
-    // 2. Status Pill Filter
+    // 2. Status Pill / Dropdown Filter
     if (this.ticketingState.filter !== 'all') {
-      const f = this.ticketingState.filter;
-      if (f === 'Processing') {
-        list = list.filter(t => t.status === 'Processing');
-      } else if (f === 'New') {
-        list = list.filter(t => t.status === 'New' || t.status === 'Pending');
-      } else if (f === 'Closed') {
-        list = list.filter(t => t.status === 'Closed' || t.status === 'Solved');
-      } else if (f === 'Critical') {
+      const f = this.ticketingState.filter.toLowerCase();
+      if (f.includes('planned')) {
+        list = list.filter(t => (t.status_raw || '').toLowerCase().includes('planned') || (t.status || '').toLowerCase().includes('planned'));
+      } else if (f.includes('assigned')) {
+        list = list.filter(t => (t.status_raw || '').toLowerCase().includes('assigned') || ((t.status || '').toLowerCase() === 'processing' && !(t.status_raw || '').toLowerCase().includes('planned')));
+      } else if (f === 'processing') {
+        // Matches all processing (both assigned & planned)
+        list = list.filter(t => (t.status || '').toLowerCase().includes('process') || (t.status_raw || '').toLowerCase().includes('process'));
+      } else if (f === 'new') {
+        list = list.filter(t => (t.status || '').toLowerCase() === 'new' || (t.status || '').toLowerCase() === 'pending' || (t.status_raw || '').toLowerCase().includes('new') || (t.status_raw || '').toLowerCase().includes('pending'));
+      } else if (f === 'pending') {
+        list = list.filter(t => (t.status || '').toLowerCase() === 'pending' || (t.status_raw || '').toLowerCase().includes('pending'));
+      } else if (f === 'solved') {
+        list = list.filter(t => (t.status || '').toLowerCase() === 'solved' || (t.status_raw || '').toLowerCase().includes('solved'));
+      } else if (f === 'closed') {
+        list = list.filter(t => (t.status || '').toLowerCase() === 'closed' || (t.status || '').toLowerCase() === 'solved' || (t.status_raw || '').toLowerCase().includes('closed') || (t.status_raw || '').toLowerCase().includes('solved'));
+      } else if (f === 'critical') {
         list = list.filter(t => t.priority === 'P0' || t.priority === 'P1');
       }
     }
@@ -2458,19 +2489,30 @@ const App = {
       // Status pill
       let statusClass = 'ticket-status-closed';
       let statusIcon = '🔒';
+      let statusLabel = d.status_raw || d.status || '-';
+      const rawLower = (d.status_raw || '').toLowerCase();
       const st = (d.status || '').toLowerCase();
-      if (st === 'processing') {
+
+      if (rawLower.includes('planned') || st.includes('planned')) {
+        statusClass = 'ticket-status-planned';
+        statusIcon = '📅';
+        statusLabel = 'Processing (planned)';
+      } else if (rawLower.includes('assigned') || st.includes('process')) {
         statusClass = 'ticket-status-processing';
         statusIcon = '⚙️';
-      } else if (st === 'new') {
+        statusLabel = d.status_raw || 'Processing (assigned)';
+      } else if (st === 'new' || rawLower.includes('new')) {
         statusClass = 'ticket-status-new';
         statusIcon = '⚡';
-      } else if (st === 'solved') {
+        statusLabel = 'New';
+      } else if (st === 'solved' || rawLower.includes('solved')) {
         statusClass = 'ticket-status-solved';
         statusIcon = '✅';
-      } else if (st === 'pending') {
+        statusLabel = 'Solved';
+      } else if (st === 'pending' || rawLower.includes('pending')) {
         statusClass = 'ticket-status-pending';
         statusIcon = '⏳';
+        statusLabel = 'Pending';
       }
 
       // Priority badge
@@ -2511,7 +2553,7 @@ const App = {
           <td>
             <span class="ticket-status-pill ${statusClass}">
               <span>${statusIcon}</span>
-              <span>${d.status}</span>
+              <span>${statusLabel}</span>
             </span>
           </td>
           <td style="text-align: center;">
@@ -2548,17 +2590,21 @@ const App = {
     // Status Pill
     let statusClass = 'ticket-status-closed';
     let statusIcon = '🔒';
+    const rawLower = (ticket.status_raw || '').toLowerCase();
     const st = (ticket.status || '').toLowerCase();
-    if (st === 'processing') {
+    if (rawLower.includes('planned') || st.includes('planned')) {
+      statusClass = 'ticket-status-planned';
+      statusIcon = '📅';
+    } else if (rawLower.includes('assigned') || st.includes('process')) {
       statusClass = 'ticket-status-processing';
       statusIcon = '⚙️';
-    } else if (st === 'new') {
+    } else if (st === 'new' || rawLower.includes('new')) {
       statusClass = 'ticket-status-new';
       statusIcon = '⚡';
-    } else if (st === 'solved') {
+    } else if (st === 'solved' || rawLower.includes('solved')) {
       statusClass = 'ticket-status-solved';
       statusIcon = '✅';
-    } else if (st === 'pending') {
+    } else if (st === 'pending' || rawLower.includes('pending')) {
       statusClass = 'ticket-status-pending';
       statusIcon = '⏳';
     }
@@ -3435,9 +3481,29 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         btn.classList.add('active');
         this.ticketingState.filter = btn.dataset.ticketFilter;
         this.ticketingState.page = 1;
+
+        const statusSel = document.getElementById('ticketStatusFilter');
+        if (statusSel) {
+          statusSel.value = (btn.dataset.ticketFilter === 'Critical') ? 'all' : btn.dataset.ticketFilter;
+        }
+
         this.renderTicketingTable();
       });
     });
+
+    const ticketStatusFilter = document.getElementById('ticketStatusFilter');
+    if (ticketStatusFilter) {
+      ticketStatusFilter.addEventListener('change', (e) => {
+        this.ticketingState.filter = e.target.value;
+        this.ticketingState.page = 1;
+
+        document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
+          b.classList.toggle('active', b.dataset.ticketFilter === this.ticketingState.filter);
+        });
+
+        this.renderTicketingTable();
+      });
+    }
 
     const ticketCatFilter = document.getElementById('ticketCategoryFilter');
     if (ticketCatFilter) {
@@ -3467,6 +3533,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         this.ticketingState.page = 1;
 
         if (ticketSearch) ticketSearch.value = '';
+        if (ticketStatusFilter) ticketStatusFilter.value = 'all';
         if (ticketPrioFilter) ticketPrioFilter.value = 'all';
         if (ticketCatFilter) ticketCatFilter.value = 'all';
 
