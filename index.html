@@ -460,7 +460,8 @@
                     <th style="width: 120px;">Status</th>
                     <th style="width: 85px; text-align: center;">Prioritas</th>
                     <th style="min-width: 130px;">Teknisi</th>
-                    <th style="min-width: 150px;">Kategori</th>
+                    <th style="min-width: 125px;">Produk</th>
+                    <th style="min-width: 155px;">Kategori Issue</th>
                   </tr>
                 </thead>
                 <tbody id="dashCriticalTableBody">
@@ -1515,11 +1516,11 @@
                   </select>
                 </div>
 
-                <!-- Filter Kategori Issue (Cascading / Dependent) -->
+                <!-- Filter Kategori Issue (Cascading / Dependent: Pilih Produk Dahulu) -->
                 <div class="filter-group-item">
                   <span class="filter-group-label">Kategori Issue:</span>
-                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 235px;">
-                    <option value="all">Semua Kategori Issue</option>
+                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 235px; opacity: 0.55; cursor: not-allowed;" disabled title="Pilih Produk terlebih dahulu">
+                    <option value="all">-- Pilih Produk Dahulu --</option>
                   </select>
                 </div>
 
@@ -1573,7 +1574,8 @@
                     <th class="sortable" data-ticket-sort="status" style="width: 135px;">Status Tiket ⇅</th>
                     <th class="sortable" data-ticket-sort="priority" style="width: 80px; text-align: center;">Prioritas ⇅</th>
                     <th class="sortable" data-ticket-sort="tech" style="min-width: 130px;">Teknisi ⇅</th>
-                    <th class="sortable" data-ticket-sort="product" style="min-width: 180px;">Produk & Kategori ⇅</th>
+                    <th class="sortable" data-ticket-sort="product" style="min-width: 130px;">Produk ⇅</th>
+                    <th class="sortable" data-ticket-sort="cat_issue" style="min-width: 160px;">Kategori Issue ⇅</th>
                   </tr>
                 </thead>
                 <tbody id="ticketTableBody">
