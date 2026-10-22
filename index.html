@@ -1389,7 +1389,7 @@
             <!-- Total Tickets 3 Bulan -->
             <div class="glass-panel kpi-card">
               <div class="kpi-header">
-                <span class="kpi-title">Total Tiket (3 Bulan)</span>
+                <span class="kpi-title" id="ticketKpiTotalTitle">Total Tiket (3 Bulan)</span>
                 <span class="kpi-icon">🎫</span>
               </div>
               <div class="kpi-value-wrap">
@@ -1401,7 +1401,7 @@
             <!-- Tiket Selesai (Closed & Solved) -->
             <div class="glass-panel kpi-card">
               <div class="kpi-header">
-                <span class="kpi-title">Tiket Selesai</span>
+                <span class="kpi-title" id="ticketKpiResolvedTitle">Tiket Selesai</span>
                 <span class="kpi-icon">✅</span>
               </div>
               <div class="kpi-value-wrap">
@@ -1418,7 +1418,7 @@
               </div>
               <div class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiProcessing" style="color: #3b82f6;">--</span>
-                <span class="kpi-sub">Assigned / Planned</span>
+                <span class="kpi-sub" id="ticketKpiProcessingSub">Assigned / Planned</span>
               </div>
             </div>
 
@@ -1430,7 +1430,7 @@
               </div>
               <div class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiNewPending" style="color: var(--color-warning);">--</span>
-                <span class="kpi-sub">Membutuhkan Respon</span>
+                <span class="kpi-sub" id="ticketKpiNewPendingSub">Membutuhkan Respon</span>
               </div>
             </div>
 
@@ -1442,7 +1442,7 @@
               </div>
               <div class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiHighPrio" style="color: var(--color-danger);">--</span>
-                <span class="kpi-sub">Critical & High Priority</span>
+                <span class="kpi-sub" id="ticketKpiHighPrioSub">Critical & High Priority</span>
               </div>
             </div>
           </div>
