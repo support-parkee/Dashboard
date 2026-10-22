@@ -29,14 +29,18 @@ if [ ! -d "$TELEMETRY_DIR/.git" ]; then
     git remote add origin https://github.com/azkiabenington/dashboard-server-client.git >> "$LOG_FILE" 2>&1
     git config user.name "azkiabenington"
     git config user.email "azkiabenington12@gmail.com"
+    cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
+    git add temperature.json >> "$LOG_FILE" 2>&1
+    git commit -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
+else
+    cd "$TELEMETRY_DIR"
+    cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
+    git add temperature.json >> "$LOG_FILE" 2>&1
+    # Always amend so that the branch history remains exactly 1 single commit
+    git commit --amend -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
 fi
 
-cd "$TELEMETRY_DIR"
-cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
-
-# 4. Single-Commit Force Push (Ensures branch telemetry has only 1 clean commit)
-git add temperature.json >> "$LOG_FILE" 2>&1
-git commit -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1 || git commit --amend -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
+# 4. Force Push the single commit
 git push --force origin telemetry >> "$LOG_FILE" 2>&1
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Telemetry branch updated successfully with 1 single commit!" >> "$LOG_FILE"
