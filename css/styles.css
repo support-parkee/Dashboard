@@ -2397,18 +2397,21 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ==========================================================================
    FLOATING HORIZONTAL SCROLLBAR (Cross-Table Sticky Horizontal Scroll)
+   Ultra-Smooth, 120fps Custom Slider Track & Hardware-Accelerated Thumb
    ========================================================================== */
 .floating-table-scrollbar {
   position: fixed;
-  bottom: 14px;
+  bottom: 16px;
   z-index: 985;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(8px);
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
-              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-              visibility 0.25s;
+  transform: translateY(10px);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.22s;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .floating-table-scrollbar.visible {
@@ -2421,31 +2424,31 @@ h1, h2, h3, h4, h5, h6 {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(15, 23, 42, 0.90);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-full);
-  padding: 5px 12px;
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.45), 
-              0 4px 8px -2px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 6px 12px;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.50), 
+              0 4px 10px -2px rgba(0, 0, 0, 0.30),
+              inset 0 1px 0 rgba(255, 255, 255, 0.14);
   width: 100%;
   box-sizing: border-box;
 }
 
 [data-theme="light"] .floating-scrollbar-inner {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.15), 
-              0 4px 8px -2px rgba(0, 0, 0, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(203, 213, 225, 0.85);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.14), 
+              0 4px 10px -2px rgba(15, 23, 42, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .float-scroll-arrow {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid var(--border-light);
   background: var(--surface-card);
@@ -2455,62 +2458,95 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
   padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
 }
 
 .float-scroll-arrow:hover:not(:disabled) {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
   color: #ffffff;
-  transform: scale(1.1);
+  transform: scale(1.08);
 }
 
-.float-scroll-arrow:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.float-scroll-track-wrapper {
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  height: 14px;
-  cursor: grab;
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent-primary) rgba(255, 255, 255, 0.08);
-}
-
-.float-scroll-track-wrapper:active {
-  cursor: grabbing;
-}
-
-.float-scroll-track-wrapper::-webkit-scrollbar {
-  height: 7px;
-}
-
-.float-scroll-track-wrapper::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-}
-
-[data-theme="light"] .float-scroll-track-wrapper::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.float-scroll-track-wrapper::-webkit-scrollbar-thumb {
-  background: var(--accent-primary);
-  border-radius: 4px;
-  transition: background 0.15s ease;
-}
-
-.float-scroll-track-wrapper::-webkit-scrollbar-thumb:hover {
+.float-scroll-arrow:active:not(:disabled) {
+  transform: scale(0.92);
   background: var(--accent-hover);
 }
 
-.float-scroll-track-dummy {
-  height: 1px;
+.float-scroll-arrow:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
   pointer-events: none;
+}
+
+.float-scroll-track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+[data-theme="light"] .float-scroll-track {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Expanded invisible hitbox (26px height) for effortless clicking/dragging */
+.float-scroll-track::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  cursor: pointer;
+}
+
+.float-scroll-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 10px;
+  min-width: 36px;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 9999px;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  will-change: transform;
+  touch-action: none;
+  transition: transform 0.04s ease-out, background 0.15s ease, filter 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.float-scroll-thumb:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.45);
+}
+
+.float-scroll-thumb:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.float-scroll-thumb:active,
+.float-scroll-thumb.dragging {
+  cursor: grabbing !important;
+  background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+  filter: brightness(1.25);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.65);
+  transition: none !important; /* Zero latency tracking while actively dragging */
 }
 
 .float-scroll-badge {
@@ -2524,7 +2560,9 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   white-space: nowrap;
   user-select: none;
+  -webkit-user-select: none;
   flex-shrink: 0;
+  letter-spacing: -0.2px;
 }
 
 
