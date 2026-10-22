@@ -94,6 +94,17 @@ const App = {
   },
   temperatureData: null,
 
+  ticketingState: {
+    search: '',
+    filter: 'all',
+    priority: 'all',
+    page: 1,
+    pageSize: 25,
+    sortCol: 'open_date',
+    sortDir: 'desc'
+  },
+  ticketingData: null,
+
   // Navigation state
   activeView: 'locations',
 
@@ -116,7 +127,8 @@ const App = {
       this.fetchServers(),
       this.fetchFleet(),
       this.fetchSummary(),
-      this.fetchTemperature()
+      this.fetchTemperature(),
+      this.fetchTickets()
     ]);
 
     this.initEventHandlers();
@@ -220,7 +232,8 @@ const App = {
       servers: { title: 'Server Specification', crumb: 'Server Specification' },
       clients: { title: 'Client Specification', crumb: 'Client Specification' },
       storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' },
-      temperature: { title: 'Temperature Server (Realtime)', crumb: 'Live Prometheus Telemetry' }
+      temperature: { title: 'Temperature Server (Realtime)', crumb: 'Live Prometheus Telemetry' },
+      ticketing: { title: 'Ticketing (GLPI - 3 Bulan Terakhir)', crumb: 'GLPI Assistance Tickets' }
     };
 
     navBtns.forEach(btn => {
@@ -269,6 +282,8 @@ const App = {
       this.renderStorageTable();
     } else if (this.activeView === 'temperature') {
       this.renderTemperatureTable();
+    } else if (this.activeView === 'ticketing') {
+      this.renderTicketingTable();
     }
   },
 
@@ -1542,6 +1557,283 @@ const App = {
   },
 
   // =========================================================================
+  // MODULE 6: TICKETING (GLPI 3 BULAN TERAKHIR)
+  // =========================================================================
+  async fetchTickets(forceRefresh = false) {
+    try {
+      const res = await fetch('./data/tickets.json?_t=' + Date.now());
+      if (res.ok) {
+        this.ticketingData = await res.json();
+        this.renderTicketingKPIs();
+        if (this.activeView === 'ticketing') this.renderTicketingTable();
+        return;
+      }
+    } catch (e) {
+      console.warn('Could not load tickets.json', e);
+    }
+
+    try {
+      const sumRes = await fetch('./data/tickets_summary.json?_t=' + Date.now());
+      if (sumRes.ok) {
+        const sumData = await sumRes.json();
+        this.ticketingData = {
+          meta: sumData.meta,
+          stats: sumData.stats,
+          tickets: sumData.recent_tickets || []
+        };
+        this.renderTicketingKPIs();
+        if (this.activeView === 'ticketing') this.renderTicketingTable();
+      }
+    } catch (err) {
+      console.error('Could not load tickets_summary.json:', err);
+    }
+  },
+
+  renderTicketingKPIs() {
+    if (!this.ticketingData || !this.ticketingData.stats) return;
+    const s = this.ticketingData.stats;
+    const m = this.ticketingData.meta || {};
+
+    const badge = document.getElementById('badgeTotalTickets');
+    if (badge) {
+      badge.textContent = (s.total || 0).toLocaleString();
+    }
+
+    const totalEl = document.getElementById('ticketKpiTotal');
+    if (totalEl) totalEl.textContent = (s.total || 0).toLocaleString();
+
+    const rangeLabel = document.getElementById('ticketKpiRangeLabel');
+    if (rangeLabel && m.date_range_days) {
+      rangeLabel.textContent = `${m.date_range_days} Hari Terakhir`;
+    }
+
+    const resolved = (s.closed || 0) + (s.solved || 0);
+    const resolvedEl = document.getElementById('ticketKpiResolved');
+    if (resolvedEl) resolvedEl.textContent = resolved.toLocaleString();
+
+    const resolvedPctEl = document.getElementById('ticketKpiResolvedPct');
+    if (resolvedPctEl && s.total > 0) {
+      const pct = ((resolved / s.total) * 100).toFixed(1);
+      resolvedPctEl.textContent = `${pct}% Selesai (${(s.closed || 0).toLocaleString()} Closed, ${(s.solved || 0).toLocaleString()} Solved)`;
+    }
+
+    const procEl = document.getElementById('ticketKpiProcessing');
+    if (procEl) procEl.textContent = (s.processing || 0).toLocaleString();
+
+    const newPendEl = document.getElementById('ticketKpiNewPending');
+    const newCount = (s.new || 0) + (s.pending || 0);
+    if (newPendEl) newPendEl.textContent = newCount.toLocaleString();
+
+    const p = s.priority || {};
+    const highPrio = (p.P0 || 0) + (p.P1 || 0);
+    const highPrioEl = document.getElementById('ticketKpiHighPrio');
+    if (highPrioEl) highPrioEl.textContent = highPrio.toLocaleString();
+
+    const lastSyncEl = document.getElementById('ticketLastSyncLabel');
+    if (lastSyncEl && m.updated_at) {
+      lastSyncEl.textContent = `Update: ${m.updated_at}`;
+    }
+  },
+
+  renderTicketingTable() {
+    const tbody = document.getElementById('ticketTableBody');
+    if (!tbody) return;
+
+    if (!this.ticketingData || !this.ticketingData.tickets) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
+            Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let list = [...this.ticketingData.tickets];
+
+    // 1. Search Filter
+    if (this.ticketingState.search) {
+      const q = this.ticketingState.search.toLowerCase();
+      list = list.filter(t =>
+        (t.id && t.id.toLowerCase().includes(q)) ||
+        (t.title && t.title.toLowerCase().includes(q)) ||
+        (t.loc && t.loc.toLowerCase().includes(q)) ||
+        (t.tech && t.tech.toLowerCase().includes(q)) ||
+        (t.cat && t.cat.toLowerCase().includes(q)) ||
+        (t.desc && t.desc.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. Status Pill Filter
+    if (this.ticketingState.filter !== 'all') {
+      const f = this.ticketingState.filter;
+      if (f === 'Processing') {
+        list = list.filter(t => t.status === 'Processing');
+      } else if (f === 'New') {
+        list = list.filter(t => t.status === 'New' || t.status === 'Pending');
+      } else if (f === 'Closed') {
+        list = list.filter(t => t.status === 'Closed' || t.status === 'Solved');
+      } else if (f === 'Critical') {
+        list = list.filter(t => t.priority === 'P0' || t.priority === 'P1');
+      }
+    }
+
+    // 3. Priority Dropdown Filter
+    if (this.ticketingState.priority !== 'all') {
+      list = list.filter(t => t.priority === this.ticketingState.priority);
+    }
+
+    // 4. Sorting
+    const col = this.ticketingState.sortCol;
+    const dir = this.ticketingState.sortDir === 'desc' ? -1 : 1;
+
+    list.sort((a, b) => {
+      let va = a[col];
+      let vb = b[col];
+
+      if (col === 'id') {
+        return ((parseInt(va, 10) || 0) - (parseInt(vb, 10) || 0)) * dir;
+      }
+      if (col === 'open_date') {
+        return (new Date(va || 0).getTime() - new Date(vb || 0).getTime()) * dir;
+      }
+
+      va = (va || '').toString().toLowerCase();
+      vb = (vb || '').toString().toLowerCase();
+      return va.localeCompare(vb) * dir;
+    });
+
+    // Update Sorting arrows in table headers
+    document.querySelectorAll('#ticketTable th.sortable[data-ticket-sort]').forEach(th => {
+      const c = th.dataset.ticketSort;
+      let label = th.textContent.replace(/[⇅▲▼]/g, '').trim();
+      if (c === this.ticketingState.sortCol) {
+        th.textContent = `${label} ${this.ticketingState.sortDir === 'asc' ? '▲' : '▼'}`;
+        th.style.color = 'var(--accent-primary)';
+      } else {
+        th.textContent = `${label} ⇅`;
+        th.style.color = '';
+      }
+    });
+
+    // 5. Pagination
+    const total = list.length;
+    const pageSize = this.ticketingState.pageSize || 25;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    if (this.ticketingState.page > totalPages) this.ticketingState.page = totalPages;
+    if (this.ticketingState.page < 1) this.ticketingState.page = 1;
+
+    const start = (this.ticketingState.page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginated = list.slice(start, end);
+
+    // Update pagination labels
+    const countLabel = document.getElementById('ticketTableCountLabel');
+    if (countLabel) {
+      countLabel.textContent = `Menampilkan ${total === 0 ? 0 : start + 1} - ${Math.min(end, total)} dari ${total.toLocaleString()} tiket kendala`;
+    }
+
+    const pageLabel = document.getElementById('ticketCurrentPageLabel');
+    if (pageLabel) {
+      pageLabel.textContent = `Halaman ${this.ticketingState.page} / ${totalPages}`;
+    }
+
+    const prevBtn = document.getElementById('ticketPrevPageBtn');
+    if (prevBtn) prevBtn.disabled = this.ticketingState.page <= 1;
+
+    const nextBtn = document.getElementById('ticketNextPageBtn');
+    if (nextBtn) nextBtn.disabled = this.ticketingState.page >= totalPages;
+
+    if (paginated.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
+            Tidak ada tiket kendala yang cocok dengan kriteria pencarian / filter saat ini.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = paginated.map((d, index) => {
+      const rowNo = start + index + 1;
+
+      // Status pill
+      let statusClass = 'ticket-status-closed';
+      let statusIcon = '🔒';
+      const st = (d.status || '').toLowerCase();
+      if (st === 'processing') {
+        statusClass = 'ticket-status-processing';
+        statusIcon = '⚙️';
+      } else if (st === 'new') {
+        statusClass = 'ticket-status-new';
+        statusIcon = '⚡';
+      } else if (st === 'solved') {
+        statusClass = 'ticket-status-solved';
+        statusIcon = '✅';
+      } else if (st === 'pending') {
+        statusClass = 'ticket-status-pending';
+        statusIcon = '⏳';
+      }
+
+      // Priority badge
+      const p = (d.priority || 'P2').toLowerCase();
+      const prioClass = `ticket-prio-${p}`;
+
+      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${d.id}`;
+
+      return `
+        <tr>
+          <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
+            ${rowNo}
+          </td>
+          <td>
+            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI">
+              #${d.id}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </a>
+          </td>
+          <td style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; font-family: var(--font-mono);">
+            ${d.open_date || '-'}
+          </td>
+          <td class="ticket-loc-cell">
+            <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
+          </td>
+          <td class="ticket-title-cell">
+            <div class="ticket-title-text" title="${d.title}">${d.title}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${d.desc}">${d.desc}</div>` : ''}
+          </td>
+          <td>
+            <span class="ticket-status-pill ${statusClass}">
+              <span>${statusIcon}</span>
+              <span>${d.status}</span>
+            </span>
+          </td>
+          <td style="text-align: center;">
+            <span class="ticket-prio-badge ${prioClass}">${d.priority}</span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-main);">
+            <div>${d.tech || '-'}</div>
+            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
+          </td>
+          <td style="font-size: 0.74rem; color: var(--text-secondary);">
+            <span class="badge-pill" style="font-size: 0.68rem; display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cat_full || d.cat}">
+              ${d.cat || '-'}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  // =========================================================================
   // EVENT HANDLERS
   // =========================================================================
   initEventHandlers() {
@@ -2282,6 +2574,97 @@ const App = {
       exportTemp.addEventListener('click', () => {
         if (this.temperatureData && this.temperatureData.servers) {
           this.exportCsv(this.temperatureData.servers, 'parkee_temperature_servers.csv');
+        }
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. Ticketing Table Events
+    // -----------------------------------------------------------------------
+    const ticketSearch = document.getElementById('ticketSearchInput');
+    if (ticketSearch) {
+      ticketSearch.addEventListener('input', (e) => {
+        this.ticketingState.search = e.target.value;
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
+    document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.ticketingState.filter = btn.dataset.ticketFilter;
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    });
+
+    const ticketPrioFilter = document.getElementById('ticketPriorityFilter');
+    if (ticketPrioFilter) {
+      ticketPrioFilter.addEventListener('change', (e) => {
+        this.ticketingState.priority = e.target.value;
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
+    const ticketPageSize = document.getElementById('ticketPageSizeSelect');
+    if (ticketPageSize) {
+      ticketPageSize.addEventListener('change', (e) => {
+        this.ticketingState.pageSize = parseInt(e.target.value, 10);
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
+    document.querySelectorAll('#ticketTable th.sortable[data-ticket-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.ticketSort;
+        if (this.ticketingState.sortCol === col) {
+          this.ticketingState.sortDir = this.ticketingState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.ticketingState.sortCol = col;
+          this.ticketingState.sortDir = (col === 'open_date' || col === 'id') ? 'desc' : 'asc';
+        }
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    });
+
+    const ticketPrev = document.getElementById('ticketPrevPageBtn');
+    if (ticketPrev) {
+      ticketPrev.addEventListener('click', () => {
+        if (this.ticketingState.page > 1) {
+          this.ticketingState.page--;
+          this.renderTicketingTable();
+        }
+      });
+    }
+
+    const ticketNext = document.getElementById('ticketNextPageBtn');
+    if (ticketNext) {
+      ticketNext.addEventListener('click', () => {
+        this.ticketingState.page++;
+        this.renderTicketingTable();
+      });
+    }
+
+    const ticketRefresh = document.getElementById('ticketRefreshBtn');
+    if (ticketRefresh) {
+      ticketRefresh.addEventListener('click', async () => {
+        this.showToast('Memperbarui data tiket dari GLPI...', 'info');
+        await this.fetchTickets(true);
+        this.renderTicketingTable();
+        this.showToast('Data tiket berhasil diperbarui!', 'success');
+      });
+    }
+
+    const exportTickets = document.getElementById('exportTicketsBtn');
+    if (exportTickets) {
+      exportTickets.addEventListener('click', () => {
+        if (this.ticketingData && this.ticketingData.tickets) {
+          this.exportCsv(this.ticketingData.tickets, 'parkee_glpi_tickets_3months.csv');
         }
       });
     }
