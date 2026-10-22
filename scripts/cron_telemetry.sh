@@ -19,6 +19,8 @@ if [ ! -f "$TEMP_FILE" ]; then
     exit 1
 fi
 
+TARGET_REPO="https://github.com/support-parkee/Dashboard.git"
+
 # 3. Setup separate telemetry branch directory if not exists
 if [ ! -d "$TELEMETRY_DIR/.git" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Initializing telemetry branch directory..." >> "$LOG_FILE"
@@ -26,14 +28,16 @@ if [ ! -d "$TELEMETRY_DIR/.git" ]; then
     mkdir -p "$TELEMETRY_DIR"
     cd "$TELEMETRY_DIR"
     git init -b telemetry >> "$LOG_FILE" 2>&1
-    git remote add origin https://github.com/azkiabenington/dashboard-server-client.git >> "$LOG_FILE" 2>&1
-    git config user.name "azkiabenington"
-    git config user.email "azkiabenington12@gmail.com"
+    git remote add origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1
+    git config user.name "support-parkee"
+    git config user.email "support@parkee.app"
     cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
     git add temperature.json >> "$LOG_FILE" 2>&1
     git commit -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
 else
     cd "$TELEMETRY_DIR"
+    # Ensure remote points to support-parkee/Dashboard
+    git remote set-url origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1 || git remote add origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1
     cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
     git add temperature.json >> "$LOG_FILE" 2>&1
     # Always amend so that the branch history remains exactly 1 single commit
