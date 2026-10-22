@@ -220,7 +220,7 @@ const App = {
       servers: { title: 'Server Specification', crumb: 'Server Specification' },
       clients: { title: 'Client Specification', crumb: 'Client Specification' },
       storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' },
-      temperature: { title: 'Temperature Server', crumb: 'Live Prometheus Telemetry' }
+      temperature: { title: 'Temperature Server (Realtime)', crumb: 'Live Prometheus Telemetry' }
     };
 
     navBtns.forEach(btn => {
