@@ -1861,6 +1861,92 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-block;
 }
 
+/* Temperature Telemetry Styles */
+.temp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.temp-status-overheat {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+.temp-status-warm {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+}
+
+.temp-status-normal {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.temp-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.temp-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: var(--border-light);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+}
+
+.temp-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.temp-bar-fill.fill-normal {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.temp-bar-fill.fill-warm {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.temp-bar-fill.fill-overheat {
+  background: linear-gradient(90deg, #ef4444, #b91c1c);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.temp-val-text {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  min-width: 45px;
+  text-align: right;
+}
+
+.temp-val-overheat {
+  color: var(--color-danger);
+}
+
+.temp-val-warm {
+  color: var(--color-warning);
+}
+
+.temp-val-normal {
+  color: var(--color-success);
+}
+
 /* Responsive Adjustments */
 @media (max-width: 1200px) {
   .kpi-deck-row { grid-template-columns: repeat(2, 1fr); }
