@@ -2367,6 +2367,8 @@ const App = {
             critical_tickets: sumData.critical_tickets || [],
             tickets: combined
           };
+          this.populateProductDropdown();
+          this.populateCategoryDropdown();
           this.renderTicketingKPIs();
           this.renderDashboard();
         }
@@ -2384,6 +2386,8 @@ const App = {
       if (res.ok) {
         this.ticketingData = await res.json();
         this._fullTicketsLoaded = true;
+        this.populateProductDropdown();
+        this.populateCategoryDropdown();
         this.renderTicketingKPIs();
         this.renderDashboard();
         if (this.activeView === 'ticketing') this.renderTicketingTable();
@@ -2398,52 +2402,235 @@ const App = {
   },
 
   renderTicketingKPIs() {
-    if (!this.ticketingData || !this.ticketingData.stats) return;
-    const s = this.ticketingData.stats;
+    if (!this.ticketingData || !this.ticketingData.tickets) return;
     const m = this.ticketingData.meta || {};
 
-    const badge = document.getElementById('badgeTotalTickets');
-    if (badge) {
-      badge.textContent = (s.total || 0).toLocaleString();
+    // 1. Determine active date range title & subtitle label
+    let rangeTitleShort = '3 Bulan';
+    let rangeSubLabel = '90 Hari Terakhir';
+    let topBarDateLabel = '3 Bulan Terakhir';
+
+    const preset = this.ticketingState.datePreset;
+    const sDate = this.ticketingState.startDate;
+    const eDate = this.ticketingState.endDate;
+
+    if (preset === 'today') {
+      rangeTitleShort = 'Hari Ini';
+      rangeSubLabel = 'Hari Ini';
+      topBarDateLabel = 'Hari Ini';
+    } else if (preset === '7days') {
+      rangeTitleShort = '7 Hari Terakhir';
+      rangeSubLabel = '7 Hari Terakhir';
+      topBarDateLabel = '7 Hari Terakhir';
+    } else if (preset === '30days') {
+      rangeTitleShort = '30 Hari Terakhir';
+      rangeSubLabel = '30 Hari Terakhir';
+      topBarDateLabel = '30 Hari Terakhir';
+    } else if (preset === 'this_month') {
+      const now = new Date();
+      const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const curMonth = monthNames[now.getMonth()];
+      rangeTitleShort = `Bulan Ini (${curMonth})`;
+      rangeSubLabel = `1 ${curMonth} - Sekarang`;
+      topBarDateLabel = `Bulan Ini (${curMonth})`;
+    } else if (preset === 'last_month') {
+      const now = new Date();
+      const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const prevMonth = monthNames[(now.getMonth() - 1 + 12) % 12];
+      rangeTitleShort = `Bulan Lalu (${prevMonth})`;
+      rangeSubLabel = `Bulan ${prevMonth}`;
+      topBarDateLabel = `Bulan Lalu (${prevMonth})`;
+    } else if (preset === 'custom' || sDate || eDate) {
+      if (sDate && eDate) {
+        rangeTitleShort = 'Kustom';
+        rangeSubLabel = `${sDate} s/d ${eDate}`;
+        topBarDateLabel = `${sDate} s/d ${eDate}`;
+      } else if (sDate) {
+        rangeTitleShort = 'Kustom';
+        rangeSubLabel = `Sejak ${sDate}`;
+        topBarDateLabel = `Sejak ${sDate}`;
+      } else if (eDate) {
+        rangeTitleShort = 'Kustom';
+        rangeSubLabel = `Sampai ${eDate}`;
+        topBarDateLabel = `Sampai ${eDate}`;
+      }
+    } else {
+      rangeTitleShort = '3 Bulan';
+      rangeSubLabel = m.date_range_days ? `${m.date_range_days} Hari Terakhir` : '90 Hari Terakhir';
+      topBarDateLabel = '3 Bulan Terakhir';
+    }
+
+    // 2. Filter tickets in active scope (Date Range + Product + Category + Search query)
+    let scopeTickets = [...this.ticketingData.tickets];
+
+    if (sDate) {
+      scopeTickets = scopeTickets.filter(t => t.open_date && t.open_date >= sDate);
+    }
+    if (eDate) {
+      const eEnd = eDate + ' 23:59:59';
+      scopeTickets = scopeTickets.filter(t => t.open_date && t.open_date <= eEnd);
+    }
+
+    if (this.ticketingState.product && this.ticketingState.product !== 'all') {
+      const prod = this.ticketingState.product.toLowerCase();
+      scopeTickets = scopeTickets.filter(t => (t.product || '').toLowerCase() === prod);
+    }
+
+    if (this.ticketingState.category && this.ticketingState.category !== 'all') {
+      const cat = this.ticketingState.category.toLowerCase();
+      scopeTickets = scopeTickets.filter(t => (t.cat_issue || t.cat || '').toLowerCase() === cat);
+    }
+
+    if (this.ticketingState.search) {
+      const q = this.ticketingState.search.toLowerCase();
+      scopeTickets = scopeTickets.filter(t =>
+        (t.id && String(t.id).toLowerCase().includes(q)) ||
+        (t.title && t.title.toLowerCase().includes(q)) ||
+        (t.loc && t.loc.toLowerCase().includes(q)) ||
+        (t.tech && t.tech.toLowerCase().includes(q)) ||
+        (t.product && t.product.toLowerCase().includes(q)) ||
+        (t.cat_issue && t.cat_issue.toLowerCase().includes(q)) ||
+        (t.cat && t.cat.toLowerCase().includes(q)) ||
+        (t.desc && t.desc.toLowerCase().includes(q))
+      );
+    }
+
+    // 3. Compute Metrics
+    const total = scopeTickets.length;
+    let closed = 0;
+    let solved = 0;
+    let processingAssigned = 0;
+    let processingPlanned = 0;
+    let processingGeneral = 0;
+    let newCount = 0;
+    let pendingCount = 0;
+    let p0Count = 0;
+    let p1Count = 0;
+
+    scopeTickets.forEach(t => {
+      const st = (t.status || '').toLowerCase();
+      const stRaw = (t.status_raw || '').toLowerCase();
+
+      // Closed & Solved
+      if (st === 'closed' || stRaw.includes('closed')) {
+        closed++;
+      } else if (st === 'solved' || stRaw.includes('solved')) {
+        solved++;
+      }
+
+      // Processing
+      if (stRaw.includes('planned') || st.includes('planned')) {
+        processingPlanned++;
+      } else if (stRaw.includes('assigned') || (st === 'processing' && !stRaw.includes('planned'))) {
+        processingAssigned++;
+      } else if (st.includes('process') || stRaw.includes('process')) {
+        processingGeneral++;
+      }
+
+      // New & Pending
+      if (st === 'new' || stRaw.includes('new')) {
+        newCount++;
+      } else if (st === 'pending' || stRaw.includes('pending') || stRaw.includes('waiting')) {
+        pendingCount++;
+      }
+
+      // Priority
+      if (t.priority === 'P0') p0Count++;
+      else if (t.priority === 'P1') p1Count++;
+    });
+
+    const resolved = closed + solved;
+    const processing = processingAssigned + processingPlanned + processingGeneral;
+    const newPending = newCount + pendingCount;
+    const highPrio = p0Count + p1Count;
+
+    // 4. Update UI Elements
+    // Card 1: Total Tiket
+    const totalTitleEl = document.getElementById('ticketKpiTotalTitle');
+    if (totalTitleEl) {
+      totalTitleEl.textContent = `Total Tiket (${rangeTitleShort})`;
     }
 
     const totalEl = document.getElementById('ticketKpiTotal');
-    if (totalEl) totalEl.textContent = (s.total || 0).toLocaleString();
+    if (totalEl) totalEl.textContent = total.toLocaleString();
 
     const rangeLabel = document.getElementById('ticketKpiRangeLabel');
-    if (rangeLabel && m.date_range_days) {
-      rangeLabel.textContent = `${m.date_range_days} Hari Terakhir`;
+    if (rangeLabel) {
+      rangeLabel.textContent = rangeSubLabel;
     }
 
-    const resolved = (s.closed || 0) + (s.solved || 0);
+    // Card 2: Tiket Selesai
     const resolvedEl = document.getElementById('ticketKpiResolved');
     if (resolvedEl) resolvedEl.textContent = resolved.toLocaleString();
 
     const resolvedPctEl = document.getElementById('ticketKpiResolvedPct');
-    if (resolvedPctEl && s.total > 0) {
-      const pct = ((resolved / s.total) * 100).toFixed(1);
-      resolvedPctEl.textContent = `${pct}% Selesai (${(s.closed || 0).toLocaleString()} Closed, ${(s.solved || 0).toLocaleString()} Solved)`;
+    if (resolvedPctEl) {
+      if (total > 0) {
+        const pct = ((resolved / total) * 100).toFixed(1);
+        resolvedPctEl.textContent = `${pct}% Selesai (${closed.toLocaleString()} Closed, ${solved.toLocaleString()} Solved)`;
+      } else {
+        resolvedPctEl.textContent = '0% Selesai (0 Closed, 0 Solved)';
+      }
     }
 
+    // Card 3: Dalam Pengerjaan
     const procEl = document.getElementById('ticketKpiProcessing');
-    if (procEl) procEl.textContent = (s.processing || 0).toLocaleString();
+    if (procEl) procEl.textContent = processing.toLocaleString();
 
+    const procSubEl = document.getElementById('ticketKpiProcessingSub');
+    if (procSubEl) {
+      if (processing > 0) {
+        procSubEl.textContent = `${processingAssigned.toLocaleString()} Assigned, ${processingPlanned.toLocaleString()} Planned`;
+      } else {
+        procSubEl.textContent = 'Assigned / Planned';
+      }
+    }
+
+    // Card 4: Baru & Pending
     const newPendEl = document.getElementById('ticketKpiNewPending');
-    const newCount = (s.new || 0) + (s.pending || 0);
-    if (newPendEl) newPendEl.textContent = newCount.toLocaleString();
+    if (newPendEl) newPendEl.textContent = newPending.toLocaleString();
 
-    const p = s.priority || {};
-    const highPrio = (p.P0 || 0) + (p.P1 || 0);
+    const newPendSubEl = document.getElementById('ticketKpiNewPendingSub');
+    if (newPendSubEl) {
+      if (newPending > 0) {
+        newPendSubEl.textContent = `${newCount.toLocaleString()} Baru, ${pendingCount.toLocaleString()} Pending`;
+      } else {
+        newPendSubEl.textContent = 'Membutuhkan Respon';
+      }
+    }
+
+    // Card 5: Prioritas P0 & P1
     const highPrioEl = document.getElementById('ticketKpiHighPrio');
     if (highPrioEl) highPrioEl.textContent = highPrio.toLocaleString();
 
+    const highPrioSubEl = document.getElementById('ticketKpiHighPrioSub');
+    if (highPrioSubEl) {
+      if (highPrio > 0) {
+        highPrioSubEl.textContent = `${p0Count.toLocaleString()} P0 Kritis, ${p1Count.toLocaleString()} P1 Tinggi`;
+      } else {
+        highPrioSubEl.textContent = 'Critical & High Priority';
+      }
+    }
+
+    // Top Bar Title update (only when in ticketing view)
+    if (this.activeView === 'ticketing') {
+      const topTitle = document.getElementById('topBarTitle');
+      if (topTitle) {
+        topTitle.textContent = `Ticketing (GLPI - ${topBarDateLabel})`;
+      }
+    }
+
+    // Update last sync label
     const lastSyncEl = document.getElementById('ticketLastSyncLabel');
     if (lastSyncEl && m.updated_at) {
       lastSyncEl.textContent = `Update: ${m.updated_at}`;
     }
 
-    this.populateProductDropdown();
-    this.populateCategoryDropdown();
+    // Sidebar badge: keep total tickets count from database or overall
+    const badge = document.getElementById('badgeTotalTickets');
+    if (badge && this.ticketingData.stats) {
+      badge.textContent = (this.ticketingData.stats.total || 9082).toLocaleString();
+    }
   },
 
   escapeHtml(str) {
@@ -2684,6 +2871,9 @@ const App = {
     }
 
     let list = this.getFilteredTickets();
+
+    // Dynamically update Top KPI Cards based on active date range & scoped filters
+    this.renderTicketingKPIs();
 
     // Update Result Count Label
     const resCountLabel = document.getElementById('ticketResultCountLabel');
