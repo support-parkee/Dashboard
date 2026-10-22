@@ -1,0 +1,50 @@
+# ==============================================================================
+# CRONTAB ADMIN-ADG (GUARDED WITH WHATSAPP FAILURE NOTIFIER)
+# All cron jobs are wrapped with cron_guard.py.
+# If any job fails (exit code != 0), an instant WhatsApp alert is sent to Azkia.
+# ==============================================================================
+
+# 1. Teleport Auto-Login
+11 1 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Teleport Auto-Login" -- /usr/bin/python3 /home/admin-adg/teleport_login.py
+
+# 2. Auto Disk Usage Monitor
+0 */2 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Auto Disk Usage Monitor" -- /usr/bin/python3 /home/admin-adg/Documents/auto_disk_usage_cronv2.py
+
+# 3. Auto Delete Tmux Sessions
+0 0 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Auto Delete Tmux Sessions" -- /bin/bash -l -c 'cd /home/admin-adg/Documents && python3 auto_delete_tmux.py'
+
+# 4. Sync Master Location
+0 1 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Sync Master Location" --log /home/admin-adg/sync_master_loc_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/sync_master_loc.py >> /home/admin-adg/sync_master_loc_cron.log 2>&1'
+
+# 5. Fleet Inventory Auditor
+5 1 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Fleet Inventory Auditor" --log /home/admin-adg/fleet_audit_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/fleet_inventory_auditor.py --all 2>&1 | tee /home/admin-adg/fleet_audit_cron.log'
+
+# 6. Sync Chatwoot Kontak
+0 2 * * 1 /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Sync Chatwoot Kontak" --log /home/admin-adg/sync_chatwoot_kontak_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/.gemini/config/skills/sync_kontak_chatwoot/scripts/sync_chatwoot_kontak.py >> /home/admin-adg/sync_chatwoot_kontak_cron.log 2>&1'
+
+# 7. Daily Schedule Support Reminder
+0 9 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Daily Schedule Support Reminder" --log /home/admin-adg/daily_schedule_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_daily_schedule.py >> /home/admin-adg/daily_schedule_cron.log 2>&1'
+
+# 8. Reminder Upload Standby (SD)
+10 10 * * 1-5 /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Reminder Upload Standby (SD)" --log /home/admin-adg/upload_sd_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_reminder_upload_sd.py >> /home/admin-adg/upload_sd_cron.log 2>&1'
+
+# 9. Daily Monitoring Storage Telegram Report
+0 21 * * 0 /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Daily Monitoring Storage Telegram" --log /home/admin-adg/daily_monitoring_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_daily_monitoring_storage.py >> /home/admin-adg/daily_monitoring_cron.log 2>&1'
+
+# 10. Neat Eat Nusantara Sync
+0 */6 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Neat Eat Nusantara Sync" --log /home/admin-adg/.agents/skills/neat_eat_nusantara/scripts/cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/.agents/skills/neat_eat_nusantara/scripts/sync_daemon.py >> /home/admin-adg/.agents/skills/neat_eat_nusantara/scripts/cron.log 2>&1'
+
+# 11. Commute Traffic Monitor (Berangkat)
+20 8 * * 1-5 /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Commute Monitor (Berangkat)" --log /home/admin-adg/commute_berangkat_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_travel_commute.py --direction berangkat >> /home/admin-adg/commute_berangkat_cron.log 2>&1'
+
+# 12. Commute Traffic Monitor (Pulang)
+30 18 * * 1-5 /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Commute Monitor (Pulang)" --log /home/admin-adg/commute_pulang_cron.log -- /bin/bash -c '/usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_travel_commute.py --direction pulang >> /home/admin-adg/commute_pulang_cron.log 2>&1'
+
+# 13. Dashboard Data Sync (Google Sheet -> Dashboard GitHub Pages)
+0 5 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Dashboard Google Sheet Sync" --log /home/admin-adg/dashboard_sync_cron.log -- /bin/bash -c '/bin/bash /home/admin-adg/dashboard-server-client/scripts/cron_sync.sh >> /home/admin-adg/dashboard_sync_cron.log 2>&1'
+
+# 14. Temperature Telemetry Sync (Grafana -> Dashboard GitHub Pages)
+*/15 * * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "Temperature Telemetry Sync" --log /home/admin-adg/telemetry_cron.log -- /bin/bash -c '/bin/bash /home/admin-adg/dashboard-server-client/scripts/cron_telemetry.sh >> /home/admin-adg/telemetry_cron.log 2>&1'
+
+# 15. GLPI Ticketing Sync (GLPI -> Dashboard GitHub Pages)
+0 3 * * * /usr/bin/python3 /home/admin-adg/agy-whatsapp-bot/scripts/cron_guard.py --name "GLPI Ticketing Sync" --log /home/admin-adg/ticket_sync_cron.log -- /bin/bash -c '/bin/bash /home/admin-adg/dashboard-server-client/scripts/cron_ticket_sync.sh >> /home/admin-adg/ticket_sync_cron.log 2>&1'
