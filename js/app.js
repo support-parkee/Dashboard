@@ -107,7 +107,7 @@ const App = {
   ticketingData: null,
 
   // Navigation state
-  activeView: 'locations',
+  activeView: 'dashboard',
 
   async init() {
     this.initTweaks();
@@ -229,6 +229,7 @@ const App = {
     const crumbCurrent = document.getElementById('crumbCurrent');
 
     const metaMap = {
+      dashboard: { title: 'Dashboard (1 Bulan Terakhir)', crumb: 'GLPI Assistance Tickets' },
       locations: { title: 'Location Information', crumb: 'Location Information' },
       servers: { title: 'Server Specification', crumb: 'Server Specification' },
       clients: { title: 'Client Specification', crumb: 'Client Specification' },
@@ -272,7 +273,9 @@ const App = {
   },
 
   renderActiveView() {
-    if (this.activeView === 'locations') {
+    if (this.activeView === 'dashboard') {
+      this.renderDashboard();
+    } else if (this.activeView === 'locations') {
       this.renderLocationsTable();
     } else if (this.activeView === 'servers') {
       this.renderServersTable();
@@ -1558,6 +1561,574 @@ const App = {
   },
 
   // =========================================================================
+  // MODULE 0: DASHBOARD (HALAMAN UTAMA - TICKETING 1 BULAN TERAKHIR)
+  // =========================================================================
+  dashboardCharts: {},
+
+  getOneMonthTickets() {
+    if (!this.ticketingData || !this.ticketingData.tickets || !this.ticketingData.tickets.length) return [];
+    let latest = 0;
+    for (const t of this.ticketingData.tickets) {
+      if (t.open_date) {
+        const d = new Date(t.open_date.replace(' ', 'T')).getTime();
+        if (d > latest) latest = d;
+      }
+    }
+    if (!latest) latest = Date.now();
+    const cutoff = latest - (30 * 24 * 60 * 60 * 1000); // 30 hari terakhir
+    return this.ticketingData.tickets.filter(t => {
+      if (!t.open_date) return false;
+      const d = new Date(t.open_date.replace(' ', 'T')).getTime();
+      return d >= cutoff;
+    });
+  },
+
+  renderDashboard() {
+    const t1m = this.getOneMonthTickets();
+    this.renderDashboardKPIs(t1m);
+    this.renderDashboardCharts(t1m);
+    this.renderDashboardCriticalTable(t1m);
+  },
+
+  renderDashboardKPIs(t1m) {
+    const total = t1m.length;
+    if (total === 0) return;
+
+    let closed = 0;
+    let solved = 0;
+    let processing = 0;
+    let newCount = 0;
+    let pending = 0;
+    let p0 = 0;
+    let p1 = 0;
+
+    t1m.forEach(t => {
+      const st = (t.status || '').toLowerCase();
+      if (st === 'closed') closed++;
+      else if (st === 'solved') solved++;
+      else if (st === 'processing') processing++;
+      else if (st === 'new') newCount++;
+      else if (st === 'pending') pending++;
+
+      const p = (t.priority || '').toUpperCase();
+      if (p === 'P0') p0++;
+      else if (p === 'P1') p1++;
+    });
+
+    const resolved = closed + solved;
+    const resolvedPct = total > 0 ? ((resolved / total) * 100).toFixed(1) : '0';
+    const newPending = newCount + pending;
+    const highPrio = p0 + p1;
+
+    // Sidebar badge
+    const badgeDash = document.getElementById('badgeDashboardTickets');
+    if (badgeDash) badgeDash.textContent = `${total.toLocaleString()} Tiket`;
+
+    // 1. Total Tiket (1 Bulan)
+    const totalEl = document.getElementById('dashKpiTotal');
+    if (totalEl) totalEl.textContent = total.toLocaleString();
+
+    // 2. Tiket Selesai
+    const resolvedEl = document.getElementById('dashKpiResolved');
+    if (resolvedEl) resolvedEl.textContent = resolved.toLocaleString();
+
+    const resolvedPctEl = document.getElementById('dashKpiResolvedPct');
+    if (resolvedPctEl) resolvedPctEl.textContent = `${resolvedPct}%`;
+
+    const resolvedSubEl = document.getElementById('dashKpiResolvedSub');
+    if (resolvedSubEl) {
+      resolvedSubEl.textContent = `Selesai (${closed.toLocaleString()} Closed, ${solved.toLocaleString()} Solved)`;
+    }
+
+    // 3. Dalam Pengerjaan
+    const procEl = document.getElementById('dashKpiProcessing');
+    if (procEl) procEl.textContent = processing.toLocaleString();
+
+    // 4. Baru & Pending
+    const newPendEl = document.getElementById('dashKpiNewPending');
+    if (newPendEl) newPendEl.textContent = newPending.toLocaleString();
+
+    // 5. Prioritas P0 & P1
+    const highPrioEl = document.getElementById('dashKpiHighPrio');
+    if (highPrioEl) highPrioEl.textContent = highPrio.toLocaleString();
+
+    // Header badges
+    const statusRateBadge = document.getElementById('dashStatusSolveRate');
+    if (statusRateBadge) statusRateBadge.textContent = `${resolvedPct}% Selesai`;
+
+    const highPrioBadge = document.getElementById('dashHighPrioBadge');
+    if (highPrioBadge) highPrioBadge.textContent = `${highPrio} P0/P1 Kritis`;
+
+    const critBadge = document.getElementById('dashCriticalCountBadge');
+    if (critBadge) critBadge.textContent = `${highPrio} Tiket Kritis`;
+
+    // Average daily tickets badge
+    const avgDailyBadge = document.getElementById('dashAvgDailyBadge');
+    if (avgDailyBadge) {
+      const avg = Math.round(total / 30);
+      avgDailyBadge.textContent = `Rata-rata: ~${avg} tiket/hari`;
+    }
+  },
+
+  getChartThemeColors() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return {
+      isDark,
+      gridColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(226, 232, 240, 0.7)',
+      textColor: isDark ? '#94a3b8' : '#64748b',
+      titleColor: isDark ? '#f8fafc' : '#090d16',
+      tooltipBg: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.95)',
+      cobalt: isDark ? '#3b82f6' : '#2563eb',
+      emerald: isDark ? '#10b981' : '#059669',
+      amber: isDark ? '#f59e0b' : '#d97706',
+      rose: isDark ? '#ef4444' : '#dc2626',
+      orange: isDark ? '#f97316' : '#ea580c',
+      violet: isDark ? '#8b5cf6' : '#7c3aed',
+      teal: isDark ? '#14b8a6' : '#0d9488',
+      slate: isDark ? '#64748b' : '#94a3b8'
+    };
+  },
+
+  renderDashboardCharts(t1m) {
+    if (!window.Chart || !t1m || !t1m.length) return;
+    const tc = this.getChartThemeColors();
+
+    // 1. Chart Donut Status
+    const canvasStatus = document.getElementById('chartDashStatus');
+    if (canvasStatus) {
+      if (this.dashboardCharts.status) this.dashboardCharts.status.destroy();
+      const statusCounts = { Closed: 0, Processing: 0, 'Baru / Pending': 0, Solved: 0 };
+      t1m.forEach(t => {
+        const st = (t.status || '').toLowerCase();
+        if (st === 'closed') statusCounts.Closed++;
+        else if (st === 'processing') statusCounts.Processing++;
+        else if (st === 'new' || st === 'pending') statusCounts['Baru / Pending']++;
+        else if (st === 'solved') statusCounts.Solved++;
+      });
+
+      this.dashboardCharts.status = new Chart(canvasStatus.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Closed', 'Dalam Pengerjaan', 'Baru & Pending', 'Solved'],
+          datasets: [{
+            data: [
+              statusCounts.Closed,
+              statusCounts.Processing,
+              statusCounts['Baru / Pending'],
+              statusCounts.Solved
+            ],
+            backgroundColor: [tc.slate, tc.cobalt, tc.amber, tc.emerald],
+            borderWidth: 2,
+            borderColor: tc.isDark ? '#131b2e' : '#ffffff',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '68%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: tc.textColor,
+                font: { size: 11, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
+                usePointStyle: true,
+                padding: 14
+              }
+            },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              titleColor: '#ffffff',
+              bodyColor: '#e2e8f0',
+              padding: 10,
+              callbacks: {
+                label: (ctx) => {
+                  const val = ctx.raw || 0;
+                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Chart Donut Priority
+    const canvasPrio = document.getElementById('chartDashPriority');
+    if (canvasPrio) {
+      if (this.dashboardCharts.priority) this.dashboardCharts.priority.destroy();
+      const prioCounts = { P0: 0, P1: 0, P2: 0, P3: 0, P4: 0 };
+      t1m.forEach(t => {
+        const p = (t.priority || '').toUpperCase();
+        if (prioCounts[p] !== undefined) prioCounts[p]++;
+        else prioCounts.P2++;
+      });
+
+      this.dashboardCharts.priority = new Chart(canvasPrio.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['P0 - Kritis', 'P1 - Tinggi', 'P2 - Sedang', 'P3 - Rendah', 'P4 - Sangat Rendah'],
+          datasets: [{
+            data: [
+              prioCounts.P0,
+              prioCounts.P1,
+              prioCounts.P2,
+              prioCounts.P3,
+              prioCounts.P4
+            ],
+            backgroundColor: [tc.rose, tc.orange, tc.cobalt, tc.teal, tc.slate],
+            borderWidth: 2,
+            borderColor: tc.isDark ? '#131b2e' : '#ffffff',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '68%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: tc.textColor,
+                font: { size: 11, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
+                usePointStyle: true,
+                padding: 14
+              }
+            },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              titleColor: '#ffffff',
+              bodyColor: '#e2e8f0',
+              padding: 10,
+              callbacks: {
+                label: (ctx) => {
+                  const val = ctx.raw || 0;
+                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Chart Daily Trend (Line / Area)
+    const canvasTrend = document.getElementById('chartDashDailyTrend');
+    if (canvasTrend) {
+      if (this.dashboardCharts.trend) this.dashboardCharts.trend.destroy();
+
+      const dayMap = {};
+      t1m.forEach(t => {
+        if (!t.open_date) return;
+        const day = t.open_date.substring(0, 10);
+        dayMap[day] = (dayMap[day] || 0) + 1;
+      });
+
+      const sortedDays = Object.keys(dayMap).sort();
+      const labels = sortedDays.map(d => {
+        const parts = d.split('-');
+        if (parts.length === 3) {
+          const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+          const mIdx = parseInt(parts[1], 10);
+          return `${parts[2]} ${monthNames[mIdx] || parts[1]}`;
+        }
+        return d;
+      });
+      const dataPoints = sortedDays.map(d => dayMap[d]);
+
+      const ctx = canvasTrend.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+      gradient.addColorStop(0, tc.isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(37, 99, 235, 0.2)');
+      gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+      this.dashboardCharts.trend = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Volume Tiket Masuk',
+            data: dataPoints,
+            fill: true,
+            backgroundColor: gradient,
+            borderColor: tc.cobalt,
+            borderWidth: 2.2,
+            tension: 0.35,
+            pointRadius: 2.5,
+            pointHoverRadius: 6,
+            pointBackgroundColor: tc.cobalt,
+            pointHoverBackgroundColor: '#ffffff',
+            pointHoverBorderColor: tc.cobalt,
+            pointHoverBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              titleColor: '#ffffff',
+              bodyColor: '#e2e8f0',
+              padding: 10,
+              callbacks: {
+                label: (ctx) => ` ${ctx.raw} Tiket Masuk`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: tc.textColor,
+                maxTicksLimit: 15,
+                font: { size: 10, family: "'Plus Jakarta Sans', system-ui, sans-serif" }
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: tc.gridColor },
+              ticks: {
+                color: tc.textColor,
+                font: { size: 10, family: "'Plus Jakarta Sans', system-ui, sans-serif" }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 4. Chart Top 8 Categories (Horizontal Bar)
+    const canvasCats = document.getElementById('chartDashCategories');
+    if (canvasCats) {
+      if (this.dashboardCharts.cats) this.dashboardCharts.cats.destroy();
+      const catCounts = {};
+      t1m.forEach(t => {
+        const c = t.cat || 'Lainnya';
+        catCounts[c] = (catCounts[c] || 0) + 1;
+      });
+      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const labels = sortedCats.map(x => x[0]);
+      const data = sortedCats.map(x => x[1]);
+
+      this.dashboardCharts.cats = new Chart(canvasCats.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Jumlah Tiket',
+            data,
+            backgroundColor: tc.violet,
+            borderRadius: 6,
+            barThickness: 18
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              callbacks: {
+                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / t1m.length) * 100).toFixed(1)}%)`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: tc.gridColor },
+              ticks: { color: tc.textColor, font: { size: 10 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: {
+                color: tc.textColor,
+                font: { size: 11, weight: '600' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 5. Chart Top 8 Hotspot Locations (Horizontal Bar)
+    const canvasLocs = document.getElementById('chartDashLocations');
+    if (canvasLocs) {
+      if (this.dashboardCharts.locs) this.dashboardCharts.locs.destroy();
+      const locCounts = {};
+      t1m.forEach(t => {
+        const l = t.loc || 'Unknown Site';
+        locCounts[l] = (locCounts[l] || 0) + 1;
+      });
+      const sortedLocs = Object.entries(locCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const labels = sortedLocs.map(x => x[0]);
+      const data = sortedLocs.map(x => x[1]);
+
+      this.dashboardCharts.locs = new Chart(canvasLocs.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Jumlah Tiket',
+            data,
+            backgroundColor: tc.orange,
+            borderRadius: 6,
+            barThickness: 18
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: tc.tooltipBg,
+              callbacks: {
+                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / t1m.length) * 100).toFixed(1)}%)`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: tc.gridColor },
+              ticks: { color: tc.textColor, font: { size: 10 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: {
+                color: tc.textColor,
+                font: { size: 11, weight: '600' }
+              }
+            }
+          }
+        }
+      });
+    }
+  },
+
+  renderDashboardCriticalTable(t1m) {
+    const tbody = document.getElementById('dashCriticalTableBody');
+    if (!tbody) return;
+
+    if (!t1m || !t1m.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            Memuat data tiket...
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    // Filter tickets that are P0 or P1, or active (Processing/New)
+    const priorityWeight = { P0: 5, P1: 4, P2: 3, P3: 2, P4: 1 };
+    const criticalList = t1m.filter(t => {
+      const p = (t.priority || '').toUpperCase();
+      const st = (t.status || '').toLowerCase();
+      return p === 'P0' || p === 'P1' || st === 'processing' || st === 'new';
+    }).sort((a, b) => {
+      const wa = priorityWeight[(a.priority || '').toUpperCase()] || 0;
+      const wb = priorityWeight[(b.priority || '').toUpperCase()] || 0;
+      if (wb !== wa) return wb - wa; // Higher priority first
+      return (b.open_date || '').localeCompare(a.open_date || '');
+    }).slice(0, 15);
+
+    if (criticalList.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600;">
+            ✅ Tidak ada tiket kendala kritis P0/P1 yang aktif dalam 30 hari terakhir. Semua terkendali!
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = criticalList.map((d, index) => {
+      let statusClass = 'ticket-status-closed';
+      let statusIcon = '🔒';
+      const st = (d.status || '').toLowerCase();
+      if (st === 'processing') {
+        statusClass = 'ticket-status-processing';
+        statusIcon = '⚙️';
+      } else if (st === 'new') {
+        statusClass = 'ticket-status-new';
+        statusIcon = '⚡';
+      } else if (st === 'solved') {
+        statusClass = 'ticket-status-solved';
+        statusIcon = '✅';
+      } else if (st === 'pending') {
+        statusClass = 'ticket-status-pending';
+        statusIcon = '⏳';
+      }
+
+      const p = (d.priority || 'P2').toLowerCase();
+      const prioClass = `ticket-prio-${p}`;
+      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${d.id}`;
+
+      return `
+        <tr class="ticket-clickable-row" data-ticket-id="${d.id}" title="Klik untuk membuka rincian kendala tiket #${d.id}">
+          <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
+            ${index + 1}
+          </td>
+          <td>
+            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI" onclick="event.stopPropagation();">
+              #${d.id}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </a>
+          </td>
+          <td style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; font-family: var(--font-mono);">
+            ${d.open_date || '-'}
+          </td>
+          <td class="ticket-loc-cell">
+            <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
+          </td>
+          <td class="ticket-title-cell" data-ticket-id="${d.id}">
+            <div class="ticket-title-text" title="${d.title}">${d.title}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${d.desc}">${d.desc}</div>` : ''}
+            <div class="ticket-open-hint">
+              <span>👁️ Detail Kendala</span>
+            </div>
+          </td>
+          <td>
+            <span class="ticket-status-pill ${statusClass}">
+              <span>${statusIcon}</span>
+              <span>${d.status}</span>
+            </span>
+          </td>
+          <td style="text-align: center;">
+            <span class="ticket-prio-badge ${prioClass}">${d.priority}</span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-main);">
+            <div>${d.tech || '-'}</div>
+            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
+          </td>
+          <td style="font-size: 0.74rem; color: var(--text-secondary);">
+            <span class="badge-pill" style="font-size: 0.68rem; display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cat_full || d.cat}">
+              ${d.cat || '-'}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  // =========================================================================
   // MODULE 6: TICKETING (GLPI 3 BULAN TERAKHIR)
   // =========================================================================
   async fetchTickets(forceRefresh = false) {
@@ -1566,6 +2137,7 @@ const App = {
       if (res.ok) {
         this.ticketingData = await res.json();
         this.renderTicketingKPIs();
+        this.renderDashboard();
         if (this.activeView === 'ticketing') this.renderTicketingTable();
         return;
       }
@@ -1583,6 +2155,7 @@ const App = {
           tickets: sumData.recent_tickets || []
         };
         this.renderTicketingKPIs();
+        this.renderDashboard();
         if (this.activeView === 'ticketing') this.renderTicketingTable();
       }
     } catch (err) {
@@ -2891,6 +3464,27 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         }
       });
     }
+
+    // Dashboard Critical Table delegation
+    const dashCritTbody = document.getElementById('dashCriticalTableBody');
+    if (dashCritTbody) {
+      dashCritTbody.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return;
+        const row = e.target.closest('[data-ticket-id]');
+        if (row && row.dataset.ticketId) {
+          this.openTicketDetailModal(row.dataset.ticketId);
+        }
+      });
+    }
+
+    // Dashboard Go to Ticketing View Button
+    const dashGoToTicketing = document.getElementById('dashGoToTicketingBtn');
+    if (dashGoToTicketing) {
+      dashGoToTicketing.addEventListener('click', () => {
+        const ticketNav = document.querySelector('.sidebar-nav-btn[data-view="ticketing"]');
+        if (ticketNav) ticketNav.click();
+      });
+    }
   },
 
   parseRamGb(ramStr) {
@@ -3209,6 +3803,10 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     localStorage.setItem('parkee_theme', theme);
     const iconSpan = document.getElementById('themeIconSpan');
     if (iconSpan) iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
+
+    if (this.activeView === 'dashboard') {
+      this.renderDashboardCharts(this.getOneMonthTickets());
+    }
   }
 };
 

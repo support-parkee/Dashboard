@@ -46,8 +46,22 @@
         <nav class="sidebar-nav">
           <span class="nav-label">Menu Utama</span>
 
+          <!-- 0. Dashboard (Halaman Utama) -->
+          <button class="sidebar-nav-btn active" data-view="dashboard" title="Dashboard Utama Monitoring & Analitik Tiket Kendala (1 Bulan Terakhir)">
+            <div class="nav-btn-left">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+              </svg>
+              <span>Dashboard</span>
+            </div>
+            <span class="badge-pill" id="badgeDashboardTickets" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">30 Hari</span>
+          </button>
+
           <!-- 1. Location Information -->
-          <button class="sidebar-nav-btn active" data-view="locations" title="Informasi Lokasi & Manifest Versi Software">
+          <button class="sidebar-nav-btn" data-view="locations" title="Informasi Lokasi & Manifest Versi Software">
             <div class="nav-btn-left">
               <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -167,11 +181,11 @@
           </button>
           
           <div class="top-bar-title-wrap">
-            <h1 class="top-bar-title" id="topBarTitle">Location Information</h1>
+            <h1 class="top-bar-title" id="topBarTitle">Dashboard (1 Bulan Terakhir)</h1>
             <div class="breadcrumbs">
               <span>Support Apps</span>
               <span class="crumb-separator">/</span>
-              <span class="crumb-current" id="crumbCurrent">Location Information</span>
+              <span class="crumb-current" id="crumbCurrent">GLPI Assistance Tickets</span>
             </div>
           </div>
         </div>
@@ -200,9 +214,246 @@
       <div class="view-wrapper">
 
         <!-- =========================================================================
+             VIEW 0: DASHBOARD (HALAMAN UTAMA - TICKETING 1 BULAN TERAKHIR)
+             ========================================================================= -->
+        <section id="view-dashboard" class="view-section active-view">
+          
+          <!-- Top KPI Deck Row (1 Bulan Terakhir) -->
+          <div class="kpi-deck-row" style="grid-template-columns: repeat(5, 1fr);">
+            
+            <!-- 1. Total Tiket (1 Bulan) -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Total Tiket (1 Bulan)</span>
+                <span class="kpi-icon">🎫</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="dashKpiTotal">--</span>
+                <span class="kpi-sub" id="dashKpiRangeLabel">30 Hari Terakhir</span>
+              </div>
+            </div>
+
+            <!-- 2. Tiket Selesai -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Tiket Selesai</span>
+                <span class="kpi-icon">✅</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span class="kpi-value" id="dashKpiResolved" style="color: var(--color-success);">--</span>
+                  <span id="dashKpiResolvedPct" style="font-size: 0.95rem; font-weight: 700; color: var(--color-success);">--%</span>
+                </div>
+                <span class="kpi-sub" id="dashKpiResolvedSub">Selesai (Closed & Solved)</span>
+              </div>
+            </div>
+
+            <!-- 3. Dalam Pengerjaan -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Dalam Pengerjaan</span>
+                <span class="kpi-icon">⚙️</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="dashKpiProcessing" style="color: #3b82f6;">--</span>
+                <span class="kpi-sub">Assigned / Planned</span>
+              </div>
+            </div>
+
+            <!-- 4. Baru & Pending -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Baru & Pending</span>
+                <span class="kpi-icon">⏳</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="dashKpiNewPending" style="color: var(--color-warning);">--</span>
+                <span class="kpi-sub">Membutuhkan Respon</span>
+              </div>
+            </div>
+
+            <!-- 5. Prioritas P0 & P1 -->
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Prioritas P0 & P1</span>
+                <span class="kpi-icon">🚨</span>
+              </div>
+              <div class="kpi-value-wrap">
+                <span class="kpi-value" id="dashKpiHighPrio" style="color: var(--color-danger);">--</span>
+                <span class="kpi-sub">Critical & High Priority</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Charts Row 1: Donut Charts (Status & Prioritas) -->
+          <div class="charts-grid" style="margin-top: 1.25rem;">
+            
+            <!-- Donut 1: Status Tiket -->
+            <div class="col-6">
+              <div class="glass-panel chart-card" style="height: 100%;">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="m9 12 2 2 4-4"></path>
+                      </svg>
+                      Rasio Status Penyelesaian Tiket (1 Bulan)
+                    </span>
+                    <span class="chart-subtitle">Proporsi tiket Closed, Processing, Solved, dan New dalam 30 hari</span>
+                  </div>
+                  <span class="badge-pill" id="dashStatusSolveRate" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">--% Selesai</span>
+                </div>
+                <div class="chart-body" style="height: 290px; position: relative;">
+                  <canvas id="chartDashStatus"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Donut 2: Sebaran Prioritas Tiket -->
+            <div class="col-6">
+              <div class="glass-panel chart-card" style="height: 100%;">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                      </svg>
+                      Sebaran Tingkat Prioritas (P0 - P4)
+                    </span>
+                    <span class="chart-subtitle">Distribusi urgensi kendala: Kritis (P0), Tinggi (P1), Sedang (P2), Rendah (P3)</span>
+                  </div>
+                  <span class="badge-pill" id="dashHighPrioBadge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;">-- P0/P1 Kritis</span>
+                </div>
+                <div class="chart-body" style="height: 290px; position: relative;">
+                  <canvas id="chartDashPriority"></canvas>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Charts Row 2: Trend Harian (Area Chart 30 Hari) -->
+          <div class="charts-grid" style="margin-top: 1.25rem;">
+            <div class="col-12">
+              <div class="glass-panel chart-card">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                      </svg>
+                      Tren Volume Tiket Masuk Harian (30 Hari Terakhir)
+                    </span>
+                    <span class="chart-subtitle">Grafik fluktuasi jumlah tiket per hari dengan analisis rata-rata beban operasional</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="badge-pill" id="dashAvgDailyBadge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; font-weight: 700;">Rata-rata: ~-- tiket/hari</span>
+                  </div>
+                </div>
+                <div class="chart-body" style="height: 260px; position: relative;">
+                  <canvas id="chartDashDailyTrend"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row 3: Top Kategori & Top Lokasi -->
+          <div class="charts-grid" style="margin-top: 1.25rem;">
+            
+            <!-- Top 8 Kategori -->
+            <div class="col-6">
+              <div class="glass-panel chart-card" style="height: 100%;">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                      </svg>
+                      Top 8 Kategori Kendala Terbanyak (1 Bulan)
+                    </span>
+                    <span class="chart-subtitle">Root cause masalah teknis & operasional yang paling sering dilaporkan</span>
+                  </div>
+                </div>
+                <div class="chart-body" style="height: 310px; position: relative;">
+                  <canvas id="chartDashCategories"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top 8 Lokasi Hotspot -->
+            <div class="col-6">
+              <div class="glass-panel chart-card" style="height: 100%;">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Top 8 Lokasi Hotspot Tiket (1 Bulan)
+                    </span>
+                    <span class="chart-subtitle">Lokasi situs parkir dengan eskalasi kendala terbanyak dalam 30 hari</span>
+                  </div>
+                </div>
+                <div class="chart-body" style="height: 310px; position: relative;">
+                  <canvas id="chartDashLocations"></canvas>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Actionable Section: Critical & High Priority Issues Table (1 Bulan) -->
+          <div class="glass-panel table-card" style="margin-top: 1.25rem;">
+            <div class="table-toolbar">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                  <span>🚨</span> Tiket Kritis & Membutuhkan Tindakan (1 Bulan Terakhir)
+                </span>
+                <span class="badge-pill" id="dashCriticalCountBadge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;">-- Tiket Kritis</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-outline" id="dashGoToTicketingBtn" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                  <span>Buka Semua Tiket di Menu Ticketing</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive" style="margin-top: 0.5rem;">
+              <table class="fleet-table">
+                <thead>
+                  <tr>
+                    <th style="width: 45px; text-align: center;">No</th>
+                    <th style="width: 105px;">ID Tiket</th>
+                    <th style="width: 140px;">Tanggal Buka</th>
+                    <th style="min-width: 180px;">Lokasi Unit</th>
+                    <th style="min-width: 280px;">Judul Kendala & Rincian</th>
+                    <th style="width: 120px;">Status</th>
+                    <th style="width: 85px; text-align: center;">Prioritas</th>
+                    <th style="min-width: 130px;">Teknisi</th>
+                    <th style="min-width: 150px;">Kategori</th>
+                  </tr>
+                </thead>
+                <tbody id="dashCriticalTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- =========================================================================
              VIEW 1: Location Information (10 Columns Requested)
              ========================================================================= -->
-        <section id="view-locations" class="view-section active-view">
+        <section id="view-locations" class="view-section">
           <div class="glass-panel table-card">
             
             <div class="table-toolbar">
