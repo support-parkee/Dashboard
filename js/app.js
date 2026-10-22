@@ -98,6 +98,7 @@ const App = {
     search: '',
     filter: 'all',
     priority: 'all',
+    category: 'all',
     page: 1,
     pageSize: 25,
     sortCol: 'open_date',
@@ -1633,6 +1634,31 @@ const App = {
     if (lastSyncEl && m.updated_at) {
       lastSyncEl.textContent = `Update: ${m.updated_at}`;
     }
+
+    this.populateCategoryDropdown();
+  },
+
+  populateCategoryDropdown() {
+    const select = document.getElementById('ticketCategoryFilter');
+    if (!select || !this.ticketingData || !this.ticketingData.tickets) return;
+
+    const curVal = this.ticketingState.category;
+    const catCounts = {};
+
+    this.ticketingData.tickets.forEach(t => {
+      const c = t.cat || 'Uncategorized';
+      catCounts[c] = (catCounts[c] || 0) + 1;
+    });
+
+    const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+
+    let html = `<option value="all">Semua Kategori (${this.ticketingData.tickets.length.toLocaleString()})</option>`;
+    sortedCats.forEach(([catName, count]) => {
+      const selected = (catName === curVal) ? 'selected' : '';
+      html += `<option value="${catName}" ${selected}>${catName} (${count.toLocaleString()})</option>`;
+    });
+
+    select.innerHTML = html;
   },
 
   renderTicketingTable() {
@@ -1680,9 +1706,20 @@ const App = {
       }
     }
 
-    // 3. Priority Dropdown Filter
+    // 3. Category Dropdown Filter
+    if (this.ticketingState.category !== 'all') {
+      list = list.filter(t => (t.cat || 'Uncategorized') === this.ticketingState.category);
+    }
+
+    // 4. Priority Dropdown Filter
     if (this.ticketingState.priority !== 'all') {
       list = list.filter(t => t.priority === this.ticketingState.priority);
+    }
+
+    // Update Result Count Label
+    const resCountLabel = document.getElementById('ticketResultCountLabel');
+    if (resCountLabel) {
+      resCountLabel.textContent = `Menampilkan ${list.length.toLocaleString()} Tiket`;
     }
 
     // 4. Sorting
@@ -2600,12 +2637,43 @@ const App = {
       });
     });
 
+    const ticketCatFilter = document.getElementById('ticketCategoryFilter');
+    if (ticketCatFilter) {
+      ticketCatFilter.addEventListener('change', (e) => {
+        this.ticketingState.category = e.target.value;
+        this.ticketingState.page = 1;
+        this.renderTicketingTable();
+      });
+    }
+
     const ticketPrioFilter = document.getElementById('ticketPriorityFilter');
     if (ticketPrioFilter) {
       ticketPrioFilter.addEventListener('change', (e) => {
         this.ticketingState.priority = e.target.value;
         this.ticketingState.page = 1;
         this.renderTicketingTable();
+      });
+    }
+
+    const ticketResetBtn = document.getElementById('ticketResetFiltersBtn');
+    if (ticketResetBtn) {
+      ticketResetBtn.addEventListener('click', () => {
+        this.ticketingState.search = '';
+        this.ticketingState.filter = 'all';
+        this.ticketingState.priority = 'all';
+        this.ticketingState.category = 'all';
+        this.ticketingState.page = 1;
+
+        if (ticketSearch) ticketSearch.value = '';
+        if (ticketPrioFilter) ticketPrioFilter.value = 'all';
+        if (ticketCatFilter) ticketCatFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
+          b.classList.toggle('active', b.dataset.ticketFilter === 'all');
+        });
+
+        this.renderTicketingTable();
+        this.showToast('Filter Tiket berhasil direset', 'info');
       });
     }
 
