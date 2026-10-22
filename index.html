@@ -286,11 +286,11 @@
 
           </div>
 
-          <!-- Charts Row 1: Donut Charts (Status & Prioritas) -->
+          <!-- Charts Row 1: 3 Donut Charts (Status, Prioritas, & Kategori) -->
           <div class="charts-grid" style="margin-top: 1.25rem;">
             
             <!-- Donut 1: Status Tiket -->
-            <div class="col-6">
+            <div class="col-4">
               <div class="glass-panel chart-card" style="height: 100%;">
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
@@ -299,9 +299,9 @@
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="m9 12 2 2 4-4"></path>
                       </svg>
-                      Rasio Status Penyelesaian Tiket (1 Bulan)
+                      Rasio Status Tiket (1 Bulan)
                     </span>
-                    <span class="chart-subtitle">Proporsi tiket Closed, Processing, Solved, dan New dalam 30 hari</span>
+                    <span class="chart-subtitle">Proporsi Closed, Processing, Solved, New</span>
                   </div>
                   <span class="badge-pill" id="dashStatusSolveRate" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">--% Selesai</span>
                 </div>
@@ -312,7 +312,7 @@
             </div>
 
             <!-- Donut 2: Sebaran Prioritas Tiket -->
-            <div class="col-6">
+            <div class="col-4">
               <div class="glass-panel chart-card" style="height: 100%;">
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
@@ -320,14 +320,36 @@
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                       </svg>
-                      Sebaran Tingkat Prioritas (P0 - P4)
+                      Sebaran Prioritas (P0 - P4)
                     </span>
-                    <span class="chart-subtitle">Distribusi urgensi kendala: Kritis (P0), Tinggi (P1), Sedang (P2), Rendah (P3)</span>
+                    <span class="chart-subtitle">Tingkat urgensi kendala: P0 s/d P4</span>
                   </div>
                   <span class="badge-pill" id="dashHighPrioBadge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;">-- P0/P1 Kritis</span>
                 </div>
                 <div class="chart-body" style="height: 290px; position: relative;">
                   <canvas id="chartDashPriority"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Donut 3: Sebaran Kategori Kendala (Paling Kanan) -->
+            <div class="col-4">
+              <div class="glass-panel chart-card" style="height: 100%;">
+                <div class="chart-card-header">
+                  <div class="chart-title-wrap">
+                    <span class="chart-title">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                      </svg>
+                      Sebaran Kategori Kendala
+                    </span>
+                    <span class="chart-subtitle">Distribusi jenis kendala & root cause tiket</span>
+                  </div>
+                  <span class="badge-pill" id="dashTopCatBadge" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6; font-weight: 700;">Top Kategori</span>
+                </div>
+                <div class="chart-body" style="height: 290px; position: relative;">
+                  <canvas id="chartDashCatDonut"></canvas>
                 </div>
               </div>
             </div>
