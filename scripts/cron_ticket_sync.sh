@@ -3,11 +3,15 @@ set -e
 
 REPO_DIR="/home/admin-adg/dashboard-server-client"
 LOG_FILE="/home/admin-adg/ticket_sync_cron.log"
+TARGET_REPO="https://github.com/support-parkee/Dashboard.git"
 
 echo "==================================================" >> "$LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Starting Daily GLPI Ticketing Sync (03:00 WIB)..." >> "$LOG_FILE"
 
 cd "$REPO_DIR"
+
+# Ensure remote points to support-parkee/Dashboard
+git remote set-url origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1 || true
 
 # Clean any working tree noise and pull latest
 git checkout -- . 2>/dev/null || true

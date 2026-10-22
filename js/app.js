@@ -1333,12 +1333,8 @@ const App = {
   // =========================================================================
   async fetchTemperature(forceRefresh = false) {
     const rawUrl = `https://raw.githubusercontent.com/support-parkee/Dashboard/telemetry/temperature.json?_t=${Date.now()}`;
-    const fallbackUrl = `https://raw.githubusercontent.com/azkiabenington/dashboard-server-client/telemetry/temperature.json?_t=${Date.now()}`;
     try {
-      let res = await fetch(rawUrl, { cache: 'no-store' });
-      if (!res.ok) {
-        res = await fetch(fallbackUrl, { cache: 'no-store' });
-      }
+      const res = await fetch(rawUrl, { cache: 'no-store' });
       if (res.ok) {
         this.temperatureData = await res.json();
         this.renderTemperatureKPIs();
