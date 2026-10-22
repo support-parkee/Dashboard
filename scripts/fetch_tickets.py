@@ -358,13 +358,15 @@ def process_tickets_csv(csv_text=None):
 
     # Also save a tiny lightweight summary file for fast dashboard overview
     summary_path = os.path.join(DATA_DIR, "tickets_summary.json")
+    critical_tickets = [t for t in tickets if t.get("priority") in ("P0", "P1")]
     summary_payload = {
         "meta": output_payload["meta"],
         "stats": output_payload["stats"],
+        "critical_tickets": critical_tickets,
         "recent_tickets": tickets[:50]
     }
     with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump(summary_payload, f, indent=2)
+        json.dump(summary_payload, f, separators=(",", ":"))
     print(f"Saved lightweight summary to {summary_path}")
 
     return output_payload
