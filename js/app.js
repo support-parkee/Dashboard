@@ -2564,8 +2564,8 @@ const App = {
     await this.fetchTicketsSummary();
   },
 
-  renderTicketingKPIs() {
-    if (!this.ticketingData || !this.ticketingData.tickets) return;
+  renderTicketingKPIs(customList = null) {
+    if (!this.ticketingData) return;
     const m = this.ticketingData.meta || {};
 
     // 1. Determine active date range title & subtitle label
@@ -2605,15 +2605,15 @@ const App = {
       topBarDateLabel = `Bulan Lalu (${prevMonth})`;
     } else if (preset === 'custom' || sDate || eDate) {
       if (sDate && eDate) {
-        rangeTitleShort = 'Kustom';
+        rangeTitleShort = `${sDate} s/d ${eDate}`;
         rangeSubLabel = `${sDate} s/d ${eDate}`;
         topBarDateLabel = `${sDate} s/d ${eDate}`;
       } else if (sDate) {
-        rangeTitleShort = 'Kustom';
+        rangeTitleShort = `Sejak ${sDate}`;
         rangeSubLabel = `Sejak ${sDate}`;
         topBarDateLabel = `Sejak ${sDate}`;
       } else if (eDate) {
-        rangeTitleShort = 'Kustom';
+        rangeTitleShort = `Sampai ${eDate}`;
         rangeSubLabel = `Sampai ${eDate}`;
         topBarDateLabel = `Sampai ${eDate}`;
       }
@@ -2623,43 +2623,12 @@ const App = {
       topBarDateLabel = '3 Bulan Terakhir';
     }
 
-    // 2. Filter tickets in active scope (Date Range + Product + Category + Search query)
-    let scopeTickets = [...this.ticketingData.tickets];
-
-    if (sDate) {
-      scopeTickets = scopeTickets.filter(t => t.open_date && t.open_date >= sDate);
-    }
-    if (eDate) {
-      const eEnd = eDate + ' 23:59:59';
-      scopeTickets = scopeTickets.filter(t => t.open_date && t.open_date <= eEnd);
-    }
-
-    if (this.ticketingState.product && this.ticketingState.product !== 'all') {
-      const prod = this.ticketingState.product.toLowerCase();
-      scopeTickets = scopeTickets.filter(t => (t.product || '').toLowerCase() === prod);
-    }
-
-    if (this.ticketingState.category && this.ticketingState.category !== 'all') {
-      const cat = this.ticketingState.category.toLowerCase();
-      scopeTickets = scopeTickets.filter(t => (t.cat_issue || t.cat || '').toLowerCase() === cat);
-    }
-
-    if (this.ticketingState.search) {
-      const q = this.ticketingState.search.toLowerCase();
-      scopeTickets = scopeTickets.filter(t =>
-        (t.id && String(t.id).toLowerCase().includes(q)) ||
-        (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.loc && t.loc.toLowerCase().includes(q)) ||
-        (t.tech && t.tech.toLowerCase().includes(q)) ||
-        (t.product && t.product.toLowerCase().includes(q)) ||
-        (t.cat_issue && t.cat_issue.toLowerCase().includes(q)) ||
-        (t.cat && t.cat.toLowerCase().includes(q)) ||
-        (t.desc && t.desc.toLowerCase().includes(q))
-      );
-    }
-
-    // 3. Compute Metrics
+    // 2. Filter tickets strictly according to ALL active filters (Status, Product, Category, Priority, Date, Search)
+    const scopeTickets = customList || this.getFilteredTickets();
     const total = scopeTickets.length;
+    const allTotal = (this.ticketingData && this.ticketingData.tickets) ? this.ticketingData.tickets.length : (m.total || 9039);
+
+    // 3. Compute Metrics for all 5 KPI cards within filtered scope
     let closed = 0;
     let solved = 0;
     let processingAssigned = 0;
@@ -2707,11 +2676,61 @@ const App = {
     const newPending = newCount + pendingCount;
     const highPrio = p0Count + p1Count;
 
-    // 4. Update UI Elements
+    // 4. Determine Dynamic Filter Title & Subtitle for Card 1
+    let filterLabel = '';
+    const stFilter = this.ticketingState.filter;
+    if (stFilter && stFilter !== 'all') {
+      const fLower = stFilter.toLowerCase();
+      if (fLower.includes('planned')) filterLabel = 'Processing Planned';
+      else if (fLower.includes('assigned')) filterLabel = 'Processing Assigned';
+      else if (fLower === 'processing') filterLabel = 'Dalam Pengerjaan';
+      else if (fLower === 'new') filterLabel = 'Baru & Pending';
+      else if (fLower === 'pending') filterLabel = 'Pending';
+      else if (fLower === 'solved') filterLabel = 'Solved';
+      else if (fLower === 'closed') filterLabel = 'Closed';
+      else if (fLower === 'critical') filterLabel = 'P0/P1 Kritis';
+      else filterLabel = stFilter;
+    }
+
+    let filterTag = '';
+    if (filterLabel) {
+      filterTag = filterLabel;
+    } else if (this.ticketingState.priority && this.ticketingState.priority !== 'all') {
+      filterTag = `Prioritas ${this.ticketingState.priority}`;
+    } else if (this.ticketingState.product && this.ticketingState.product !== 'all') {
+      filterTag = this.ticketingState.product;
+    } else if (this.ticketingState.category && this.ticketingState.category !== 'all') {
+      filterTag = this.ticketingState.category;
+    } else if (this.ticketingState.search) {
+      filterTag = `Cari "${this.ticketingState.search.substring(0, 15)}"`;
+    }
+
+    // Determine Card 1 Title
+    let totalCardTitle = `Total Tiket (${rangeTitleShort})`;
+    if (filterTag) {
+      if (preset && preset !== 'all') {
+        totalCardTitle = `Total Tiket (${filterTag} - ${rangeTitleShort})`;
+      } else {
+        totalCardTitle = `Total Tiket (${filterTag})`;
+      }
+    }
+
+    // Determine Card 1 Subtitle
+    let totalCardSub = rangeSubLabel;
+    if (filterTag || (preset && preset !== 'all') || this.ticketingState.search) {
+      if (total < allTotal) {
+        totalCardSub = `${total.toLocaleString()} dari ${allTotal.toLocaleString()} Tiket (${rangeSubLabel})`;
+      } else {
+        totalCardSub = `${rangeSubLabel} (${total.toLocaleString()} Tiket)`;
+      }
+    }
+
+    // 5. Update UI Elements
     // Card 1: Total Tiket
     const totalTitleEl = document.getElementById('ticketKpiTotalTitle');
     if (totalTitleEl) {
-      totalTitleEl.textContent = `Total Tiket (${rangeTitleShort})`;
+      totalTitleEl.textContent = totalCardTitle;
+      totalTitleEl.title = `Filter: ${filterTag || 'Semua'} | Rentang: ${rangeSubLabel}`;
     }
 
     const totalEl = document.getElementById('ticketKpiTotal');
@@ -2719,7 +2738,7 @@ const App = {
 
     const rangeLabel = document.getElementById('ticketKpiRangeLabel');
     if (rangeLabel) {
-      rangeLabel.textContent = rangeSubLabel;
+      rangeLabel.textContent = totalCardSub;
     }
 
     // Card 2: Tiket Selesai
@@ -2745,7 +2764,7 @@ const App = {
       if (processing > 0) {
         procSubEl.textContent = `${processingAssigned.toLocaleString()} Assigned, ${processingPlanned.toLocaleString()} Planned`;
       } else {
-        procSubEl.textContent = 'Assigned / Planned';
+        procSubEl.textContent = '0 Assigned, 0 Planned';
       }
     }
 
@@ -2758,7 +2777,7 @@ const App = {
       if (newPending > 0) {
         newPendSubEl.textContent = `${newCount.toLocaleString()} Baru, ${pendingCount.toLocaleString()} Pending`;
       } else {
-        newPendSubEl.textContent = 'Membutuhkan Respon';
+        newPendSubEl.textContent = '0 Baru, 0 Pending';
       }
     }
 
@@ -2771,7 +2790,7 @@ const App = {
       if (highPrio > 0) {
         highPrioSubEl.textContent = `${p0Count.toLocaleString()} P0 Kritis, ${p1Count.toLocaleString()} P1 Tinggi`;
       } else {
-        highPrioSubEl.textContent = 'Critical & High Priority';
+        highPrioSubEl.textContent = '0 P0 Kritis, 0 P1 Tinggi';
       }
     }
 
@@ -2779,7 +2798,8 @@ const App = {
     if (this.activeView === 'ticketing') {
       const topTitle = document.getElementById('topBarTitle');
       if (topTitle) {
-        topTitle.textContent = `Ticketing (GLPI - ${topBarDateLabel})`;
+        const titleScope = filterTag ? `${filterTag} • ${topBarDateLabel}` : topBarDateLabel;
+        topTitle.textContent = `Ticketing (GLPI - ${titleScope})`;
       }
     }
 
@@ -2794,6 +2814,24 @@ const App = {
     if (badge && this.ticketingData.stats) {
       badge.textContent = (this.ticketingData.stats.total || 9082).toLocaleString();
     }
+  },
+
+  setTicketStatusFilter(filterVal) {
+    this.ticketingState.filter = filterVal;
+    this.ticketingState.page = 1;
+
+    // Update pill buttons
+    document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.ticketFilter === filterVal);
+    });
+
+    // Update status select dropdown
+    const statusSel = document.getElementById('ticketStatusFilter');
+    if (statusSel) {
+      statusSel.value = (filterVal === 'Critical') ? 'all' : filterVal;
+    }
+
+    this.renderTicketingTable();
   },
 
   escapeHtml(str) {
@@ -3036,7 +3074,7 @@ const App = {
     let list = this.getFilteredTickets();
 
     // Dynamically update Top KPI Cards based on active date range & scoped filters
-    this.renderTicketingKPIs();
+    this.renderTicketingKPIs(list);
 
     // Update Result Count Label
     const resCountLabel = document.getElementById('ticketResultCountLabel');
@@ -4135,9 +4173,77 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
 
     // -----------------------------------------------------------------------
-    // 6. Ticketing Table Events
+    // 6. Ticketing Table Events & Interactive KPI Cards
     // -----------------------------------------------------------------------
     const ticketSearch = document.getElementById('ticketSearchInput');
+    const ticketStatusFilter = document.getElementById('ticketStatusFilter');
+    const ticketProdFilter = document.getElementById('ticketProductFilter');
+    const ticketCatFilter = document.getElementById('ticketCategoryFilter');
+    const ticketPrioFilter = document.getElementById('ticketPriorityFilter');
+    const ticketDatePreset = document.getElementById('ticketDatePreset');
+    const ticketStartDate = document.getElementById('ticketStartDate');
+    const ticketEndDate = document.getElementById('ticketEndDate');
+
+    // Initial DOM State Sync in case browser restored form inputs on page refresh
+    if (ticketDatePreset && ticketDatePreset.value && ticketDatePreset.value !== 'all') {
+      this.ticketingState.datePreset = ticketDatePreset.value;
+    }
+    if (ticketStartDate && ticketStartDate.value) {
+      this.ticketingState.startDate = ticketStartDate.value;
+    }
+    if (ticketEndDate && ticketEndDate.value) {
+      this.ticketingState.endDate = ticketEndDate.value;
+    }
+    if (ticketStatusFilter && ticketStatusFilter.value && ticketStatusFilter.value !== 'all') {
+      this.ticketingState.filter = ticketStatusFilter.value;
+    }
+    if (ticketProdFilter && ticketProdFilter.value && ticketProdFilter.value !== 'all') {
+      this.ticketingState.product = ticketProdFilter.value;
+    }
+    if (ticketPrioFilter && ticketPrioFilter.value && ticketPrioFilter.value !== 'all') {
+      this.ticketingState.priority = ticketPrioFilter.value;
+    }
+    if (ticketSearch && ticketSearch.value) {
+      this.ticketingState.search = ticketSearch.value;
+    }
+
+    // Interactive Top KPI Cards (Quick-Filter by Click)
+    const cardKpiTotal = document.getElementById('cardKpiTotal');
+    if (cardKpiTotal) {
+      cardKpiTotal.addEventListener('click', () => {
+        this.setTicketStatusFilter('all');
+      });
+    }
+
+    const cardKpiResolved = document.getElementById('cardKpiResolved');
+    if (cardKpiResolved) {
+      cardKpiResolved.addEventListener('click', () => {
+        this.setTicketStatusFilter('Closed');
+      });
+    }
+
+    const cardKpiProcessing = document.getElementById('cardKpiProcessing');
+    if (cardKpiProcessing) {
+      cardKpiProcessing.addEventListener('click', () => {
+        this.setTicketStatusFilter('Processing');
+      });
+    }
+
+    const cardKpiNewPending = document.getElementById('cardKpiNewPending');
+    if (cardKpiNewPending) {
+      cardKpiNewPending.addEventListener('click', () => {
+        this.setTicketStatusFilter('New');
+      });
+    }
+
+    const cardKpiHighPrio = document.getElementById('cardKpiHighPrio');
+    if (cardKpiHighPrio) {
+      cardKpiHighPrio.addEventListener('click', () => {
+        this.setTicketStatusFilter('Critical');
+      });
+    }
+
+    // Search Input Event
     if (ticketSearch) {
       ticketSearch.addEventListener('input', (e) => {
         this.ticketingState.search = e.target.value;
@@ -4146,37 +4252,21 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
+    // Status Filter Pills
     document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.ticketingState.filter = btn.dataset.ticketFilter;
-        this.ticketingState.page = 1;
-
-        const statusSel = document.getElementById('ticketStatusFilter');
-        if (statusSel) {
-          statusSel.value = (btn.dataset.ticketFilter === 'Critical') ? 'all' : btn.dataset.ticketFilter;
-        }
-
-        this.renderTicketingTable();
+        this.setTicketStatusFilter(btn.dataset.ticketFilter);
       });
     });
 
-    const ticketStatusFilter = document.getElementById('ticketStatusFilter');
+    // Status Select Dropdown
     if (ticketStatusFilter) {
       ticketStatusFilter.addEventListener('change', (e) => {
-        this.ticketingState.filter = e.target.value;
-        this.ticketingState.page = 1;
-
-        document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
-          b.classList.toggle('active', b.dataset.ticketFilter === this.ticketingState.filter);
-        });
-
-        this.renderTicketingTable();
+        this.setTicketStatusFilter(e.target.value);
       });
     }
 
-    const ticketProdFilter = document.getElementById('ticketProductFilter');
+    // Product Dropdown Filter
     if (ticketProdFilter) {
       ticketProdFilter.addEventListener('change', (e) => {
         this.ticketingState.product = e.target.value;
@@ -4187,7 +4277,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
-    const ticketCatFilter = document.getElementById('ticketCategoryFilter');
+    // Category Dropdown Filter
     if (ticketCatFilter) {
       ticketCatFilter.addEventListener('change', (e) => {
         this.ticketingState.category = e.target.value;
@@ -4196,7 +4286,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
-    const ticketPrioFilter = document.getElementById('ticketPriorityFilter');
+    // Priority Dropdown Filter
     if (ticketPrioFilter) {
       ticketPrioFilter.addEventListener('change', (e) => {
         this.ticketingState.priority = e.target.value;
@@ -4206,10 +4296,6 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
 
     // Rentang Tanggal (Date Range) Events
-    const ticketDatePreset = document.getElementById('ticketDatePreset');
-    const ticketStartDate = document.getElementById('ticketStartDate');
-    const ticketEndDate = document.getElementById('ticketEndDate');
-
     const formatDateLocal = (d) => {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -4259,24 +4345,23 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
+    const handleCustomDateChange = () => {
+      this.ticketingState.startDate = ticketStartDate ? ticketStartDate.value : '';
+      this.ticketingState.endDate = ticketEndDate ? ticketEndDate.value : '';
+      this.ticketingState.datePreset = 'custom';
+      if (ticketDatePreset) ticketDatePreset.value = 'custom';
+      this.ticketingState.page = 1;
+      this.renderTicketingTable();
+    };
+
     if (ticketStartDate) {
-      ticketStartDate.addEventListener('change', (e) => {
-        this.ticketingState.startDate = e.target.value;
-        this.ticketingState.datePreset = 'custom';
-        if (ticketDatePreset) ticketDatePreset.value = 'custom';
-        this.ticketingState.page = 1;
-        this.renderTicketingTable();
-      });
+      ticketStartDate.addEventListener('change', handleCustomDateChange);
+      ticketStartDate.addEventListener('input', handleCustomDateChange);
     }
 
     if (ticketEndDate) {
-      ticketEndDate.addEventListener('change', (e) => {
-        this.ticketingState.endDate = e.target.value;
-        this.ticketingState.datePreset = 'custom';
-        if (ticketDatePreset) ticketDatePreset.value = 'custom';
-        this.ticketingState.page = 1;
-        this.renderTicketingTable();
-      });
+      ticketEndDate.addEventListener('change', handleCustomDateChange);
+      ticketEndDate.addEventListener('input', handleCustomDateChange);
     }
 
     const ticketResetBtn = document.getElementById('ticketResetFiltersBtn');
