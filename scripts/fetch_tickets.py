@@ -93,11 +93,15 @@ def login_glpi(session):
     if csrf_input:
         data["_glpi_csrf_token"] = csrf_input["value"]
 
+    select_auth = form.find("select", {"name": "auth"})
+    if select_auth and select_auth.find("option"):
+        data["auth"] = select_auth.find("option").get("value", "local")
+
     action = form.get("action", "/front/login.php")
     if not action.startswith("http"):
         action = BASE_URL + ("/" if not action.startswith("/") else "") + action
 
-    res = session.post(action, data=data, timeout=20)
+    res = session.post(action, data=data, timeout=20, allow_redirects=True)
     if "front/central.php" in res.url or "front/ticket.php" in res.url or "hafizh" in res.text.lower():
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Login successful! Session established.")
         return True
@@ -105,31 +109,114 @@ def login_glpi(session):
         raise RuntimeError(f"Login failed. Final URL: {res.url}")
 
 def fetch_3month_csv(session):
-    three_months_ago = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting CSV export for tickets from {three_months_ago}...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting chunked CSV export for last 90 days...")
 
-    params = {
-        "item_type": "Ticket",
-        "sort[0]": "15",
-        "order[0]": "DESC",
-        "start": "0",
-        "criteria[0][field]": "15",            # Opening Date
-        "criteria[0][searchtype]": "morethan", # > 3 months ago
-        "criteria[0][value]": f"{three_months_ago} 00:00:00",
-        "display_type": "-3"                   # All pages in CSV
-    }
+    # Windows of 30 days to avoid GLPI PHP memory exhaustion (which throws HTTP 500 on >40 days)
+    windows = [
+        (0, 30),
+        (30, 60),
+        (60, 90)
+    ]
 
-    export_url = f"{BASE_URL}/front/report.dynamic.php"
-    res = session.get(export_url, params=params, timeout=180)
-    if res.status_code != 200:
-        raise RuntimeError(f"CSV export returned HTTP {res.status_code}")
+    all_ticket_rows = []
+    header = None
+    seen_ids = set()
 
+    for i, (day_end, day_start) in enumerate(windows):
+        dt_start = (datetime.now() - timedelta(days=day_start)).strftime("%Y-%m-%d")
+        dt_end = (datetime.now() - timedelta(days=day_end)).strftime("%Y-%m-%d")
+
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Fetching Window {i+1}/3: {dt_start} to {dt_end}...")
+
+        params = {
+            "item_type": "Ticket",
+            "sort[0]": "15",
+            "order[0]": "DESC",
+            "start": "0",
+            "criteria[0][field]": "15",
+            "criteria[0][searchtype]": "morethan",
+            "criteria[0][value]": f"{dt_start} 00:00:00",
+            "display_type": "-3"
+        }
+        if day_end > 0:
+            params["criteria[1][link]"] = "AND"
+            params["criteria[1][field]"] = "15"
+            params["criteria[1][searchtype]"] = "lessthan"
+            params["criteria[1][value]"] = f"{dt_end} 00:00:00"
+
+        export_url = f"{BASE_URL}/front/report.dynamic.php"
+        try:
+            res = session.get(export_url, params=params, timeout=120)
+            if res.status_code != 200:
+                print(f"Window {i+1} failed with HTTP {res.status_code}. Attempting smaller 15-day sub-chunks...")
+                mid_days = (day_start + day_end) // 2
+                for sub_end, sub_start in [(day_end, mid_days), (mid_days, day_start)]:
+                    sub_dt_start = (datetime.now() - timedelta(days=sub_start)).strftime("%Y-%m-%d")
+                    sub_dt_end = (datetime.now() - timedelta(days=sub_end)).strftime("%Y-%m-%d")
+                    sub_params = {
+                        "item_type": "Ticket",
+                        "sort[0]": "15",
+                        "order[0]": "DESC",
+                        "start": "0",
+                        "criteria[0][field]": "15",
+                        "criteria[0][searchtype]": "morethan",
+                        "criteria[0][value]": f"{sub_dt_start} 00:00:00",
+                        "display_type": "-3"
+                    }
+                    if sub_end > 0:
+                        sub_params["criteria[1][link]"] = "AND"
+                        sub_params["criteria[1][field]"] = "15"
+                        sub_params["criteria[1][searchtype]"] = "lessthan"
+                        sub_params["criteria[1][value]"] = f"{sub_dt_end} 00:00:00"
+                    sub_res = session.get(export_url, params=sub_params, timeout=90)
+                    if sub_res.status_code == 200:
+                        reader = csv.reader(io.StringIO(sub_res.text), delimiter=';')
+                        sub_header = next(reader, None)
+                        if not header and sub_header:
+                            header = sub_header
+                        for row in reader:
+                            if row and len(row) > 1:
+                                tid = row[0].replace(' ', '').replace('"', '').strip()
+                                if tid and tid not in seen_ids:
+                                    seen_ids.add(tid)
+                                    all_ticket_rows.append(row)
+                continue
+
+            reader = csv.reader(io.StringIO(res.text), delimiter=';')
+            chunk_header = next(reader, None)
+            if not header and chunk_header:
+                header = chunk_header
+
+            chunk_count = 0
+            for row in reader:
+                if row and len(row) > 1:
+                    tid = row[0].replace(' ', '').replace('"', '').strip()
+                    if tid and tid not in seen_ids:
+                        seen_ids.add(tid)
+                        all_ticket_rows.append(row)
+                        chunk_count += 1
+            print(f"Window {i+1} fetched: {chunk_count:,} unique tickets (Total unique so far: {len(all_ticket_rows):,})")
+        except Exception as e:
+            print(f"Error fetching window {i+1}: {e}")
+
+    if not all_ticket_rows:
+        raise RuntimeError("No tickets could be fetched from GLPI across any window.")
+
+    # Write combined CSV
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(CSV_PATH, "w", encoding="utf-8") as f:
-        f.write(res.text)
+    out_io = io.StringIO()
+    writer = csv.writer(out_io, delimiter=';')
+    if header:
+        writer.writerow(header)
+    for r in all_ticket_rows:
+        writer.writerow(r)
 
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Saved raw CSV ({len(res.content):,} bytes) to {CSV_PATH}")
-    return res.text
+    combined_csv_text = out_io.getvalue()
+    with open(CSV_PATH, "w", encoding="utf-8") as f:
+        f.write(combined_csv_text)
+
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Saved combined CSV with {len(all_ticket_rows):,} tickets ({len(combined_csv_text):,} bytes) to {CSV_PATH}")
+    return combined_csv_text
 
 def process_tickets_csv(csv_text=None):
     if csv_text is None:
