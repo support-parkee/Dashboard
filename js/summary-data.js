@@ -1,5 +1,5 @@
 window.PRECOMPUTED_SUMMARY = {
-  "last_updated": "2026-10-23 05:00:04 WIB",
+  "last_updated": "2026-10-24 05:00:04 WIB",
   "total_devices": 7521,
   "total_servers": 963,
   "total_clients": 6558,
