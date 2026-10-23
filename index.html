@@ -8,13 +8,83 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/><path d=%22M50 20 L75 80 L50 65 L25 80 Z%22 fill=%22%23ffffff%22/></svg>">
   
   <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.8.3">
+  <link rel="stylesheet" href="css/styles.css?v=2.9.0">
 
   <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
 </head>
 <body>
+
+  <!-- =========================================================================
+       PASSWORD LOCK SCREEN (SECURITY GATE)
+       ========================================================================= -->
+  <div id="appLockScreen" class="app-lock-screen">
+    <div class="lock-card">
+      <div class="lock-brand">
+        <div class="lock-badge-icon">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div class="lock-brand-text">
+          <h1 class="lock-title">PARKEE Support Apps</h1>
+          <p class="lock-subtitle">Infrastructure & Telemetry Dashboard</p>
+        </div>
+      </div>
+
+      <div class="lock-form">
+        <p class="lock-instruction">Masukkan PIN / Password untuk mengakses dashboard:</p>
+        
+        <form id="lockForm" onsubmit="return false;">
+          <div class="lock-input-group">
+            <input 
+              type="password" 
+              id="lockPasswordInput" 
+              class="lock-input" 
+              placeholder="Masukkan PIN / Password" 
+              autocomplete="current-password"
+              maxlength="32"
+              autofocus
+              required
+            >
+            <button type="button" id="lockTogglePasswordBtn" class="lock-eye-btn" title="Lihat / Sembunyikan Password">
+              <span id="lockEyeIcon">👁️</span>
+            </button>
+          </div>
+
+          <div id="lockErrorMsg" class="lock-error-msg" style="display: none;">
+            ⚠️ PIN / Password salah. Silakan coba lagi.
+          </div>
+
+          <div class="lock-options">
+            <label class="lock-remember-label">
+              <input type="checkbox" id="lockRememberMe" checked>
+              <span>Ingat sesi di perangkat ini (30 Hari)</span>
+            </label>
+          </div>
+
+          <button type="submit" id="lockSubmitBtn" class="lock-submit-btn">
+            <span>Buka Dashboard</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M5 12h14"></path>
+              <path d="M12 5l7 7-7 7"></path>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <div class="lock-footer">
+        <div class="lock-security-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <span>Dilindungi SHA-256 Client-Side Gate • Akses Terbatas Tim IT</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="app-container">
 
@@ -162,7 +232,7 @@
       </div>
 
       <!-- Sidebar Footer -->
-      <div class="sidebar-footer">
+      <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between;">
         <div class="system-health-indicator">
           <div class="health-bullet"></div>
           <div class="health-text">
@@ -170,6 +240,12 @@
             <strong id="sidebarHealthStatusText">Operasional Normal</strong>
           </div>
         </div>
+        <button id="sidebarLockBtn" class="sidebar-lock-btn" title="Kunci Dashboard (Keluar)" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" aria-label="Kunci Dashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </button>
       </div>
     </aside>
 
@@ -218,6 +294,14 @@
           <button id="globalFullscreenBtn" class="icon-btn" title="Layar Penuh (F)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          </button>
+
+          <!-- Lock / Logout Button -->
+          <button id="lockDashboardBtn" class="icon-btn" title="Kunci Dashboard (Keluar)" aria-label="Kunci Dashboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
           </button>
         </div>
@@ -1696,8 +1780,8 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.8.3"></script>
+  <script src="js/summary-data.js?v=2.9.0"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.8.3"></script>
+  <script src="js/app.js?v=2.9.0"></script>
 </body>
 </html>
