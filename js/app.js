@@ -413,7 +413,6 @@ const App = {
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const collapseBtn = document.getElementById('sidebarCollapseBtn');
     const backdrop = document.getElementById('sidebarBackdrop');
-    const mobBtn = document.getElementById('mobileMenuBtn');
 
     if (!appContainer || !sidebar) return;
 
@@ -446,7 +445,6 @@ const App = {
 
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
     if (collapseBtn) collapseBtn.addEventListener('click', toggleSidebar);
-    if (mobBtn && mobBtn !== toggleBtn) mobBtn.addEventListener('click', toggleSidebar);
 
     if (backdrop) {
       backdrop.addEventListener('click', () => {
@@ -1821,20 +1819,13 @@ const App = {
     if (!this._fullTicketsLoaded && this.ticketingData.critical_tickets) {
       return this.ticketingData.critical_tickets;
     }
-    let latest = 0;
-    for (const t of this.ticketingData.tickets) {
-      if (t.open_date) {
-        const d = new Date(t.open_date.replace(' ', 'T')).getTime();
-        if (d > latest) latest = d;
-      }
-    }
-    if (!latest) latest = Date.now();
-    const cutoff = latest - (30 * 24 * 60 * 60 * 1000); // 30 hari terakhir
-    return this.ticketingData.tickets.filter(t => {
-      if (!t.open_date) return false;
-      const d = new Date(t.open_date.replace(' ', 'T')).getTime();
-      return d >= cutoff;
-    });
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const startStr = `${y}-${m}-${day}`;
+    return this.ticketingData.tickets.filter(t => t.open_date && t.open_date >= startStr);
   },
 
   renderDashboard() {
@@ -2593,14 +2584,14 @@ const App = {
       const now = new Date();
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const curMonth = monthNames[now.getMonth()];
-      rangeTitleShort = `Bulan Ini (${curMonth})`;
+      rangeTitleShort = `Bulan Ini - ${curMonth}`;
       rangeSubLabel = `1 ${curMonth} - Sekarang`;
       topBarDateLabel = `Bulan Ini (${curMonth})`;
     } else if (preset === 'last_month') {
       const now = new Date();
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const prevMonth = monthNames[(now.getMonth() - 1 + 12) % 12];
-      rangeTitleShort = `Bulan Lalu (${prevMonth})`;
+      rangeTitleShort = `Bulan Lalu - ${prevMonth}`;
       rangeSubLabel = `Bulan ${prevMonth}`;
       topBarDateLabel = `Bulan Lalu (${prevMonth})`;
     } else if (preset === 'custom' || sDate || eDate) {
@@ -2688,6 +2679,7 @@ const App = {
       else if (fLower === 'pending') filterLabel = 'Pending';
       else if (fLower === 'solved') filterLabel = 'Solved';
       else if (fLower === 'closed') filterLabel = 'Closed';
+      else if (fLower === 'resolved' || fLower === 'selesai') filterLabel = 'Selesai (Closed + Solved)';
       else if (fLower === 'critical') filterLabel = 'P0/P1 Kritis';
       else filterLabel = stFilter;
     }
@@ -3019,6 +3011,8 @@ const App = {
       } else if (f === 'solved') {
         list = list.filter(t => (t.status || '').toLowerCase() === 'solved' || (t.status_raw || '').toLowerCase().includes('solved'));
       } else if (f === 'closed') {
+        list = list.filter(t => (t.status || '').toLowerCase() === 'closed' || (t.status_raw || '').toLowerCase() === 'closed');
+      } else if (f === 'resolved' || f === 'selesai') {
         list = list.filter(t => (t.status || '').toLowerCase() === 'closed' || (t.status || '').toLowerCase() === 'solved' || (t.status_raw || '').toLowerCase().includes('closed') || (t.status_raw || '').toLowerCase().includes('solved'));
       } else if (f === 'critical') {
         list = list.filter(t => t.priority === 'P0' || t.priority === 'P1');
@@ -4093,12 +4087,6 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       exportStorage.addEventListener('click', () => this.exportCsv(this.servers, 'parkee_server_storage.csv'));
     }
 
-    // Manual sync button
-    const manualBtn = document.getElementById('manualSyncBtn');
-    if (manualBtn) {
-      manualBtn.addEventListener('click', () => this.manualSync());
-    }
-
     // -----------------------------------------------------------------------
     // 5. Temperature Table Events
     // -----------------------------------------------------------------------
@@ -4218,7 +4206,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const cardKpiResolved = document.getElementById('cardKpiResolved');
     if (cardKpiResolved) {
       cardKpiResolved.addEventListener('click', () => {
-        this.setTicketStatusFilter('Closed');
+        this.setTicketStatusFilter('Resolved');
       });
     }
 
@@ -4346,8 +4334,14 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
 
     const handleCustomDateChange = () => {
-      this.ticketingState.startDate = ticketStartDate ? ticketStartDate.value : '';
-      this.ticketingState.endDate = ticketEndDate ? ticketEndDate.value : '';
+      const s = ticketStartDate ? ticketStartDate.value : '';
+      const e = ticketEndDate ? ticketEndDate.value : '';
+      if (s && e && s > e) {
+        this.showToast('Tanggal awal tidak boleh melebihi tanggal akhir', 'warn');
+        return;
+      }
+      this.ticketingState.startDate = s;
+      this.ticketingState.endDate = e;
       this.ticketingState.datePreset = 'custom';
       if (ticketDatePreset) ticketDatePreset.value = 'custom';
       this.ticketingState.page = 1;
@@ -4724,8 +4718,19 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       this.showToast('Tidak ada data untuk diekspor', 'warn');
       return;
     }
-    const csvStr = Papa.unparse(data);
-    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    let csvStr = '';
+    if (typeof Papa !== 'undefined' && typeof Papa.unparse === 'function') {
+      try {
+        csvStr = Papa.unparse(data);
+      } catch (err) {
+        console.warn('Papa.unparse failed, using native fallback', err);
+        csvStr = this.nativeUnparse(data);
+      }
+    } else {
+      csvStr = this.nativeUnparse(data);
+    }
+
+    const blob = new Blob(['\uFEFF' + csvStr], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.setAttribute('download', filename);
@@ -4733,6 +4738,22 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     link.click();
     document.body.removeChild(link);
     this.showToast(`Berhasil mengekspor ${filename}`, 'success');
+  },
+
+  nativeUnparse(data) {
+    if (!Array.isArray(data) || data.length === 0) return '';
+    const headers = Object.keys(data[0]);
+    const escapeCell = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+        str = '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+    const headerRow = headers.map(escapeCell).join(',');
+    const rows = data.map(item => headers.map(h => escapeCell(item[h])).join(','));
+    return [headerRow, ...rows].join('\r\n');
   },
 
   // =========================================================================

@@ -930,6 +930,10 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 1.5rem;
 }
 
+.kpi-deck-5col {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .kpi-card {
   padding: var(--density-padding);
   border-radius: var(--radius-lg);
@@ -2532,9 +2536,19 @@ h1, h2, h3, h4, h5, h6 {
 
 
 /* Responsive Adjustments */
+@media (max-width: 1400px) {
+  .kpi-deck-5col { grid-template-columns: repeat(3, 1fr); }
+}
+
 @media (max-width: 1200px) {
   .kpi-deck-row { grid-template-columns: repeat(2, 1fr); }
+  .kpi-deck-5col { grid-template-columns: repeat(2, 1fr); }
   .col-8, .col-7, .col-6, .col-5, .col-4, .col-3 { grid-column: span 12; }
+}
+
+@media (max-width: 640px) {
+  .kpi-deck-row { grid-template-columns: 1fr; }
+  .kpi-deck-5col { grid-template-columns: 1fr; }
 }
 
 /* Sidebar Backdrop for Mobile */
