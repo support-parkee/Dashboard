@@ -2,7 +2,7 @@
 """
 GLPI Ticket Fetcher and Processor for PARKEE Support Apps Dashboard.
 High-performance incremental sync:
-- Daily default: Fetches tickets active/updated in the last 7 days (~5 seconds, ultra lightweight)
+- Daily default: Fetches tickets active/updated in the last 10 days (~6 seconds, ultra lightweight)
 - Upserts into master dataset (updates resolved/closed statuses and appends new tickets)
 - Prunes tickets older than 90 days to maintain a clean, rolling 3-month dataset
 - Full rebuild option: python3 scripts/fetch_tickets.py --full-3months
@@ -97,13 +97,13 @@ def login_glpi(session):
     else:
         raise RuntimeError(f"Login failed. Final URL: {res.url}")
 
-def fetch_recent_7d_csv(session):
+def fetch_recent_10d_csv(session, days=10):
     """
-    Ultra-fast 7-day fetch: retrieves tickets created or updated in the last 7 days.
-    Executes in ~4-5 seconds with 0% risk of GLPI PHP memory exhaustion.
+    High-performance 10-day fetch: retrieves tickets created or updated in the last 10 days.
+    Executes in ~6-7 seconds with zero risk of GLPI PHP memory exhaustion.
     """
-    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting tickets active/updated in last 7 days (> {seven_days_ago})...")
+    ten_days_ago = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting tickets active/updated in last {days} days (> {ten_days_ago})...")
 
     # Field 19 = Last Update (captures both newly opened tickets and existing tickets recently resolved/modified)
     params = {
@@ -113,16 +113,16 @@ def fetch_recent_7d_csv(session):
         "start": "0",
         "criteria[0][field]": "19",
         "criteria[0][searchtype]": "morethan",
-        "criteria[0][value]": f"{seven_days_ago} 00:00:00",
+        "criteria[0][value]": f"{ten_days_ago} 00:00:00",
         "display_type": "-3"
     }
 
     export_url = f"{BASE_URL}/front/report.dynamic.php"
-    res = session.get(export_url, params=params, timeout=60)
+    res = session.get(export_url, params=params, timeout=90)
     if res.status_code != 200:
-        raise RuntimeError(f"GLPI 7-day export returned HTTP {res.status_code}")
+        raise RuntimeError(f"GLPI {days}-day export returned HTTP {res.status_code}")
 
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Successfully fetched 7-day raw CSV ({len(res.content):,} bytes)")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Successfully fetched {days}-day raw CSV ({len(res.content):,} bytes)")
     return res.text
 
 def fetch_3month_chunked_csv(session):
@@ -406,7 +406,7 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
             "source": BASE_URL,
             "total_tickets": len(pruned_tickets),
             "date_range_days": 90,
-            "sync_mode": "full_rebuild" if is_full_replace else "incremental_7d_upsert"
+            "sync_mode": "full_rebuild" if is_full_replace else "incremental_10d_upsert"
         },
         "stats": {
             "total": len(pruned_tickets),
@@ -464,8 +464,8 @@ def main():
             fresh_items = parse_csv_to_ticket_items(csv_text)
             upsert_and_save_dataset(fresh_items, is_full_replace=True)
         else:
-            print("Running FAST 7-day incremental upsert sync...")
-            csv_text = fetch_recent_7d_csv(s)
+            print("Running FAST 10-day incremental upsert sync...")
+            csv_text = fetch_recent_10d_csv(s, days=10)
             fresh_items = parse_csv_to_ticket_items(csv_text)
             upsert_and_save_dataset(fresh_items, is_full_replace=False)
     except Exception as e:
