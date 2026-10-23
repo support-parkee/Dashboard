@@ -113,12 +113,175 @@ const App = {
   // Navigation state
   activeView: 'dashboard',
 
+  // Auth & Security Gate (SHA-256)
+  AUTH_HASH: 'cd36d85d95af662ef316814deaa414e1bc02f1e955a2dd57c77734a4d1236859',
+  AUTH_STORAGE_KEY: 'parkee_dashboard_auth',
+  AUTH_EXPIRY_DAYS: 30,
+  dashboardLoaded: false,
+
+  async sha256(str) {
+    const buffer = new TextEncoder().encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  checkAuthentication() {
+    try {
+      const stored = localStorage.getItem(this.AUTH_STORAGE_KEY) || sessionStorage.getItem(this.AUTH_STORAGE_KEY);
+      if (!stored) return false;
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.hash === this.AUTH_HASH) {
+        if (!parsed.expiry || Date.now() < parsed.expiry) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // invalid storage
+    }
+    return false;
+  },
+
+  initLockScreen() {
+    const lockScreen = document.getElementById('appLockScreen');
+    const lockForm = document.getElementById('lockForm');
+    const passwordInput = document.getElementById('lockPasswordInput');
+    const toggleEyeBtn = document.getElementById('lockTogglePasswordBtn');
+    const eyeIcon = document.getElementById('lockEyeIcon');
+    const errorMsg = document.getElementById('lockErrorMsg');
+    const rememberMe = document.getElementById('lockRememberMe');
+    const lockCard = document.querySelector('.lock-card');
+    const lockDashboardBtn = document.getElementById('lockDashboardBtn');
+    const sidebarLockBtn = document.getElementById('sidebarLockBtn');
+
+    // Always wire the Lock Dashboard (Logout) buttons
+    if (lockDashboardBtn) {
+      lockDashboardBtn.onclick = () => {
+        this.lockDashboard();
+      };
+    }
+    if (sidebarLockBtn) {
+      sidebarLockBtn.onclick = () => {
+        this.lockDashboard();
+      };
+    }
+
+    if (this.checkAuthentication()) {
+      if (lockScreen) {
+        lockScreen.classList.add('unlocked');
+        lockScreen.style.display = 'none';
+      }
+      return true; // Authenticated
+    }
+
+    // Show Lock Screen
+    if (lockScreen) {
+      lockScreen.classList.remove('unlocked');
+      lockScreen.style.display = 'flex';
+      setTimeout(() => passwordInput?.focus(), 150);
+    }
+
+    if (toggleEyeBtn && passwordInput) {
+      toggleEyeBtn.onclick = () => {
+        const isPass = passwordInput.type === 'password';
+        passwordInput.type = isPass ? 'text' : 'password';
+        if (eyeIcon) eyeIcon.textContent = isPass ? '🙈' : '👁️';
+      };
+    }
+
+    const handleUnlock = async () => {
+      const inputVal = (passwordInput?.value || '').trim();
+      if (!inputVal) {
+        passwordInput?.focus();
+        return;
+      }
+
+      const inputHash = await this.sha256(inputVal);
+      if (inputHash === this.AUTH_HASH) {
+        // Successful unlock
+        const payload = {
+          hash: this.AUTH_HASH,
+          unlockedAt: Date.now(),
+          expiry: rememberMe?.checked ? Date.now() + (this.AUTH_EXPIRY_DAYS * 24 * 60 * 60 * 1000) : null
+        };
+        const strPayload = JSON.stringify(payload);
+        if (rememberMe?.checked) {
+          localStorage.setItem(this.AUTH_STORAGE_KEY, strPayload);
+        } else {
+          sessionStorage.setItem(this.AUTH_STORAGE_KEY, strPayload);
+        }
+
+        if (errorMsg) errorMsg.style.display = 'none';
+        if (lockScreen) {
+          lockScreen.classList.add('unlocked');
+          setTimeout(() => { lockScreen.style.display = 'none'; }, 320);
+        }
+
+        if (!this.dashboardLoaded) {
+          this.startDashboard();
+        }
+
+        this.showToast('🔓 Akses Berhasil. Selamat datang di Dashboard Parkee.', 'success');
+      } else {
+        // Wrong password
+        if (errorMsg) errorMsg.style.display = 'flex';
+        if (lockCard) {
+          lockCard.classList.remove('lock-shake');
+          void lockCard.offsetWidth; // trigger reflow
+          lockCard.classList.add('lock-shake');
+        }
+        if (passwordInput) {
+          passwordInput.value = '';
+          passwordInput.focus();
+        }
+      }
+    };
+
+    if (lockForm) {
+      lockForm.onsubmit = (e) => {
+        e.preventDefault();
+        handleUnlock();
+      };
+    }
+
+    return false;
+  },
+
+  lockDashboard() {
+    localStorage.removeItem(this.AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(this.AUTH_STORAGE_KEY);
+    const lockScreen = document.getElementById('appLockScreen');
+    const passwordInput = document.getElementById('lockPasswordInput');
+    const errorMsg = document.getElementById('lockErrorMsg');
+    if (errorMsg) errorMsg.style.display = 'none';
+    if (passwordInput) passwordInput.value = '';
+    if (lockScreen) {
+      lockScreen.style.display = 'flex';
+      void lockScreen.offsetWidth;
+      lockScreen.classList.remove('unlocked');
+      setTimeout(() => passwordInput?.focus(), 150);
+    }
+    this.showToast('🔒 Dashboard berhasil dikunci.', 'info');
+  },
+
   async init() {
     this.initTweaks();
     this.initSidebarToggle();
     this.initNavigation();
     this.initFullscreen();
     this.initModal();
+
+    // Check Authentication Gate before loading data
+    const isAuth = this.initLockScreen();
+    if (isAuth) {
+      await this.startDashboard();
+    }
+  },
+
+  async startDashboard() {
+    if (this.dashboardLoaded) return;
+    this.dashboardLoaded = true;
+
     this.setupDailyRefreshScheduler();
 
     // Check precomputed summary fallback
