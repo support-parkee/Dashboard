@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id" data-theme="light" data-density="comfortable">
 <head>
   <meta charset="UTF-8">
@@ -13,7 +13,7 @@
   <link rel="shortcut icon" href="favicon.ico">
   
   <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.10.1">
+  <link rel="stylesheet" href="css/styles.css?v=2.10.2">
 
   <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
@@ -1802,9 +1802,9 @@
           </div>
 
           <!-- Main Table Container -->
-          <div class="glass-panel table-panel" style="margin-top: 1.25rem;">
+          <div class="glass-panel table-card backup-panel" style="margin-top: 1.25rem;">
             <!-- Header Toolbar -->
-            <div class="table-toolbar">
+            <div class="table-toolbar backup-toolbar">
               <div class="search-input-wrap">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"></circle>
@@ -1813,14 +1813,14 @@
                 <input type="text" id="backupSearchInput" class="search-input" placeholder="Cari nama lokasi, unique code, IP, atau keterangan server backup...">
               </div>
 
-              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap;">
-                <span>Tampilkan:</span>
-                <select id="backupPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+              <div class="backup-toolbar-actions">
+                <span class="backup-toolbar-label">Tampilkan:</span>
+                <select id="backupPageSizeSelect" class="backup-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25">25 Baris</option>
                   <option value="50" selected>Semua Baris (42)</option>
                 </select>
-                <a href="https://docs.google.com/spreadsheets/d/1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+                <a href="https://docs.google.com/spreadsheets/d/1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="btn btn-outline backup-action-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
@@ -1828,16 +1828,16 @@
                   </svg>
                   <span>Buka Google Sheet</span>
                 </a>
-                <button id="backupRefreshBtn" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;">
+                <button id="backupRefreshBtn" class="btn btn-primary backup-action-btn">
                   ↻ Refresh Data
                 </button>
               </div>
             </div>
 
             <!-- Filters Bar Grid -->
-            <div style="display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Status:</span>
+            <div class="backup-filters">
+              <div class="backup-pill-row">
+                <span class="backup-pill-label">Filter Status:</span>
                 <div class="filter-pills-group">
                   <button class="filter-pill active" data-backup-status-pill="all">Semua Status</button>
                   <button class="filter-pill" data-backup-status-pill="Aktif">Aktif</button>
@@ -1845,14 +1845,14 @@
                   <button class="filter-pill" data-backup-status-pill="Belum ada aset">Belum Ada Aset</button>
                 </div>
 
-                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-left: 12px;">Replikasi:</span>
+                <span class="backup-pill-label backup-pill-label-gap">Replikasi:</span>
                 <div class="filter-pills-group">
                   <button class="filter-pill active" data-backup-repl-pill="all">Semua</button>
                   <button class="filter-pill" data-backup-repl-pill="Streaming">Streaming</button>
                   <button class="filter-pill" data-backup-repl-pill="Not Streaming">Not Streaming</button>
                 </div>
 
-                <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="backupResultCountLabel">
+                <div class="backup-result-count" id="backupResultCountLabel">
                   Menampilkan 42 Server Backup
                 </div>
               </div>
@@ -2031,6 +2031,6 @@
   <!-- Fallback Embedded Summary -->
   <script src="js/summary-data.js?v=2.10.1"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.10.1"></script>
+  <script src="js/app.js?v=2.10.2"></script>
 </body>
 </html>
