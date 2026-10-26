@@ -23,6 +23,9 @@ git pull origin main >> "$LOG_FILE" 2>&1 || true
 # Run GLPI Ticketing sync (last 3 months)
 /usr/bin/python3 scripts/fetch_tickets.py >> "$LOG_FILE" 2>&1
 
+# Run Server Backup status check
+/usr/bin/python3 scripts/check_server_backup.py >> "$LOG_FILE" 2>&1 || true
+
 # Check if data or summary-data changed
 if [ -n "$(git status --porcelain data js/summary-data.js)" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Detected changes in datasets. Committing and pushing..." >> "$LOG_FILE"

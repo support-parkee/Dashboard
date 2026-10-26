@@ -209,6 +209,21 @@
             </div>
             <span class="badge-pill" id="badgeTotalTickets" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 700;">--</span>
           </button>
+
+          <!-- 7. Server Backup -->
+          <button class="sidebar-nav-btn" data-view="backup" title="Monitoring Server Backup, Standby Replikasi & Auto Promote (High Availability)">
+            <div class="nav-btn-left">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                <path d="M12 10v4m-3-2h6"></path>
+              </svg>
+              <span>Server Backup</span>
+            </div>
+            <span class="badge-pill" id="badgeServerBackup" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">42</span>
+          </button>
         </nav>
 
         <!-- Auto-Sync Schedule Card -->
@@ -1687,6 +1702,268 @@
                 <button id="ticketPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="ticketCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
                 <button id="ticketNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 7: SERVER BACKUP & REPLICATION TELEMETRY
+             ========================================================================= -->
+        <section id="view-backup" class="view-section">
+          <!-- Backup Hero KPIs Deck -->
+          <div class="kpi-deck-row">
+            <!-- Total Backup Servers -->
+            <div class="glass-panel kpi-card kpi-primary">
+              <div class="kpi-top">
+                <span class="kpi-tag">TOTAL SERVER BACKUP</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                    <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                    <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="backupKpiTotal" class="kpi-value">42</div>
+                <div class="kpi-label">Armada Server Cadangan Terdaftar</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Sumber Data: Google Spreadsheet HA Fleet</span>
+              </div>
+            </div>
+
+            <!-- Streaming Replication -->
+            <div class="glass-panel kpi-card kpi-success">
+              <div class="kpi-top">
+                <span class="kpi-tag">REPLIKASI STREAMING</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="backupKpiStreaming" class="kpi-value" style="color: var(--color-success);">26</div>
+                <div class="kpi-label">Standby Sinkron & Aktif (repmgr)</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Sinkronisasi Data Realtime Antar Server</span>
+              </div>
+            </div>
+
+            <!-- Auto Promote (Pawdog) -->
+            <div class="glass-panel kpi-card kpi-cyan">
+              <div class="kpi-top">
+                <span class="kpi-tag">AUTO PROMOTE (PAWDOG)</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <path d="M9 12l2 2 4-4"></path>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="backupKpiAutoPromote" class="kpi-value" style="color: var(--accent-secondary);">15</div>
+                <div class="kpi-label">Service Pawdog Siap Failover Otomatis</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Otomasi Failover Saat Server Utama Down</span>
+              </div>
+            </div>
+
+            <!-- P2P Connected -->
+            <div class="glass-panel kpi-card kpi-accent">
+              <div class="kpi-top">
+                <span class="kpi-tag">PEER-TO-PEER (P2P)</span>
+                <div class="kpi-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <div id="backupKpiP2P" class="kpi-value">25</div>
+                <div class="kpi-label">Koneksi P2P / Local LAN Terhubung</div>
+              </div>
+              <div class="kpi-meta">
+                <span>Dedicated Link Antara Server Utama & Cadangan</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Table Container -->
+          <div class="glass-panel table-panel" style="margin-top: 1.25rem;">
+            <!-- Header Toolbar -->
+            <div class="table-toolbar">
+              <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="backupSearchInput" class="search-input" placeholder="Cari nama lokasi, unique code, IP, atau keterangan server backup...">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap;">
+                <span>Tampilkan:</span>
+                <select id="backupPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                  <option value="15">15 Baris</option>
+                  <option value="25">25 Baris</option>
+                  <option value="50" selected>Semua Baris (42)</option>
+                </select>
+                <a href="https://docs.google.com/spreadsheets/d/1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  <span>Buka Google Sheet</span>
+                </a>
+                <button id="backupRefreshBtn" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;">
+                  ↻ Refresh Data
+                </button>
+              </div>
+            </div>
+
+            <!-- Filters Bar Grid -->
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Status:</span>
+                <div class="filter-pills-group">
+                  <button class="filter-pill active" data-backup-status-pill="all">Semua Status</button>
+                  <button class="filter-pill" data-backup-status-pill="Aktif">Aktif</button>
+                  <button class="filter-pill" data-backup-status-pill="Tidak Aktif">Tidak Aktif</button>
+                  <button class="filter-pill" data-backup-status-pill="Belum ada aset">Belum Ada Aset</button>
+                </div>
+
+                <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-left: 12px;">Replikasi:</span>
+                <div class="filter-pills-group">
+                  <button class="filter-pill active" data-backup-repl-pill="all">Semua</button>
+                  <button class="filter-pill" data-backup-repl-pill="Streaming">Streaming</button>
+                  <button class="filter-pill" data-backup-repl-pill="Not Streaming">Not Streaming</button>
+                </div>
+
+                <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="backupResultCountLabel">
+                  Menampilkan 42 Server Backup
+                </div>
+              </div>
+
+              <!-- Secondary Filters Bar Grid -->
+              <div class="filter-bar-grid">
+                <!-- Filter Auto Promote -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Auto Promote:</span>
+                  <select id="backupAutoPromoteFilter" class="filter-select">
+                    <option value="all">Semua (Yes/No)</option>
+                    <option value="Yes">Yes (Pawdog Aktif)</option>
+                    <option value="No">No (Nonaktif)</option>
+                  </select>
+                </div>
+
+                <!-- Filter P2P -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Koneksi P2P:</span>
+                  <select id="backupP2PFilter" class="filter-select">
+                    <option value="all">Semua P2P</option>
+                    <option value="connected">Connected / OK</option>
+                    <option value="not_connected">Not Connected</option>
+                  </select>
+                </div>
+
+                <!-- Filter Teleport -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Teleport Node:</span>
+                  <select id="backupTeleportFilter" class="filter-select">
+                    <option value="all">Semua Node</option>
+                    <option value="Yes">Yes (Online di Teleport)</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+
+                <!-- Filter Tipe Kabel -->
+                <div class="filter-group-item">
+                  <span class="filter-group-label">Kabel P2P:</span>
+                  <select id="backupCableFilter" class="filter-select">
+                    <option value="all">Semua Jenis Kabel</option>
+                    <option value="cat7">After Market CAT7</option>
+                    <option value="cat6">Rakitan CAT6</option>
+                  </select>
+                </div>
+
+                <button class="btn-reset-filters" id="backupResetFiltersBtn">
+                  ↺ Reset Filter
+                </button>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-responsive" style="margin-top: 0.85rem;">
+              <table class="data-table" id="backupTable">
+                <thead>
+                  <tr>
+                    <th class="sortable-th" data-backup-sort="loc">
+                      <span>Nama Lokasi</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="code" style="width: 100px;">
+                      <span>Uniq Code</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="status" style="width: 120px;">
+                      <span>Status</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="p2p" style="width: 160px;">
+                      <span>P2P</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="cable_type" style="width: 140px;">
+                      <span>Tipe Kabel P2P</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="teleport" style="width: 95px; text-align: center;">
+                      <span>Teleport</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th style="width: 125px;">IP Local</th>
+                    <th style="width: 110px;">IP p2p</th>
+                    <th class="sortable-th" data-backup-sort="replication" style="width: 135px; text-align: center;">
+                      <span>Replication</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="autopromote" style="width: 120px; text-align: center;">
+                      <span>Auto Promote</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th class="sortable-th" data-backup-sort="replag" style="width: 100px; text-align: center;">
+                      <span>Replag</span>
+                      <span class="sort-icon">↕</span>
+                    </th>
+                    <th style="min-width: 250px;">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody id="backupTableBody">
+                  <!-- Rendered dynamically by app.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Table Pagination & Footer Status -->
+            <div class="table-pagination">
+              <span id="backupTableCountLabel">Memuat data server backup...</span>
+              <div class="pagination-btn-group">
+                <button id="backupPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <span id="backupCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
+                <button id="backupNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
