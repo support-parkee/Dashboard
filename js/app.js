@@ -5315,10 +5315,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const totalCount = this.serverBackup.length;
     const streamingCount = this.serverBackup.filter(r => (r.replication || '').toLowerCase() === 'streaming').length;
     const autoPromoteCount = this.serverBackup.filter(r => (r.autopromote || '').toLowerCase() === 'yes').length;
-    const p2pCount = this.serverBackup.filter(r => {
-      const p = (r.p2p || '').toLowerCase();
-      return p.includes('ok') || p.includes('connected');
-    }).length;
+    const p2pCount = this.serverBackup.filter(r => (r.p2p || '').toLowerCase() === 'connected').length;
 
     const elTotal = document.getElementById('backupKpiTotal');
     if (elTotal) elTotal.textContent = totalCount.toLocaleString();
@@ -5342,6 +5339,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
           (item.ip_local || '').toLowerCase().includes(q) ||
           (item.ip_p2p || '').toLowerCase().includes(q) ||
           (item.notes || '').toLowerCase().includes(q) ||
+          (item.note_col_s || '').toLowerCase().includes(q) ||
+          (item.conn_note || '').toLowerCase().includes(q) ||
           (item.status || '').toLowerCase().includes(q);
         if (!match) return false;
       }
@@ -5365,11 +5364,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       }
 
       if (this.backupState.p2p !== 'all') {
-        const p = (item.p2p || '').toLowerCase();
-        if (this.backupState.p2p === 'connected') {
-          if (!p.includes('ok') && !p.includes('connected')) return false;
-        } else if (this.backupState.p2p === 'not_connected') {
-          if (p.includes('ok') || p.includes('connected')) return false;
+        if ((item.p2p || '').toLowerCase() !== this.backupState.p2p.toLowerCase()) {
+          return false;
         }
       }
 
@@ -5471,16 +5467,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       }
 
       // P2P Badge
-      const p2pVal = (item.p2p || '').trim();
-      let p2pBadge = `<span class="ticket-status-pill ticket-status-closed">${p2pVal || '-'}</span>`;
-      if (p2pVal.includes('OK')) {
-        p2pBadge = `<span class="ticket-status-pill ticket-status-solved" title="Koneksi P2P dan Local LAN terhubung">✓ ${p2pVal}</span>`;
-      } else if (p2pVal.toLowerCase() === 'connected') {
+      // P2P Badge strictly Connected or Not Connected
+      const p2pVal = (item.p2p || '').trim().toLowerCase();
+      let p2pBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">✕ Not Connected</span>`;
+      if (p2pVal === 'connected') {
         p2pBadge = `<span class="ticket-status-pill ticket-status-solved">✓ Connected</span>`;
-      } else if (p2pVal.toLowerCase().includes('local only')) {
-        p2pBadge = `<span class="ticket-status-pill ticket-status-planned">⚠️ Local Only</span>`;
-      } else if (p2pVal.toLowerCase().includes('not')) {
-        p2pBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">✕ Not Connected</span>`;
       }
 
       // Cable Type
@@ -5531,10 +5522,19 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         }
       }
 
-      // Keterangan note
+      // Keterangan note with Column S / connectivity note
       const noteVal = (item.notes || '').trim();
-      const escapedNote = noteVal.replace(/"/g, '&quot;');
-      const shortNote = noteVal.length > 90 ? `${noteVal.slice(0, 90)}...` : (noteVal || '-');
+      const connNote = (item.conn_note || '').trim();
+      const colSNote = (item.note_col_s || '').trim();
+
+      let connAlertBadge = '';
+      if (connNote) {
+        connAlertBadge = `<div style="margin-bottom: 4px;"><span class="badge-replag-warn" style="font-size: 0.69rem; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px;">⚠️ ${connNote}</span></div>`;
+      }
+
+      const displayNote = noteVal || colSNote || '-';
+      const escapedNote = (displayNote + (connNote ? ` (${connNote})` : '')).replace(/"/g, '&quot;');
+      const shortNote = displayNote.length > 95 ? `${displayNote.slice(0, 95)}...` : displayNote;
 
       return `
         <tr>
@@ -5558,6 +5558,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
           <td style="text-align: center;">${autoBadge}</td>
           <td style="text-align: center;">${replagBadge}</td>
           <td>
+            ${connAlertBadge}
             <div style="font-size: 0.73rem; color: var(--text-secondary); max-width: 320px; line-height: 1.35;" title="${escapedNote}">
               ${shortNote}
             </div>
