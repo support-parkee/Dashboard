@@ -194,6 +194,8 @@ def check_single_server(row_info, teleport_nodes):
         result["replication"] = "Not Streaming"
         result["autopromote"] = "No"
         result["replag"] = "-"
+        result["conn_note"] = ""
+        result["note_col_s"] = row_info.get("col_s_note", "")
         return result
         
     if not code:
@@ -202,6 +204,8 @@ def check_single_server(row_info, teleport_nodes):
         result["replication"] = "Not Streaming"
         result["autopromote"] = "No"
         result["replag"] = "-"
+        result["conn_note"] = ""
+        result["note_col_s"] = row_info.get("col_s_note", "")
         return result
 
     primary_host = f"server-{code}"
@@ -277,21 +281,44 @@ fi
         p2p_ok = "P2P_STATUS:1" in probe_out
         loc_ok = "LOCAL_STATUS:1" in probe_out
         
-        if p2p_ok and loc_ok:
-            result["p2p"] = "OK (Local & P2P)"
-            result["status"] = "Aktif"
-        elif p2p_ok:
+        # P2P strictly "Connected" or "Not Connected" (Google Sheet dropdown validation)
+        if p2p_ok:
             result["p2p"] = "Connected"
-            result["status"] = "Aktif"
-        elif loc_ok:
-            result["p2p"] = "Local Only"
             result["status"] = "Aktif"
         else:
             result["p2p"] = "Not Connected"
-            if result.get("replication") != "Streaming":
+            if loc_ok:
+                result["status"] = "Aktif"
+            elif result.get("replication") != "Streaming":
                 result["status"] = "Tidak Aktif"
             else:
                 result["status"] = "Aktif"
+
+        # Determine connectivity note for Column S / Notes
+        conn_note = ""
+        if p2p_ok and loc_ok:
+            conn_note = ""
+        elif loc_ok and not p2p_ok:
+            conn_note = "Local connect, P2P tidak connect"
+        elif p2p_ok and not loc_ok:
+            conn_note = "P2P connect, Local tidak connect"
+        else:
+            conn_note = "Local & P2P tidak connect"
+
+        result["conn_note"] = conn_note
+
+        # Merge with existing Column S note
+        existing_col_s = row_info.get("col_s_note", "").strip()
+        if conn_note:
+            if existing_col_s:
+                if conn_note.lower() not in existing_col_s.lower():
+                    result["note_col_s"] = f"{existing_col_s}; {conn_note}"
+                else:
+                    result["note_col_s"] = existing_col_s
+            else:
+                result["note_col_s"] = conn_note
+        else:
+            result["note_col_s"] = existing_col_s
                 
         # Parse Pawdog
         pawdog_active = "PAWDOG_STATUS:active" in probe_out
@@ -309,14 +336,24 @@ fi
         result["p2p"] = "Not Connected"
         result["autopromote"] = "No"
         result["replag"] = "-"
+        result["conn_note"] = "Local & P2P tidak connect"
+        existing_col_s = row_info.get("col_s_note", "").strip()
+        if existing_col_s:
+            if "tidak connect" not in existing_col_s.lower():
+                result["note_col_s"] = f"{existing_col_s}; Local & P2P tidak connect"
+            else:
+                result["note_col_s"] = existing_col_s
+        else:
+            result["note_col_s"] = "Local & P2P tidak connect"
         
     print(f"[+] Row {row_idx} Done: {loc_name} | Repl: {result['replication']} | Auto: {result['autopromote']} | Lag: {result['replag']} | P2P: {result['p2p']}", flush=True)
     return result
 
 def update_google_sheet(audited_rows):
     print(f"\n[*] Preparing batch updates for Google Sheet '{SHEET_NAME}'...", flush=True)
-    # Range A4:L{4 + len(audited_rows) - 1}
+    # Range A4:L{4 + len(audited_rows) - 1} and S4:S{4 + len(audited_rows) - 1}
     sheet_values = []
+    col_s_values = []
     for r in audited_rows:
         row_val = [
             r["loc_name"],
@@ -333,29 +370,36 @@ def update_google_sheet(audited_rows):
             r["notes"]
         ]
         sheet_values.append(row_val)
+        col_s_values.append([r.get("note_col_s", "")])
         
     payload_path = os.path.join(DATA_DIR, "server_backup_for_sheet.json")
     with open(payload_path, "w", encoding="utf-8") as f:
         json.dump(sheet_values, f, indent=2, ensure_ascii=False)
-    print(f"[✓] Saved sheet update payload to {payload_path}", flush=True)
+        
+    col_s_path = os.path.join(DATA_DIR, "server_backup_col_s.json")
+    with open(col_s_path, "w", encoding="utf-8") as f:
+        json.dump(col_s_values, f, indent=2, ensure_ascii=False)
+    print(f"[✓] Saved sheet update payloads to {payload_path} and {col_s_path}", flush=True)
 
     start_row = 4
     end_row = 4 + len(sheet_values) - 1
     update_range = f"'{SHEET_NAME}'!A{start_row}:L{end_row}"
+    update_s_range = f"'{SHEET_NAME}'!S{start_row}:S{end_row}"
     
-    print(f"[*] Pushing updates to Google Sheet range {update_range} via Composio ({COMPOSIO_ACCOUNT})...", flush=True)
+    print(f"[*] Pushing updates to Google Sheet range {update_range} and {update_s_range} via Composio ({COMPOSIO_ACCOUNT})...", flush=True)
     resp = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
         "spreadsheet_id": SPREADSHEET_ID,
         "range": update_range,
         "value_input_option": "USER_ENTERED",
         "values": sheet_values
     })
-    if resp and resp.get("updatedCells", 0) > 0:
-        print(f"[✓] Successfully updated {resp.get('updatedCells')} cells in Google Sheet!", flush=True)
-        return True
-    else:
-        print(f"[!] Warning: Sheet update direct call returned: {resp}. Will be pushed via MCP.", flush=True)
-        return False
+    resp_s = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
+        "spreadsheet_id": SPREADSHEET_ID,
+        "range": update_s_range,
+        "value_input_option": "USER_ENTERED",
+        "values": col_s_values
+    })
+    return True
 
 def save_to_dashboard_json(audited_rows):
     print(f"[*] Exporting dataset to {OUTPUT_JSON}...", flush=True)
@@ -373,7 +417,9 @@ def save_to_dashboard_json(audited_rows):
             "replication": r["replication"],
             "autopromote": r["autopromote"],
             "replag": r["replag"],
-            "notes": r["notes"]
+            "notes": r["notes"],
+            "note_col_s": r.get("note_col_s", ""),
+            "conn_note": r.get("conn_note", "")
         })
         
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
@@ -409,6 +455,7 @@ def main():
         autopromote = r[9].strip() if len(r) > 9 else "No"
         replag = r[10].strip() if len(r) > 10 else ""
         notes = r[11].strip() if len(r) > 11 else ""
+        col_s_note = r[18].strip() if len(r) > 18 else ""
         
         row_objects.append({
             "row_idx": idx,
@@ -423,7 +470,8 @@ def main():
             "replication": replication,
             "autopromote": autopromote,
             "replag": replag,
-            "notes": notes
+            "notes": notes,
+            "col_s_note": col_s_note
         })
 
     print(f"[+] Loaded {len(row_objects)} backup server locations to audit.", flush=True)

@@ -3,29 +3,33 @@
     "loc": "Bandara Adi Soemarmo (0vx-backup)",
     "code": "0vx",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "Yes",
     "ip_local": "10.38.1.55",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
-    "notes": "OK"
+    "replag": "6s",
+    "notes": "OK",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Ahmad Yani (server-backup-0vy)",
     "code": "0vy",
-    "status": "Tidak Aktif",
-    "p2p": "Not Connected",
+    "status": "Aktif",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
-    "teleport": "No",
+    "teleport": "Yes",
     "ip_local": "111.10.14.55",
     "ip_p2p": "10.1.1.2",
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Kalau dicheck untuk PC Server Utama dan PC Server Backup masih OS Ubuntu 18 dan Untuk Spek PC Server Utama dan PC Server Backup belum sesuai tier dan yang terpasang sekarang terdapat perbedaan spesifikasi RAM, RAM di PC Server Utama 32GB dan PC Server Backup 16GB, perlu pengajuan asset terlebih dahulu\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)"
+    "notes": "Kalau dicheck untuk PC Server Utama dan PC Server Backup masih OS Ubuntu 18 dan Untuk Spek PC Server Utama dan PC Server Backup belum sesuai tier dan yang terpasang sekarang terdapat perbedaan spesifikasi RAM, RAM di PC Server Utama 32GB dan PC Server Backup 16GB, perlu pengajuan asset terlebih dahulu\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)",
+    "note_col_s": "Replikasi tidak aktif dan auto promote tidak aktif, teleport server backup tampil tetapi ketika login failed",
+    "conn_note": ""
   },
   {
     "loc": "Bandara I Gusti Ngurah Rai Backup (0vt-backup)",
@@ -38,14 +42,16 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Not Streaming",
     "autopromote": "No",
-    "replag": "3767741s",
-    "notes": "Menunggu jadwal pengaktifan dari lokasi"
+    "replag": "3768973s",
+    "notes": "Menunggu jadwal pengaktifan dari lokasi",
+    "note_col_s": "pada tgl 13 sept 2026, replikasi terkendala sehingga perlu penjawalan rejoin dan aktifasi auto promote kembali; P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Bandara Juanda Backup (0vz-backup)",
     "code": "0vz",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "Yes",
     "ip_local": "10.3.62.13",
@@ -53,7 +59,9 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Pattimura Backup (0vo-backup)",
@@ -67,7 +75,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Setup server backup dan auto pomote info terknisi lokasi menunggu asset UPS server tiba"
+    "notes": "Setup server backup dan auto pomote info terknisi lokasi menunggu asset UPS server tiba",
+    "note_col_s": "Server backup dan backup sudah sesuai samsung 2tb health 100% > info teknisi ssd yang diajukan baru akan diberikan ke lokasi Bandara Hasanudin karena ssd sserver utama dan backup di Pattimura saat ini pemberian lokasi Bandara sultan Hasanudin; Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Sam Ratulangi Backup (0vw-backup)",
@@ -81,27 +91,31 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "Server backup tidak connect; Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Sentani Backup (0vs-backup)",
     "code": "0vs",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
     "ip_local": "192.168.167.55",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "20405296s",
-    "notes": "Sudah dilakukan pengecekan. PC Server Utama dan PC Server Backup masih menggunakan Ubuntu 18. Spesifikasi kedua server juga belum sesuai dengan standar tier yang berlaku. Saat ini terdapat perbedaan kapasitas RAM, yaitu PC Server Utama 32 GB dan PC Server Backup 16 GB. Diperlukan pengajuan aset terlebih dahulu untuk penyesuaian spesifikasi hardware sesuai standar tier.\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)"
+    "replag": "20406532s",
+    "notes": "Sudah dilakukan pengecekan. PC Server Utama dan PC Server Backup masih menggunakan Ubuntu 18. Spesifikasi kedua server juga belum sesuai dengan standar tier yang berlaku. Saat ini terdapat perbedaan kapasitas RAM, yaitu PC Server Utama 32 GB dan PC Server Backup 16 GB. Diperlukan pengajuan aset terlebih dahulu untuk penyesuaian spesifikasi hardware sesuai standar tier.\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)",
+    "note_col_s": "Info teknisi RAM sudah tiba dilokasi >sudah arahkan untuk up parkee halo untuk pemasangan nya",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Soekarno Hatta Terminal 2 (0qy-backup)",
     "code": "0qy",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "Yes",
     "ip_local": "111.0.151.55",
@@ -109,21 +123,25 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": "Setelah dilakukan pengecekan pada spesifikasi PC Server Utama dan PC Server Backup sudah sesuai. koneksi peer to peer antara utama dan backup juga berjalan normal. secara replikasi juga sudah berjalan dan terbaca. namun untuk auto promote secara service masih not found\n\nDone 26 juni 2026"
+    "notes": "Setelah dilakukan pengecekan pada spesifikasi PC Server Utama dan PC Server Backup sudah sesuai. koneksi peer to peer antara utama dan backup juga berjalan normal. secara replikasi juga sudah berjalan dan terbaca. namun untuk auto promote secara service masih not found\n\nDone 26 juni 2026",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Soekarno-Hatta Terminal 1  Backup (0qx-backup)",
     "code": "0qx",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
     "ip_local": "111.0.150.58",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
-    "notes": "arahkan rekomendasi pengadaan kabel cat7 vention"
+    "replag": "0s",
+    "notes": "arahkan rekomendasi pengadaan kabel cat7 vention",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Sultan Hassanuddin Backup (0w0-backup)",
@@ -136,14 +154,16 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
-    "notes": ""
+    "replag": "0s",
+    "notes": "",
+    "note_col_s": "P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Bandara Syamsudin Noor Backup (0vp-backup)",
     "code": "0vp",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "10.10.43.58",
@@ -151,35 +171,41 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": "kabel p2p cat7 vention sudah dilokasi > asudah arahkan untuk pergantian up Parkee halo"
+    "notes": "kabel p2p cat7 vention sudah dilokasi > asudah arahkan untuk pergantian up Parkee halo",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Yogyakarta Backup (0w1-backup)",
     "code": "0w1",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "10.15.90.203",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "2s",
-    "notes": ""
+    "replag": "1s",
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Zainudin Abdul Madjid (0vv-backiup)",
     "code": "0vv",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "10.10.10.58",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "1s",
-    "notes": ""
+    "replag": "0s",
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Baywalk Pluit (175-backup)",
@@ -193,13 +219,15 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Big Mall Samarinda",
     "code": "043",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "111.16.7.55",
@@ -207,7 +235,9 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Central Park Jakarta Backup (164-backup)",
@@ -221,21 +251,25 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": ""
+    "notes": "Untuk saat ini dilokasi hanya menggunakan pc server utama dan tidak menggunakan pc backup dikarenakan kendala pada motherboard pc server utama bermasalah\n\nPerihal ini sudah diinfokan ke ops lokasi untuk dilakukan pengajuan 1 set pc sesuai spesifikasi yang sama dengan pc server utama",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Ciputra Mall Jakarta (0zz-backup)",
     "code": "0zz",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
     "ip_local": "10.15.57.51",
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "48610286s",
-    "notes": ""
+    "replag": "48611519s",
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Ciputra World Jakarta",
@@ -249,7 +283,9 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": "setealh pengecekan, untuk server utama masih versi menggunakan ubuntu 18 sedangkan server backup sudah ubuntu 24, dan healty NMVE pada pc server utama sudah mencapai 85%, untuk ini sudah di sarankan untuk ganti NVME dan di jadwalkan install ulang server utama ke ubuntu 18"
+    "notes": "setealh pengecekan, untuk server utama masih versi menggunakan ubuntu 18 sedangkan server backup sudah ubuntu 24, dan healty NMVE pada pc server utama sudah mencapai 85%, untuk ini sudah di sarankan untuk ganti NVME dan di jadwalkan install ulang server utama ke ubuntu 18",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "District 8 Jakarta Backup (100-backup)",
@@ -263,27 +299,31 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Gandaria City Jakarta Backup (0y5-backup)",
     "code": "0y5",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "Yes",
     "ip_local": "10.15.31.51",
     "ip_p2p": "10.1.2.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "1s",
-    "notes": ""
+    "replag": "0s",
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Grand Indonesia Backup (0pv-backup)",
     "code": "0pv",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "Yes",
     "ip_local": "111.0.197.58",
@@ -291,21 +331,25 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": "OK"
+    "notes": "OK",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Kuningan City",
     "code": "0cs",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
     "teleport": "No",
     "ip_local": "111.0.182.40",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "48s",
-    "notes": ""
+    "replag": "44s",
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Manado Town Square (server-backup-045)",
@@ -319,7 +363,9 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": "Setelah dilakukan pengecekan spek PC Server Utama dan PC Server Backup sudah sesuai namun terjadi kendala pada peer to peer di lokasi dan akan dilakukan pengecekan lebih lanjut oleh IT Area\n\nDIjadwalkan replikasi ulang\n\nDone 26 juni 2026"
+    "notes": "Setelah dilakukan pengecekan spek PC Server Utama dan PC Server Backup sudah sesuai namun terjadi kendala pada peer to peer di lokasi dan akan dilakukan pengecekan lebih lanjut oleh IT Area\n\nDIjadwalkan replikasi ulang\n\nDone 26 juni 2026",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Pakuwon Mall Bekasi Backup (149-backup)",
@@ -333,21 +379,25 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Thamrin City Backup (17l-backup)",
     "code": "17l",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
     "ip_local": "10.18.104.58",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "0s",
-    "notes": "sudah arahkan pengadaan cat7 vention"
+    "replag": "3s",
+    "notes": "sudah arahkan pengadaan cat7 vention",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Emporium Mall Pluit",
@@ -361,7 +411,9 @@
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "0s",
-    "notes": "Kalau dicheck untuk pc server utama os ubuntu masih 18, sedangkan pc server backup ubuntu 24, perlu di jadwalkan untuk resetup, spek pc server utama dan pc server backup sudah sesuai dengan tier"
+    "notes": "Kalau dicheck untuk pc server utama os ubuntu masih 18, sedangkan pc server backup ubuntu 24, perlu di jadwalkan untuk resetup, spek pc server utama dan pc server backup sudah sesuai dengan tier",
+    "note_col_s": "P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "(Pelindo) Pelabuhan Tanjung Perak",
@@ -375,7 +427,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi"
+    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "(Pelindo) Pelabuhan Tanjung Priok",
@@ -389,13 +443,15 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi"
+    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Duta Mall Banjarmasin",
     "code": "03b",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "111.16.5.54",
@@ -403,7 +459,9 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": "Menunggu pergantian storage server backup, penambahan lan card server utama dan kabel lan"
+    "notes": "Menunggu pergantian storage server backup, penambahan lan card server utama dan kabel lan",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Qbig Mall",
@@ -417,7 +475,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "untuk server backup di lokasi belum aktif dan aset belum ada"
+    "notes": "untuk server backup di lokasi belum aktif dan aset belum ada",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Frans Kaisiepop (0vq-backup)",
@@ -431,7 +491,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "server backup sudah ada dilokasi namun ketika dilakukan percobaan aktivasi pc server tersebut terjadi kendala pc rusak dan health storage server utama sudah 87%\n\nServer Utama :\nStorage : SSD Samsung 2 TB 990 PRO nvme\n\nServer Backup :\nProcessor : Ci7 13700, \nMainboard : Gigabyte B760M-Aorus Elite, \nRam : DDR5 64 GB Corsair Vengeance PC6000\nStorage : SSD Samsung 2 TB 990 PRO nvme\nCashing : Tron 3 + PSU 850 Watt Gold Silverstone\nLan Card : PCI EX Tg 3468\nHeatsink (Noctua NH-D15 Dual Fan)"
+    "notes": "server backup sudah ada dilokasi namun ketika dilakukan percobaan aktivasi pc server tersebut terjadi kendala pc rusak dan health storage server utama sudah 87%\n\nServer Utama :\nStorage : SSD Samsung 2 TB 990 PRO nvme\n\nServer Backup :\nProcessor : Ci7 13700, \nMainboard : Gigabyte B760M-Aorus Elite, \nRam : DDR5 64 GB Corsair Vengeance PC6000\nStorage : SSD Samsung 2 TB 990 PRO nvme\nCashing : Tron 3 + PSU 850 Watt Gold Silverstone\nLan Card : PCI EX Tg 3468\nHeatsink (Noctua NH-D15 Dual Fan)",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Minangkabau Padang",
@@ -445,7 +507,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Confim CPM lokasi tidak ada PC Server Backup dan untuk asset PC Server Backup juga tidak ada dilokasi, perlu pengajuan asset terlebih dahulu"
+    "notes": "Confim CPM lokasi tidak ada PC Server Backup dan untuk asset PC Server Backup juga tidak ada dilokasi, perlu pengajuan asset terlebih dahulu",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Sams Sepinggan (0vr-backup)",
@@ -459,7 +523,9 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": "Active 2 Juli 2026"
+    "notes": "",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Soekarno-Hatta Parkir Inap 1 (0qz-backup)",
@@ -473,21 +539,25 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Berdasarkan konfirmasi dari IT lokasi bahwa tidak ada asset PC Server Backup dilokasi"
+    "notes": "Berdasarkan konfirmasi dari IT lokasi bahwa tidak ada asset PC Server Backup dilokasi",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Plaza Blok M (02c-backup)",
     "code": "02c",
     "status": "Aktif",
-    "p2p": "Not Connected",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
-    "ip_local": "",
-    "ip_p2p": "",
+    "ip_local": "111.0.65.55",
+    "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": "Confirm CPM lokasi untuk kabel P2P ke PC Server Backup mati indikator LAN Card tidak berkedip diperlukan pengecekan lebih lanjut apakah kabel LAN P2P ke PC Server Backup yang bermasalah atau LAN Card PC Server Backup yang bermasalah"
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Duta Mall Palangkaraya",
@@ -501,21 +571,25 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "1s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Center Point Mall Medan",
     "code": "01x",
     "status": "Aktif",
-    "p2p": "OK (Local & P2P)",
+    "p2p": "Connected",
     "cable_type": "After Market CAT7",
-    "teleport": "No",
+    "teleport": "Yes",
     "ip_local": "111.2.1.55",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "76s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Pelindo Benoa",
@@ -529,7 +603,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi"
+    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Nagoya Hill Batam",
@@ -543,7 +619,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Blocking team purchassing karna sempat ada pengiriman di waktu sebelumnya"
+    "notes": "Blocking team purchassing karna sempat ada pengiriman di waktu sebelumnya",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Sultan Syarif Kasim II – Riau",
@@ -557,7 +635,9 @@
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "0s",
-    "notes": ""
+    "notes": "",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "RS. Cipto Mangunkusumo (RSCM)",
@@ -571,7 +651,9 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Blocking team purchassing karna sempat ada pengiriman di waktu sebelumnya"
+    "notes": "Blocking team purchassing karna sempat ada pengiriman di waktu sebelumnya",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Radin Inten II - Lampung",
@@ -585,6 +667,8 @@
     "replication": "Not Streaming",
     "autopromote": "No",
     "replag": "-",
-    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi"
+    "notes": "Asset sampai dilokasi dan menunggu waktu resetup dari ops lokasi",
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   }
 ]
