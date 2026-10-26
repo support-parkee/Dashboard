@@ -1907,48 +1907,21 @@
 
             <!-- Table Container -->
             <div class="table-responsive" style="margin-top: 0.85rem;">
-              <table class="data-table" id="backupTable">
+              <table class="fleet-table backup-fleet-table" id="backupTable">
                 <thead>
                   <tr>
-                    <th class="sortable-th" data-backup-sort="loc">
-                      <span>Nama Lokasi</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="code" style="width: 100px;">
-                      <span>Uniq Code</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="status" style="width: 120px;">
-                      <span>Status</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="p2p" style="width: 160px;">
-                      <span>P2P</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="cable_type" style="width: 140px;">
-                      <span>Tipe Kabel P2P</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="teleport" style="width: 95px; text-align: center;">
-                      <span>Teleport</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th style="width: 125px;">IP Local</th>
+                    <th class="sortable" data-backup-sort="loc" style="min-width: 230px;">Nama Lokasi ⇅</th>
+                    <th class="sortable" data-backup-sort="code" style="width: 100px; text-align: center;">Uniq Code ⇅</th>
+                    <th class="sortable" data-backup-sort="status" style="width: 130px; text-align: center;">Status ⇅</th>
+                    <th class="sortable" data-backup-sort="p2p" style="width: 140px; text-align: center;">P2P ⇅</th>
+                    <th class="sortable" data-backup-sort="cable_type" style="width: 155px; text-align: center;">Tipe Kabel P2P ⇅</th>
+                    <th class="sortable" data-backup-sort="teleport" style="width: 90px; text-align: center;">Teleport ⇅</th>
+                    <th style="width: 120px;">IP Local</th>
                     <th style="width: 110px;">IP p2p</th>
-                    <th class="sortable-th" data-backup-sort="replication" style="width: 135px; text-align: center;">
-                      <span>Replication</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="autopromote" style="width: 120px; text-align: center;">
-                      <span>Auto Promote</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th class="sortable-th" data-backup-sort="replag" style="width: 100px; text-align: center;">
-                      <span>Replag</span>
-                      <span class="sort-icon">↕</span>
-                    </th>
-                    <th style="min-width: 250px;">Keterangan</th>
+                    <th class="sortable" data-backup-sort="replication" style="width: 140px; text-align: center;">Replication ⇅</th>
+                    <th class="sortable" data-backup-sort="autopromote" style="width: 135px; text-align: center;">Auto Promote ⇅</th>
+                    <th class="sortable" data-backup-sort="replag" style="width: 95px; text-align: center;">Replag ⇅</th>
+                    <th style="min-width: 260px;">Keterangan</th>
                   </tr>
                 </thead>
                 <tbody id="backupTableBody">

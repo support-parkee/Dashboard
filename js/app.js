@@ -5268,7 +5268,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
 
     // Sorting headers
-    document.querySelectorAll('#backupTable th.sortable-th[data-backup-sort]').forEach(th => {
+    document.querySelectorAll('#backupTable th.sortable[data-backup-sort]').forEach(th => {
       th.addEventListener('click', () => {
         const col = th.dataset.backupSort;
         if (this.backupState.sortCol === col) {
@@ -5455,111 +5455,110 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
 
     const rowsHtml = paginated.map(item => {
-      // Status Badge
+      // 1. Status Badge
       const st = (item.status || '').trim();
-      let statusBadge = `<span class="ticket-status-pill ticket-status-closed">${st || '-'}</span>`;
+      let statusBadge = `<div style="text-align: center;"><span class="backup-badge-inactive">${st || '-'}</span></div>`;
       if (st.toLowerCase() === 'aktif') {
-        statusBadge = `<span class="ticket-status-pill ticket-status-solved">● Aktif</span>`;
+        statusBadge = `<div style="text-align: center;"><span class="backup-badge-active">● Aktif</span></div>`;
       } else if (st.toLowerCase() === 'tidak aktif') {
-        statusBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">● Tidak Aktif</span>`;
+        statusBadge = `<div style="text-align: center;"><span class="backup-badge-inactive">● Tidak Aktif</span></div>`;
       } else if (st.toLowerCase().includes('aset')) {
-        statusBadge = `<span class="ticket-status-pill ticket-status-planned">⏳ Belum Ada Aset</span>`;
+        statusBadge = `<div style="text-align: center;"><span class="backup-badge-pending">⏳ Belum Ada Aset</span></div>`;
       }
 
-      // P2P Badge
-      // P2P Badge strictly Connected or Not Connected
+      // 2. P2P Badge
       const p2pVal = (item.p2p || '').trim().toLowerCase();
-      let p2pBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">✕ Not Connected</span>`;
+      let p2pBadge = `<div style="text-align: center;"><span class="backup-badge-p2p-bad">✕ Not Connected</span></div>`;
       if (p2pVal === 'connected') {
-        p2pBadge = `<span class="ticket-status-pill ticket-status-solved">✓ Connected</span>`;
+        p2pBadge = `<div style="text-align: center;"><span class="backup-badge-p2p-ok">✓ Connected</span></div>`;
       }
 
-      // Cable Type
+      // 3. Cable Type
       const cableVal = (item.cable_type || '').trim();
-      let cableBadge = `<span style="font-size: 0.75rem; color: var(--text-muted);">${cableVal || '-'}</span>`;
+      let cableBadge = `<div style="text-align: center; color: var(--text-muted); font-size: 0.75rem;">-</div>`;
       if (cableVal.toUpperCase().includes('CAT7')) {
-        cableBadge = `<span class="badge-pill" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 700;">CAT7 After Market</span>`;
+        cableBadge = `<div style="text-align: center;"><span class="backup-badge-cat7">CAT7 After Market</span></div>`;
       } else if (cableVal.toUpperCase().includes('CAT6')) {
-        cableBadge = `<span class="badge-pill" style="background: rgba(148, 163, 184, 0.15); color: #64748b; font-weight: 600;">CAT6 Rakitan</span>`;
+        cableBadge = `<div style="text-align: center;"><span class="backup-badge-cat6">CAT6 Rakitan</span></div>`;
       }
 
-      // Teleport Badge
+      // 4. Teleport Badge
       const teleVal = (item.teleport || '').trim().toLowerCase();
-      let teleBadge = `<span class="ticket-status-pill ticket-status-closed">No</span>`;
+      let teleBadge = `<div style="text-align: center;"><span class="backup-badge-tele-no">No</span></div>`;
       if (teleVal === 'yes') {
-        teleBadge = `<span class="ticket-status-pill ticket-status-solved">Yes</span>`;
+        teleBadge = `<div style="text-align: center;"><span class="backup-badge-tele-yes">Yes</span></div>`;
       }
 
-      // Replication Badge
+      // 5. Replication Badge
       const replVal = (item.replication || '').trim().toLowerCase();
-      let replBadge = `<span class="badge-not-streaming">✕ Not Streaming</span>`;
+      let replBadge = `<div style="text-align: center;"><span class="badge-not-streaming">✕ Not Streaming</span></div>`;
       if (replVal === 'streaming') {
-        replBadge = `<span class="badge-streaming">⚡ Streaming</span>`;
+        replBadge = `<div style="text-align: center;"><span class="badge-streaming">⚡ Streaming</span></div>`;
       }
 
-      // Auto Promote Badge
+      // 6. Auto Promote Badge
       const autoVal = (item.autopromote || '').trim().toLowerCase();
-      let autoBadge = `<span class="badge-autopromote-no">No</span>`;
+      let autoBadge = `<div style="text-align: center;"><span class="badge-autopromote-no">No</span></div>`;
       if (autoVal === 'yes') {
-        autoBadge = `<span class="badge-autopromote-yes">✓ Yes (Active)</span>`;
+        autoBadge = `<div style="text-align: center;"><span class="badge-autopromote-yes">✓ Yes (Pawdog)</span></div>`;
       }
 
-      // Replag Badge
+      // 7. Replag Badge
       const lagVal = (item.replag || '').trim();
-      let replagBadge = `<span style="color: var(--text-muted); font-size: 0.74rem;">-</span>`;
+      let replagBadge = `<div style="text-align: center; color: var(--text-muted); font-size: 0.74rem;">-</div>`;
       if (lagVal && lagVal !== '-') {
         const numLag = parseInt(lagVal.replace(/[^0-9]/g, ''), 10);
         if (!isNaN(numLag)) {
           if (numLag <= 10) {
-            replagBadge = `<span class="badge-replag-ok" title="Replikasi Normal (${numLag}s)">${lagVal}</span>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok" title="Replikasi Normal (${numLag}s)">${lagVal}</span></div>`;
           } else if (numLag <= 60) {
-            replagBadge = `<span class="badge-replag-warn" title="Lag Replikasi Waspada (${numLag}s)">${lagVal}</span>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-warn" title="Lag Replikasi Waspada (${numLag}s)">${lagVal}</span></div>`;
           } else {
-            replagBadge = `<span class="badge-replag-crit" title="Lag Replikasi Kritis (${numLag}s)">${lagVal}</span>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-crit" title="Lag Replikasi Kritis (${numLag}s)">${lagVal}</span></div>`;
           }
         } else {
-          replagBadge = `<span class="badge-replag-ok">${lagVal}</span>`;
+          replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok">${lagVal}</span></div>`;
         }
       }
 
-      // Keterangan note with Column S / connectivity note
+      // 8. Keterangan note with Column S / connectivity note
       const noteVal = (item.notes || '').trim();
       const connNote = (item.conn_note || '').trim();
       const colSNote = (item.note_col_s || '').trim();
 
       let connAlertBadge = '';
       if (connNote) {
-        connAlertBadge = `<div style="margin-bottom: 4px;"><span class="badge-replag-warn" style="font-size: 0.69rem; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px;">⚠️ ${connNote}</span></div>`;
+        connAlertBadge = `<div style="margin-bottom: 4px;"><span class="backup-conn-warn-pill">⚠️ ${connNote}</span></div>`;
       }
 
       const displayNote = noteVal || colSNote || '-';
       const escapedNote = (displayNote + (connNote ? ` (${connNote})` : '')).replace(/"/g, '&quot;');
-      const shortNote = displayNote.length > 95 ? `${displayNote.slice(0, 95)}...` : displayNote;
+      const shortNote = displayNote.length > 110 ? `${displayNote.slice(0, 110)}...` : displayNote;
 
       return `
         <tr>
           <td>
-            <div style="font-weight: 700; color: var(--text-main); line-height: 1.35;">${item.loc || '-'}</div>
+            <div class="backup-loc-name">${item.loc || '-'}</div>
           </td>
           <td>
-            <span class="code-badge">${item.code || '-'}</span>
+            <div style="text-align: center;"><span class="backup-code-pill">${item.code || '-'}</span></div>
           </td>
           <td>${statusBadge}</td>
           <td>${p2pBadge}</td>
           <td>${cableBadge}</td>
-          <td style="text-align: center;">${teleBadge}</td>
+          <td>${teleBadge}</td>
           <td>
-            ${item.ip_local ? `<span class="ip-pill">${item.ip_local}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+            ${item.ip_local ? `<span class="backup-ip-mono">${item.ip_local}</span>` : '<span style="color:var(--text-muted);">-</span>'}
           </td>
           <td>
-            ${item.ip_p2p ? `<span class="ip-pill" style="color: var(--accent-secondary);">${item.ip_p2p}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+            ${item.ip_p2p ? `<span class="backup-ip-mono" style="color: var(--accent-secondary); font-weight: 700;">${item.ip_p2p}</span>` : '<span style="color:var(--text-muted);">-</span>'}
           </td>
-          <td style="text-align: center;">${replBadge}</td>
-          <td style="text-align: center;">${autoBadge}</td>
-          <td style="text-align: center;">${replagBadge}</td>
+          <td>${replBadge}</td>
+          <td>${autoBadge}</td>
+          <td>${replagBadge}</td>
           <td>
             ${connAlertBadge}
-            <div style="font-size: 0.73rem; color: var(--text-secondary); max-width: 320px; line-height: 1.35;" title="${escapedNote}">
+            <div class="backup-notes-text" title="${escapedNote}">
               ${shortNote}
             </div>
           </td>

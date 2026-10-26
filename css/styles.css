@@ -3025,6 +3025,237 @@ h1, h2, h3, h4, h5, h6 {
 /* =========================================================================
    SERVER BACKUP & REPLICATION TELEMETRY STYLES
    ========================================================================= */
+.backup-fleet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  table-layout: auto;
+}
+
+.backup-fleet-table th {
+  background: var(--surface-hover);
+  padding: 0.75rem 0.85rem;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.backup-fleet-table th.sortable {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.backup-fleet-table th.sortable:hover {
+  color: var(--accent-primary);
+  background: var(--surface-hover);
+}
+
+.backup-fleet-table th.sort-active {
+  color: var(--accent-primary) !important;
+  font-weight: 800 !important;
+}
+
+.backup-fleet-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  vertical-align: middle;
+}
+
+.backup-fleet-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.backup-fleet-table tbody tr:hover {
+  background: var(--surface-hover) !important;
+}
+
+/* Status Badges */
+.backup-badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+.backup-badge-inactive {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  white-space: nowrap;
+}
+
+.backup-badge-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  white-space: nowrap;
+}
+
+/* P2P Badges */
+.backup-badge-p2p-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+.backup-badge-p2p-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  white-space: nowrap;
+}
+
+/* Cable Badges */
+.backup-badge-cat7 {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  white-space: nowrap;
+}
+
+.backup-badge-cat6 {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.15);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  white-space: nowrap;
+}
+
+/* Teleport Badges */
+.backup-badge-tele-yes {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+.backup-badge-tele-no {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.15);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  white-space: nowrap;
+}
+
+/* Warning Pill for Column S note */
+.backup-conn-warn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.69rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  white-space: nowrap;
+}
+
+/* IP, Code, and typography helpers */
+.backup-ip-mono {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.backup-loc-name {
+  font-weight: 700;
+  color: var(--text-main);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.backup-code-pill {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.76rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-primary);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.backup-notes-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  max-width: 360px;
+  word-break: break-word;
+}
+
 .badge-streaming {
   display: inline-flex;
   align-items: center;
@@ -3036,6 +3267,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   font-size: 0.73rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .badge-not-streaming {
@@ -3049,6 +3281,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   font-size: 0.73rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .badge-autopromote-yes {
@@ -3062,6 +3295,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   font-size: 0.73rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .badge-autopromote-no {
@@ -3075,6 +3309,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   font-size: 0.73rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .badge-replag-ok {
@@ -3086,6 +3321,7 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
+  white-space: nowrap;
 }
 
 .badge-replag-warn {
@@ -3097,6 +3333,7 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.35);
+  white-space: nowrap;
 }
 
 .badge-replag-crit {
@@ -3108,6 +3345,7 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.35);
+  white-space: nowrap;
 }
 
 .ip-pill {
@@ -3120,6 +3358,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-main);
   border: 1px solid var(--border-subtle);
   display: inline-block;
+  white-space: nowrap;
 }
 
 
