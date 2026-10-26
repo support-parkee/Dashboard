@@ -225,54 +225,70 @@ def check_single_server(row_info, teleport_nodes):
         result["replication"] = "Not Streaming"
         result["status"] = "Tidak Aktif"
 
-    # 2. Run remote probe script on primary server
+    # 2. Run remote probe script on primary server via Python PTY (zero dependency, no sshpass needed)
     probe_script = f"""
-P2P_OK=0
-if [ -n "{ip_p2p}" ]; then
-    if sshpass -p support545115 ssh -n -o StrictHostKeyChecking=no -o ConnectTimeout=3 support@{ip_p2p} hostname >/dev/null 2>&1; then
-        P2P_OK=1
-    fi
-fi
+import pty, os, select, sys, time, re
 
-LOCAL_OK=0
-if [ -n "{ip_local}" ]; then
-    if sshpass -p support545115 ssh -n -o StrictHostKeyChecking=no -o ConnectTimeout=3 support@{ip_local} hostname >/dev/null 2>&1; then
-        LOCAL_OK=1
-    fi
-fi
+def run_cmd(ip, remote_cmd, timeout=6):
+    if not ip: return ""
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execlp('ssh', 'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=3', f'support@{{ip}}', remote_cmd)
+    else:
+        output = b''
+        sent = False
+        start = time.time()
+        while time.time() - start < timeout:
+            r, _, _ = select.select([fd], [], [], 0.3)
+            if fd in r:
+                try:
+                    data = os.read(fd, 1024)
+                    if not data: break
+                    output += data
+                    if (b'password:' in output.lower() or b'password for' in output.lower()) and not sent:
+                        os.write(fd, b'support545115\\n')
+                        sent = True
+                except OSError:
+                    break
+        try: os.close(fd)
+        except: pass
+        try: os.waitpid(pid, 0)
+        except: pass
+        return output.decode(errors='ignore')
 
-echo "P2P_STATUS:$P2P_OK"
-echo "LOCAL_STATUS:$LOCAL_OK"
+p2p_out = run_cmd('{ip_p2p}', 'hostname')
+p2p_ok = 1 if any(k in p2p_out.lower() for k in ['server', 'backup', 'ubuntu', '{code}']) else 0
 
-TARGET_IP=""
-if [ $P2P_OK -eq 1 ]; then
-    TARGET_IP="{ip_p2p}"
-elif [ $LOCAL_OK -eq 1 ]; then
-    TARGET_IP="{ip_local}"
-fi
+loc_out = run_cmd('{ip_local}', 'hostname')
+loc_ok = 1 if any(k in loc_out.lower() for k in ['server', 'backup', 'ubuntu', '{code}']) else 0
 
-if [ -n "$TARGET_IP" ]; then
-    PAWDOG_ACT=$(sshpass -p support545115 ssh -n -o StrictHostKeyChecking=no -o ConnectTimeout=3 support@$TARGET_IP "systemctl is-active pawdog" 2>/dev/null)
-    echo "PAWDOG_STATUS:$PAWDOG_ACT"
+print(f"P2P_STATUS:{{p2p_ok}}")
+print(f"LOCAL_STATUS:{{loc_ok}}")
 
-    SQL="select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;"
-    LAG_RES=""
-    for PWD in "{code}545115" "agent" "support545115"; do
-        LAG_RES=$(sshpass -p support545115 ssh -n -o StrictHostKeyChecking=no -o ConnectTimeout=3 support@$TARGET_IP "PGPASSWORD=$PWD psql -h 127.0.0.1 -p 5433 -d agent_{code} -U agent -tAc \\\"$SQL\\\"" 2>/dev/null)
-        if [[ "$LAG_RES" =~ ^[0-9]+$ ]]; then
+target_ip = '{ip_p2p}' if p2p_ok else ('{ip_local}' if loc_ok else '')
+if target_ip:
+    pawdog_out = run_cmd(target_ip, 'systemctl is-active pawdog')
+    pawdog_act = 'active' if 'active' in pawdog_out.split() else 'inactive'
+    print(f"PAWDOG_STATUS:{{pawdog_act}}")
+
+    sql_query = "select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;"
+    lag_val = ""
+    for pwd in ['{code}545115', 'agent', 'support545115']:
+        sql_cmd = 'PGPASSWORD=' + pwd + ' psql -h 127.0.0.1 -p 5433 -d agent_{code} -U agent -tAc \\"' + sql_query + '\\"'
+        sql_out = run_cmd(target_ip, sql_cmd)
+        m = re.search(r'\\b(\\d+)\\b', sql_out)
+        if m:
+            lag_val = m.group(1)
             break
-        fi
-    done
-    echo "REPLAG_STATUS:$LAG_RES"
-else
-    echo "PAWDOG_STATUS:unreachable"
-    echo "REPLAG_STATUS:unreachable"
-fi
+    print(f"REPLAG_STATUS:{{lag_val}}")
+else:
+    print("PAWDOG_STATUS:unreachable")
+    print("REPLAG_STATUS:unreachable")
 """
     if IS_ON_JUMP:
-        cmd_probe = ["tsh", "ssh", f"support@{primary_host}", "bash -s"]
+        cmd_probe = ["tsh", "ssh", f"support@{primary_host}", "python3"]
     else:
-        cmd_probe = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", JUMP_HOST, f"tsh ssh support@{primary_host} 'bash -s'"]
+        cmd_probe = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", JUMP_HOST, f"tsh ssh support@{primary_host} python3"]
     try:
         p_probe = subprocess.run(cmd_probe, input=probe_script.replace('\r\n', '\n').encode('utf-8'), capture_output=True, timeout=30)
         probe_out = p_probe.stdout.decode('utf-8', errors='ignore')
