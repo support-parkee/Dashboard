@@ -9,6 +9,8 @@ const App = {
   servers: [],
   fleet: [],
   storageServers: [],
+  serverBackup: [],
+  _backupLoaded: false,
   summary: null,
 
   // Selected state for Client Specification master-detail
@@ -109,6 +111,20 @@ const App = {
     sortDir: 'desc'
   },
   ticketingData: null,
+
+  backupState: {
+    search: '',
+    status: 'all',
+    replication: 'all',
+    autoPromote: 'all',
+    p2p: 'all',
+    teleport: 'all',
+    cable: 'all',
+    page: 1,
+    pageSize: 50,
+    sortCol: 'loc',
+    sortDir: 'asc'
+  },
 
   // Navigation state
   activeView: 'dashboard',
@@ -296,7 +312,8 @@ const App = {
       this.fetchServers(),
       this.fetchSummary(),
       this.fetchTemperature(),
-      this.fetchTicketsSummary()
+      this.fetchTicketsSummary(),
+      this.fetchServerBackup()
     ]);
 
     // Populate total clients badge from summary data immediately without blocking on fleet.json (4 MB)
@@ -479,7 +496,8 @@ const App = {
       clients: { title: 'Client Specification', crumb: 'Client Specification' },
       storage: { title: 'Storage (Server Only)', crumb: 'Storage Server' },
       temperature: { title: 'Temperature Server (Realtime)', crumb: 'Live Prometheus Telemetry' },
-      ticketing: { title: 'Ticketing (GLPI - 3 Bulan Terakhir)', crumb: 'GLPI Assistance Tickets' }
+      ticketing: { title: 'Ticketing (GLPI - 3 Bulan Terakhir)', crumb: 'GLPI Assistance Tickets' },
+      backup: { title: 'Server Backup (Standby & Auto Promote Telemetry)', crumb: 'High Availability & Standby Fleet' }
     };
 
     navBtns.forEach(btn => {
@@ -536,6 +554,12 @@ const App = {
         this.fetchTickets();
       } else {
         this.renderTicketingTable();
+      }
+    } else if (this.activeView === 'backup') {
+      if (!this._backupLoaded) {
+        this.fetchServerBackup();
+      } else {
+        this.renderBackupTable();
       }
     }
   },
@@ -4482,6 +4506,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         if (ticketNav) ticketNav.click();
       });
     }
+
+    this.initBackupEventHandlers();
   },
 
   parseRamGb(ramStr) {
@@ -5101,6 +5127,447 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
     this.updateFloatingScrollbar = checkFloatingScrollbar;
     setTimeout(checkFloatingScrollbar, 200);
+  },
+
+  // =========================================================================
+  // MODULE 7: SERVER BACKUP & REPLICATION TELEMETRY
+  // =========================================================================
+  async fetchServerBackup(force = false) {
+    if (this._backupLoaded && !force) return;
+    try {
+      const res = await fetch(`./data/server_backup.json?t=${Date.now()}`);
+      if (res.ok) {
+        this.serverBackup = await res.json();
+        this._backupLoaded = true;
+        const badge = document.getElementById('badgeServerBackup');
+        if (badge) badge.textContent = this.serverBackup.length.toLocaleString();
+        this.renderBackupTable();
+      }
+    } catch (e) {
+      console.warn('Could not load server_backup.json', e);
+    }
+  },
+
+  initBackupEventHandlers() {
+    const searchInput = document.getElementById('backupSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.backupState.search = e.target.value;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    const pageSizeSelect = document.getElementById('backupPageSizeSelect');
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', (e) => {
+        this.backupState.pageSize = parseInt(e.target.value, 10);
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    // Status filter pills
+    document.querySelectorAll('.filter-pill[data-backup-status-pill]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-backup-status-pill]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.backupState.status = btn.dataset.backupStatusPill;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    });
+
+    // Replication filter pills
+    document.querySelectorAll('.filter-pill[data-backup-repl-pill]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-backup-repl-pill]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.backupState.replication = btn.dataset.backupReplPill;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    });
+
+    // Dropdown filters
+    const autoPromoteFilter = document.getElementById('backupAutoPromoteFilter');
+    if (autoPromoteFilter) {
+      autoPromoteFilter.addEventListener('change', (e) => {
+        this.backupState.autoPromote = e.target.value;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    const p2pFilter = document.getElementById('backupP2PFilter');
+    if (p2pFilter) {
+      p2pFilter.addEventListener('change', (e) => {
+        this.backupState.p2p = e.target.value;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    const teleportFilter = document.getElementById('backupTeleportFilter');
+    if (teleportFilter) {
+      teleportFilter.addEventListener('change', (e) => {
+        this.backupState.teleport = e.target.value;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    const cableFilter = document.getElementById('backupCableFilter');
+    if (cableFilter) {
+      cableFilter.addEventListener('change', (e) => {
+        this.backupState.cable = e.target.value;
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    }
+
+    // Reset button
+    const resetBtn = document.getElementById('backupResetFiltersBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        this.backupState.search = '';
+        this.backupState.status = 'all';
+        this.backupState.replication = 'all';
+        this.backupState.autoPromote = 'all';
+        this.backupState.p2p = 'all';
+        this.backupState.teleport = 'all';
+        this.backupState.cable = 'all';
+        this.backupState.page = 1;
+
+        if (searchInput) searchInput.value = '';
+        if (autoPromoteFilter) autoPromoteFilter.value = 'all';
+        if (p2pFilter) p2pFilter.value = 'all';
+        if (teleportFilter) teleportFilter.value = 'all';
+        if (cableFilter) cableFilter.value = 'all';
+
+        document.querySelectorAll('.filter-pill[data-backup-status-pill]').forEach(b => {
+          b.classList.toggle('active', b.dataset.backupStatusPill === 'all');
+        });
+        document.querySelectorAll('.filter-pill[data-backup-repl-pill]').forEach(b => {
+          b.classList.toggle('active', b.dataset.backupReplPill === 'all');
+        });
+
+        this.renderBackupTable();
+        this.showToast('Filter server backup telah di-reset.', 'info');
+      });
+    }
+
+    // Refresh button
+    const refreshBtn = document.getElementById('backupRefreshBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        this.showToast('Memperbarui data server backup...', 'info');
+        await this.fetchServerBackup(true);
+        this.showToast('Data server backup berhasil diperbarui.', 'success');
+      });
+    }
+
+    // Sorting headers
+    document.querySelectorAll('#backupTable th.sortable-th[data-backup-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.backupSort;
+        if (this.backupState.sortCol === col) {
+          this.backupState.sortDir = this.backupState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.backupState.sortCol = col;
+          this.backupState.sortDir = 'asc';
+        }
+        this.backupState.page = 1;
+        this.renderBackupTable();
+      });
+    });
+
+    // Pagination buttons
+    const prevBtn = document.getElementById('backupPrevPageBtn');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (this.backupState.page > 1) {
+          this.backupState.page--;
+          this.renderBackupTable();
+        }
+      });
+    }
+
+    const nextBtn = document.getElementById('backupNextPageBtn');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        this.backupState.page++;
+        this.renderBackupTable();
+      });
+    }
+  },
+
+  renderBackupTable() {
+    if (!this.serverBackup || !this.serverBackup.length) {
+      const tbody = document.getElementById('backupTableBody');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Memuat data server backup...</td></tr>';
+      }
+      return;
+    }
+
+    // 1. Update KPIs
+    const totalCount = this.serverBackup.length;
+    const streamingCount = this.serverBackup.filter(r => (r.replication || '').toLowerCase() === 'streaming').length;
+    const autoPromoteCount = this.serverBackup.filter(r => (r.autopromote || '').toLowerCase() === 'yes').length;
+    const p2pCount = this.serverBackup.filter(r => {
+      const p = (r.p2p || '').toLowerCase();
+      return p.includes('ok') || p.includes('connected');
+    }).length;
+
+    const elTotal = document.getElementById('backupKpiTotal');
+    if (elTotal) elTotal.textContent = totalCount.toLocaleString();
+
+    const elStreaming = document.getElementById('backupKpiStreaming');
+    if (elStreaming) elStreaming.textContent = streamingCount.toLocaleString();
+
+    const elAutoPromote = document.getElementById('backupKpiAutoPromote');
+    if (elAutoPromote) elAutoPromote.textContent = autoPromoteCount.toLocaleString();
+
+    const elP2P = document.getElementById('backupKpiP2P');
+    if (elP2P) elP2P.textContent = p2pCount.toLocaleString();
+
+    // 2. Filter data
+    const q = (this.backupState.search || '').toLowerCase().trim();
+    let filtered = this.serverBackup.filter(item => {
+      if (q) {
+        const match =
+          (item.loc || '').toLowerCase().includes(q) ||
+          (item.code || '').toLowerCase().includes(q) ||
+          (item.ip_local || '').toLowerCase().includes(q) ||
+          (item.ip_p2p || '').toLowerCase().includes(q) ||
+          (item.notes || '').toLowerCase().includes(q) ||
+          (item.status || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
+
+      if (this.backupState.status !== 'all') {
+        if ((item.status || '').toLowerCase() !== this.backupState.status.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (this.backupState.replication !== 'all') {
+        if ((item.replication || '').toLowerCase() !== this.backupState.replication.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (this.backupState.autoPromote !== 'all') {
+        if ((item.autopromote || '').toLowerCase() !== this.backupState.autoPromote.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (this.backupState.p2p !== 'all') {
+        const p = (item.p2p || '').toLowerCase();
+        if (this.backupState.p2p === 'connected') {
+          if (!p.includes('ok') && !p.includes('connected')) return false;
+        } else if (this.backupState.p2p === 'not_connected') {
+          if (p.includes('ok') || p.includes('connected')) return false;
+        }
+      }
+
+      if (this.backupState.teleport !== 'all') {
+        if ((item.teleport || '').toLowerCase() !== this.backupState.teleport.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (this.backupState.cable !== 'all') {
+        const c = (item.cable_type || '').toLowerCase();
+        if (this.backupState.cable === 'cat7' && !c.includes('cat7')) return false;
+        if (this.backupState.cable === 'cat6' && !c.includes('cat6')) return false;
+      }
+
+      return true;
+    });
+
+    // 3. Sort data
+    const col = this.backupState.sortCol;
+    const dir = this.backupState.sortDir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      let va = a[col] || '';
+      let vb = b[col] || '';
+
+      if (col === 'replag') {
+        const numA = parseInt(String(va).replace(/[^0-9]/g, ''), 10);
+        const numB = parseInt(String(vb).replace(/[^0-9]/g, ''), 10);
+        const validA = !isNaN(numA);
+        const validB = !isNaN(numB);
+        if (!validA && !validB) return 0;
+        if (!validA) return 1;
+        if (!validB) return -1;
+        return (numA - numB) * dir;
+      }
+
+      return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+    });
+
+    // Update sort indicators
+    this.updateSortIndicators('#view-backup', 'data-backup-sort', this.backupState.sortCol, this.backupState.sortDir);
+
+    // 4. Pagination
+    const totalFiltered = filtered.length;
+    const pageSize = this.backupState.pageSize;
+    const totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+    if (this.backupState.page > totalPages) this.backupState.page = totalPages;
+    if (this.backupState.page < 1) this.backupState.page = 1;
+
+    const startIdx = (this.backupState.page - 1) * pageSize;
+    const paginated = filtered.slice(startIdx, startIdx + pageSize);
+
+    // Update labels
+    const countLabel = document.getElementById('backupResultCountLabel');
+    if (countLabel) countLabel.textContent = `Menampilkan ${totalFiltered} dari ${totalCount} Server Backup`;
+
+    const tableCountLabel = document.getElementById('backupTableCountLabel');
+    if (tableCountLabel) {
+      if (totalFiltered === 0) {
+        tableCountLabel.textContent = 'Tidak ada server backup yang cocok dengan filter.';
+      } else {
+        const fromItem = startIdx + 1;
+        const toItem = Math.min(startIdx + pageSize, totalFiltered);
+        tableCountLabel.textContent = `Menampilkan ${fromItem} - ${toItem} dari ${totalFiltered} server backup`;
+      }
+    }
+
+    const curPageLabel = document.getElementById('backupCurrentPageLabel');
+    if (curPageLabel) curPageLabel.textContent = `Halaman ${this.backupState.page} / ${totalPages}`;
+
+    const prevBtn = document.getElementById('backupPrevPageBtn');
+    if (prevBtn) prevBtn.disabled = this.backupState.page <= 1;
+
+    const nextBtn = document.getElementById('backupNextPageBtn');
+    if (nextBtn) nextBtn.disabled = this.backupState.page >= totalPages;
+
+    // 5. Render rows
+    const tbody = document.getElementById('backupTableBody');
+    if (!tbody) return;
+
+    if (!paginated.length) {
+      tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        <div style="font-size: 1.5rem; margin-bottom: 6px;">🔍</div>
+        Tidak ada data server backup yang cocok dengan pencarian / filter Anda.
+      </td></tr>`;
+      return;
+    }
+
+    const rowsHtml = paginated.map(item => {
+      // Status Badge
+      const st = (item.status || '').trim();
+      let statusBadge = `<span class="ticket-status-pill ticket-status-closed">${st || '-'}</span>`;
+      if (st.toLowerCase() === 'aktif') {
+        statusBadge = `<span class="ticket-status-pill ticket-status-solved">● Aktif</span>`;
+      } else if (st.toLowerCase() === 'tidak aktif') {
+        statusBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">● Tidak Aktif</span>`;
+      } else if (st.toLowerCase().includes('aset')) {
+        statusBadge = `<span class="ticket-status-pill ticket-status-planned">⏳ Belum Ada Aset</span>`;
+      }
+
+      // P2P Badge
+      const p2pVal = (item.p2p || '').trim();
+      let p2pBadge = `<span class="ticket-status-pill ticket-status-closed">${p2pVal || '-'}</span>`;
+      if (p2pVal.includes('OK')) {
+        p2pBadge = `<span class="ticket-status-pill ticket-status-solved" title="Koneksi P2P dan Local LAN terhubung">✓ ${p2pVal}</span>`;
+      } else if (p2pVal.toLowerCase() === 'connected') {
+        p2pBadge = `<span class="ticket-status-pill ticket-status-solved">✓ Connected</span>`;
+      } else if (p2pVal.toLowerCase().includes('local only')) {
+        p2pBadge = `<span class="ticket-status-pill ticket-status-planned">⚠️ Local Only</span>`;
+      } else if (p2pVal.toLowerCase().includes('not')) {
+        p2pBadge = `<span class="ticket-status-pill ticket-status-closed" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">✕ Not Connected</span>`;
+      }
+
+      // Cable Type
+      const cableVal = (item.cable_type || '').trim();
+      let cableBadge = `<span style="font-size: 0.75rem; color: var(--text-muted);">${cableVal || '-'}</span>`;
+      if (cableVal.toUpperCase().includes('CAT7')) {
+        cableBadge = `<span class="badge-pill" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 700;">CAT7 After Market</span>`;
+      } else if (cableVal.toUpperCase().includes('CAT6')) {
+        cableBadge = `<span class="badge-pill" style="background: rgba(148, 163, 184, 0.15); color: #64748b; font-weight: 600;">CAT6 Rakitan</span>`;
+      }
+
+      // Teleport Badge
+      const teleVal = (item.teleport || '').trim().toLowerCase();
+      let teleBadge = `<span class="ticket-status-pill ticket-status-closed">No</span>`;
+      if (teleVal === 'yes') {
+        teleBadge = `<span class="ticket-status-pill ticket-status-solved">Yes</span>`;
+      }
+
+      // Replication Badge
+      const replVal = (item.replication || '').trim().toLowerCase();
+      let replBadge = `<span class="badge-not-streaming">✕ Not Streaming</span>`;
+      if (replVal === 'streaming') {
+        replBadge = `<span class="badge-streaming">⚡ Streaming</span>`;
+      }
+
+      // Auto Promote Badge
+      const autoVal = (item.autopromote || '').trim().toLowerCase();
+      let autoBadge = `<span class="badge-autopromote-no">No</span>`;
+      if (autoVal === 'yes') {
+        autoBadge = `<span class="badge-autopromote-yes">✓ Yes (Active)</span>`;
+      }
+
+      // Replag Badge
+      const lagVal = (item.replag || '').trim();
+      let replagBadge = `<span style="color: var(--text-muted); font-size: 0.74rem;">-</span>`;
+      if (lagVal && lagVal !== '-') {
+        const numLag = parseInt(lagVal.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(numLag)) {
+          if (numLag <= 10) {
+            replagBadge = `<span class="badge-replag-ok" title="Replikasi Normal (${numLag}s)">${lagVal}</span>`;
+          } else if (numLag <= 60) {
+            replagBadge = `<span class="badge-replag-warn" title="Lag Replikasi Waspada (${numLag}s)">${lagVal}</span>`;
+          } else {
+            replagBadge = `<span class="badge-replag-crit" title="Lag Replikasi Kritis (${numLag}s)">${lagVal}</span>`;
+          }
+        } else {
+          replagBadge = `<span class="badge-replag-ok">${lagVal}</span>`;
+        }
+      }
+
+      // Keterangan note
+      const noteVal = (item.notes || '').trim();
+      const escapedNote = noteVal.replace(/"/g, '&quot;');
+      const shortNote = noteVal.length > 90 ? `${noteVal.slice(0, 90)}...` : (noteVal || '-');
+
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); line-height: 1.35;">${item.loc || '-'}</div>
+          </td>
+          <td>
+            <span class="code-badge">${item.code || '-'}</span>
+          </td>
+          <td>${statusBadge}</td>
+          <td>${p2pBadge}</td>
+          <td>${cableBadge}</td>
+          <td style="text-align: center;">${teleBadge}</td>
+          <td>
+            ${item.ip_local ? `<span class="ip-pill">${item.ip_local}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+          </td>
+          <td>
+            ${item.ip_p2p ? `<span class="ip-pill" style="color: var(--accent-secondary);">${item.ip_p2p}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+          </td>
+          <td style="text-align: center;">${replBadge}</td>
+          <td style="text-align: center;">${autoBadge}</td>
+          <td style="text-align: center;">${replagBadge}</td>
+          <td>
+            <div style="font-size: 0.73rem; color: var(--text-secondary); max-width: 320px; line-height: 1.35;" title="${escapedNote}">
+              ${shortNote}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = rowsHtml;
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   // =========================================================================
