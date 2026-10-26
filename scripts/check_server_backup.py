@@ -275,12 +275,17 @@ if target_ip:
 
     sql_query = "select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;"
     lag_val = ""
-    for pwd in ['{code}545115', 'agent', 'support545115']:
-        sql_cmd = 'PGPASSWORD=' + pwd + ' psql -h 127.0.0.1 -p 5433 -d agent_{code} -U agent -tAc \\"' + sql_query + '\\"'
+    for pwd in ['{code}545115', 'agent', 'support545115', 'agent545115']:
+        sql_cmd = 'PGPASSWORD=' + pwd + ' psql -h 127.0.0.1 -p 5433 -d agent_{code} -U agent -w -tAc \\"' + sql_query + '\\" 2>&1'
         sql_out = run_cmd(target_ip, sql_cmd)
-        m = re.search(r'\\b(\\d+)\\b', sql_out)
-        if m:
-            lag_val = m.group(1)
+        for line in sql_out.splitlines():
+            line = line.strip()
+            if not line: continue
+            if 'password' in line.lower() or 'support@' in line or 'error' in line.lower() or 'fatal' in line.lower(): continue
+            if re.match(r'^-?\\d+$', line):
+                lag_val = line
+                break
+        if lag_val != "":
             break
     print(f"REPLAG_STATUS:{{lag_val}}")
 else:
@@ -345,11 +350,13 @@ else:
         result["autopromote"] = "Yes" if pawdog_active else "No"
         
         # Parse Replag
-        m_lag = re.search(r"REPLAG_STATUS:(\d+)", probe_out)
-        if m_lag:
+        m_lag = re.search(r"REPLAG_STATUS:(-?\d+)", probe_out)
+        if m_lag and result.get("replication") == "Streaming":
             result["replag"] = f"{m_lag.group(1)}s"
+        elif result.get("replication") == "Streaming":
+            result["replag"] = "0s"
         else:
-            result["replag"] = "0s" if result["replication"] == "Streaming" else "-"
+            result["replag"] = "-"
             
     except Exception as e:
         print(f"[-] Probe error on {code}: {e}", flush=True)

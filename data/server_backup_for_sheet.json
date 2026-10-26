@@ -10,7 +10,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     "OK"
   ],
   [
@@ -24,7 +24,7 @@
     "10.1.1.2",
     "Not Streaming",
     "No",
-    "10s",
+    "-",
     "Kalau dicheck untuk PC Server Utama dan PC Server Backup masih OS Ubuntu 18 dan Untuk Spek PC Server Utama dan PC Server Backup belum sesuai tier dan yang terpasang sekarang terdapat perbedaan spesifikasi RAM, RAM di PC Server Utama 32GB dan PC Server Backup 16GB, perlu pengajuan asset terlebih dahulu\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)"
   ],
   [
@@ -38,7 +38,7 @@
     "10.1.1.2",
     "Not Streaming",
     "No",
-    "10s",
+    "-",
     "Menunggu jadwal pengaktifan dari lokasi"
   ],
   [
@@ -52,7 +52,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     ""
   ],
   [
@@ -66,7 +66,7 @@
     "10.1.1.2",
     "Not Streaming",
     "No",
-    "10s",
+    "-",
     "Setup server backup dan auto pomote info terknisi lokasi menunggu asset UPS server tiba"
   ],
   [
@@ -94,7 +94,7 @@
     "10.1.1.2",
     "Streaming",
     "No",
-    "10s",
+    "20415373s",
     "Sudah dilakukan pengecekan. PC Server Utama dan PC Server Backup masih menggunakan Ubuntu 18. Spesifikasi kedua server juga belum sesuai dengan standar tier yang berlaku. Saat ini terdapat perbedaan kapasitas RAM, yaitu PC Server Utama 32 GB dan PC Server Backup 16 GB. Diperlukan pengajuan aset terlebih dahulu untuk penyesuaian spesifikasi hardware sesuai standar tier.\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)"
   ],
   [
@@ -108,7 +108,7 @@
     "10.10.10.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     "Setelah dilakukan pengecekan pada spesifikasi PC Server Utama dan PC Server Backup sudah sesuai. koneksi peer to peer antara utama dan backup juga berjalan normal. secara replikasi juga sudah berjalan dan terbaca. namun untuk auto promote secara service masih not found\n\nDone 26 juni 2026"
   ],
   [
@@ -122,7 +122,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     "arahkan rekomendasi pengadaan kabel cat7 vention"
   ],
   [
@@ -136,21 +136,21 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     ""
   ],
   [
     "Bandara Syamsudin Noor Backup (0vp-backup)",
     "0vp",
     "Aktif",
-    "Connected",
+    "Not Connected",
     "Rakitan  CAT6",
     "No",
     "10.10.43.58",
     "10.1.1.2",
     "Streaming",
-    "Yes",
-    "10s",
+    "No",
+    "0s",
     "kabel p2p cat7 vention sudah dilokasi > asudah arahkan untuk pergantian up Parkee halo"
   ],
   [
@@ -164,7 +164,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -178,7 +178,7 @@
     "10.1.1.2",
     "Streaming",
     "No",
-    "10s",
+    "0s",
     ""
   ],
   [
@@ -192,7 +192,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "2s",
     ""
   ],
   [
@@ -206,7 +206,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -234,7 +234,7 @@
     "10.10.10.2",
     "Streaming",
     "No",
-    "10s",
+    "48620362s",
     ""
   ],
   [
@@ -262,7 +262,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -276,7 +276,7 @@
     "10.1.2.2",
     "Streaming",
     "No",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -290,7 +290,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     "OK"
   ],
   [
@@ -304,7 +304,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "44s",
     ""
   ],
   [
@@ -318,7 +318,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     "Setelah dilakukan pengecekan spek PC Server Utama dan PC Server Backup sudah sesuai namun terjadi kendala pada peer to peer di lokasi dan akan dilakukan pengecekan lebih lanjut oleh IT Area\n\nDIjadwalkan replikasi ulang\n\nDone 26 juni 2026"
   ],
   [
@@ -332,7 +332,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -346,7 +346,7 @@
     "10.1.1.2",
     "Streaming",
     "No",
-    "10s",
+    "0s",
     "sudah arahkan pengadaan cat7 vention"
   ],
   [
@@ -360,7 +360,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "1s",
     "Kalau dicheck untuk pc server utama os ubuntu masih 18, sedangkan pc server backup ubuntu 24, perlu di jadwalkan untuk resetup, spek pc server utama dan pc server backup sudah sesuai dengan tier"
   ],
   [
@@ -402,7 +402,7 @@
     "10.1.1.2",
     "Streaming",
     "No",
-    "10s",
+    "1s",
     "Menunggu pergantian storage server backup, penambahan lan card server utama dan kabel lan"
   ],
   [
@@ -458,7 +458,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "0s",
     ""
   ],
   [
@@ -486,7 +486,7 @@
     "10.10.10.2",
     "Streaming",
     "No",
-    "10s",
+    "2s",
     ""
   ],
   [
@@ -500,7 +500,7 @@
     "10.1.1.2",
     "Streaming",
     "No",
-    "10s",
+    "1s",
     ""
   ],
   [
@@ -514,7 +514,7 @@
     "10.1.1.2",
     "Streaming",
     "Yes",
-    "10s",
+    "75s",
     ""
   ],
   [
@@ -548,15 +548,15 @@
   [
     "Bandara Sultan Syarif Kasim II – Riau",
     "0ro",
-    "Tidak Aktif",
+    "Aktif",
     "Not Connected",
     "After Market CAT7",
     "No",
     "",
     "",
-    "Not Streaming",
+    "Streaming",
     "No",
-    "-",
+    "0s",
     ""
   ],
   [
