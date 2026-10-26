@@ -225,6 +225,8 @@ def check_single_server(row_info, teleport_nodes):
         result["replication"] = "Not Streaming"
         result["status"] = "Tidak Aktif"
 
+    probe_ip_p2p = ip_p2p if ip_p2p else "10.1.1.2"
+
     # 2. Run remote probe script on primary server via Python PTY (zero dependency, no sshpass needed)
     probe_script = f"""
 import pty, os, select, sys, time, re
@@ -256,7 +258,7 @@ def run_cmd(ip, remote_cmd, timeout=6):
         except: pass
         return output.decode(errors='ignore')
 
-p2p_out = run_cmd('{ip_p2p}', 'hostname')
+p2p_out = run_cmd('{probe_ip_p2p}', 'hostname')
 p2p_ok = 1 if any(k in p2p_out.lower() for k in ['server', 'backup', 'ubuntu', '{code}']) else 0
 
 loc_out = run_cmd('{ip_local}', 'hostname')
@@ -265,7 +267,7 @@ loc_ok = 1 if any(k in loc_out.lower() for k in ['server', 'backup', 'ubuntu', '
 print(f"P2P_STATUS:{{p2p_ok}}")
 print(f"LOCAL_STATUS:{{loc_ok}}")
 
-target_ip = '{ip_p2p}' if p2p_ok else ('{ip_local}' if loc_ok else '')
+target_ip = '{probe_ip_p2p}' if p2p_ok else ('{ip_local}' if loc_ok else '')
 if target_ip:
     pawdog_out = run_cmd(target_ip, 'systemctl is-active pawdog')
     pawdog_act = 'active' if 'active' in pawdog_out.split() else 'inactive'
@@ -301,6 +303,8 @@ else:
         if p2p_ok:
             result["p2p"] = "Connected"
             result["status"] = "Aktif"
+            if not result.get("ip_p2p"):
+                result["ip_p2p"] = probe_ip_p2p
         else:
             result["p2p"] = "Not Connected"
             if loc_ok:

@@ -515,17 +515,17 @@
     "loc": "Bandara Sams Sepinggan (0vr-backup)",
     "code": "0vr",
     "status": "Aktif",
-    "p2p": "Not Connected",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "",
-    "ip_p2p": "",
+    "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
-    "autopromote": "No",
-    "replag": "0s",
+    "autopromote": "Yes",
+    "replag": "10s",
     "notes": "",
-    "note_col_s": "Local & P2P tidak connect",
-    "conn_note": "Local & P2P tidak connect"
+    "note_col_s": "P2P connect, Local tidak connect",
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Bandara Soekarno-Hatta Parkir Inap 1 (0qz-backup)",
