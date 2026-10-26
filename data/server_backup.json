@@ -156,8 +156,8 @@
     "autopromote": "Yes",
     "replag": "10s",
     "notes": "",
-    "note_col_s": "P2P connect, Local tidak connect",
-    "conn_note": "P2P connect, Local tidak connect"
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Syamsudin Noor Backup (0vp-backup)",
@@ -518,14 +518,14 @@
     "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
-    "ip_local": "",
+    "ip_local": "192.168.10.54",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
     "replag": "10s",
     "notes": "",
-    "note_col_s": "P2P connect, Local tidak connect",
-    "conn_note": "P2P connect, Local tidak connect"
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Bandara Soekarno-Hatta Parkir Inap 1 (0qz-backup)",
@@ -566,14 +566,14 @@
     "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
-    "ip_local": "10.43.13.55",
+    "ip_local": "10.43.13.150",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
     "replag": "10s",
     "notes": "",
-    "note_col_s": "P2P connect, Local tidak connect",
-    "conn_note": "P2P connect, Local tidak connect"
+    "note_col_s": "",
+    "conn_note": ""
   },
   {
     "loc": "Center Point Mall Medan",
