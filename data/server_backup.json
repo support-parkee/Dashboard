@@ -10,7 +10,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "3s",
+    "replag": "0s",
     "notes": "OK",
     "note_col_s": "",
     "conn_note": ""
@@ -58,7 +58,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "0s",
+    "replag": "1s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -99,17 +99,17 @@
     "loc": "Bandara Sentani Backup (0vs-backup)",
     "code": "0vs",
     "status": "Aktif",
-    "p2p": "Connected",
+    "p2p": "Not Connected",
     "cable_type": "Rakitan  CAT6",
-    "teleport": "Yes",
+    "teleport": "No",
     "ip_local": "192.168.167.55",
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "20460060s",
+    "replag": "0s",
     "notes": "Sudah dilakukan pengecekan. PC Server Utama dan PC Server Backup masih menggunakan Ubuntu 18. Spesifikasi kedua server juga belum sesuai dengan standar tier yang berlaku. Saat ini terdapat perbedaan kapasitas RAM, yaitu PC Server Utama 32 GB dan PC Server Backup 16 GB. Diperlukan pengajuan aset terlebih dahulu untuk penyesuaian spesifikasi hardware sesuai standar tier.\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)",
-    "note_col_s": "Info teknisi RAM sudah tiba dilokasi >sudah arahkan untuk up parkee halo untuk pemasangan nya",
-    "conn_note": ""
+    "note_col_s": "Info teknisi RAM sudah tiba dilokasi >sudah arahkan untuk up parkee halo untuk pemasangan nya; Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Soekarno Hatta Terminal 2 (0qy-backup)",
@@ -122,7 +122,7 @@
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "3s",
+    "replag": "0s",
     "notes": "Setelah dilakukan pengecekan pada spesifikasi PC Server Utama dan PC Server Backup sudah sesuai. koneksi peer to peer antara utama dan backup juga berjalan normal. secara replikasi juga sudah berjalan dan terbaca. namun untuk auto promote secara service masih not found\n\nDone 26 juni 2026",
     "note_col_s": "",
     "conn_note": ""
@@ -138,7 +138,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "0s",
+    "replag": "6s",
     "notes": "arahkan rekomendasi pengadaan kabel cat7 vention",
     "note_col_s": "",
     "conn_note": ""
@@ -266,7 +266,7 @@
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "48665048s",
+    "replag": "48751450s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -298,7 +298,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "5s",
+    "replag": "1s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -314,7 +314,7 @@
     "ip_p2p": "10.1.2.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "9s",
+    "replag": "6s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -330,7 +330,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "0s",
+    "replag": "2s",
     "notes": "OK",
     "note_col_s": "",
     "conn_note": ""
@@ -346,7 +346,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "52s",
+    "replag": "54s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -378,7 +378,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "4s",
+    "replag": "0s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -394,7 +394,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "1s",
+    "replag": "11s",
     "notes": "sudah arahkan pengadaan cat7 vention",
     "note_col_s": "",
     "conn_note": ""
@@ -410,7 +410,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "14s",
+    "replag": "5s",
     "notes": "Kalau dicheck untuk pc server utama os ubuntu masih 18, sedangkan pc server backup ubuntu 24, perlu di jadwalkan untuk resetup, spek pc server utama dan pc server backup sudah sesuai dengan tier",
     "note_col_s": "P2P connect, Local tidak connect",
     "conn_note": "P2P connect, Local tidak connect"
@@ -456,9 +456,9 @@
     "teleport": "No",
     "ip_local": "111.16.5.54",
     "ip_p2p": "10.1.1.2",
-    "replication": "Streaming",
+    "replication": "Not Streaming",
     "autopromote": "No",
-    "replag": "11s",
+    "replag": "-",
     "notes": "Menunggu pergantian storage server backup, penambahan lan card server utama dan kabel lan",
     "note_col_s": "",
     "conn_note": ""
@@ -554,7 +554,7 @@
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "5s",
+    "replag": "6s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -570,7 +570,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "3s",
+    "replag": "5s",
     "notes": "",
     "note_col_s": "P2P connect, Local tidak connect",
     "conn_note": "P2P connect, Local tidak connect"
