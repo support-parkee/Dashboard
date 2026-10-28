@@ -9,6 +9,7 @@ If the command fails (exit code != 0 or exception), an alert is queued atomicall
 
 import sys
 import os
+import shutil
 import subprocess
 import json
 import time
@@ -124,6 +125,19 @@ def main():
             i += 2
         elif args[i] == "--":
             cmd = args[i + 1:]
+            break
+        elif (
+            i == 0
+            and job_name == "Unnamed Cron Job"
+            and len(args) >= 2
+            and not args[0].startswith("-")
+            and (args[1] == "--" or (not os.path.isfile(args[0]) and shutil.which(args[0]) is None))
+        ):
+            job_name = args[0]
+            if args[1] == "--":
+                cmd = args[2:]
+            else:
+                cmd = args[1:]
             break
         else:
             cmd = args[i:]
