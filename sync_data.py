@@ -3,23 +3,71 @@ import json
 import re
 from collections import Counter, defaultdict
 import os
+import sys
+import tempfile
 import urllib.request
 import datetime
 
 CSV_URL = "https://docs.google.com/spreadsheets/d/11HUECMQG_30Sc1AupFLac7OxBDiFiZOD339LjiOkpdc/export?format=csv&gid=0"
 base_dir = os.path.dirname(os.path.abspath(__file__))
 csv_path = os.path.join(base_dir, "sheet_data.csv")
+csv_tmp_path = os.path.join(base_dir, "sheet_data.csv.tmp")
 data_dir = os.path.join(base_dir, "data")
 js_dir = os.path.join(base_dir, "js")
 os.makedirs(data_dir, exist_ok=True)
 os.makedirs(js_dir, exist_ok=True)
 
+MIN_EXPECTED_RECORDS = 500
+
+
+def atomic_write_json(target_path, payload, compact=True):
+    target_dir = os.path.dirname(target_path)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=target_dir)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            if compact:
+                json.dump(payload, f, separators=(',', ':'))
+            else:
+                json.dump(payload, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, target_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
+
+
 print("Fetching latest Google Sheet CSV...")
 try:
-    urllib.request.urlretrieve(CSV_URL, csv_path)
-    print(f"Downloaded latest CSV to {csv_path}")
+    req = urllib.request.Request(
+        CSV_URL,
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/128.0.0.0 Safari/537.36"}
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        raw_bytes = resp.read()
+    text_preview = raw_bytes[:1024].decode("utf-8", errors="ignore")
+    if "Nama Lokasi" not in text_preview:
+        raise ValueError("Downloaded content does not contain expected CSV header 'Nama Lokasi'")
+    with open(csv_tmp_path, "wb") as tf:
+        tf.write(raw_bytes)
+    os.replace(csv_tmp_path, csv_path)
+    print(f"Downloaded and verified latest CSV to {csv_path} ({len(raw_bytes):,} bytes)")
 except Exception as e:
-    print(f"Fetch failed ({e}), using existing CSV if available.")
+    if os.path.exists(csv_tmp_path):
+        try:
+            os.unlink(csv_tmp_path)
+        except OSError:
+            pass
+    if os.path.exists(csv_path):
+        print(f"Warning: Live CSV fetch failed ({e}), falling back to existing {csv_path}.")
+    else:
+        print(f"Fatal: CSV fetch failed ({e}) and no local fallback CSV exists.", file=sys.stderr)
+        sys.exit(1)
+
 
 def clean_num(val, is_float=False):
     if not val:
@@ -29,9 +77,10 @@ def clean_num(val, is_float=False):
     if match:
         try:
             return float(match.group(0)) if is_float else int(float(match.group(0)))
-        except:
+        except Exception:
             return None
     return None
+
 
 raw_rows = []
 loc_tiers = {}
@@ -54,7 +103,7 @@ for r in raw_rows:
     temp_val = clean_num(r.get("Temperature", ""), is_float=True)
     ssd_h = clean_num(r.get("Health SSD", ""))
     ssd_u = clean_num(r.get("SSD Usage", ""))
-    
+
     h_lower = host.lower()
     dev_cat = "Other / Network"
     if h_lower.startswith("server"):
@@ -167,21 +216,35 @@ for r in raw_rows:
     })
 
 print(f"Processed {len(records)} records")
+if len(records) < MIN_EXPECTED_RECORDS:
+    print(
+        f"Fatal Error: Processed only {len(records)} records (minimum expected: {MIN_EXPECTED_RECORDS}). "
+        f"Aborting to prevent overwriting production JSON with empty/partial data.",
+        file=sys.stderr
+    )
+    sys.exit(1)
 
-# 1. Save fleet.json
-fleet_file = os.path.join(data_dir, "fleet.json")
-with open(fleet_file, "w", encoding="utf-8") as f:
-    json.dump(records, f, separators=(',', ':'))
-
-# 2. Separate Server records & Client records
+# 1. Separate Server records & Client records
 server_records = [r for r in records if r["is_server"]]
 client_records = [r for r in records if not r["is_server"]]
 
-servers_file = os.path.join(data_dir, "servers.json")
-with open(servers_file, "w", encoding="utf-8") as f:
-    json.dump(server_records, f, separators=(',', ':'))
+# Save fleet.json (Client records only to eliminate 576 KB duplicate server payload)
+fleet_file = os.path.join(data_dir, "fleet.json")
+atomic_write_json(fleet_file, client_records, compact=True)
 
-# 3. Aggregate 961 Locations for 'Location Information'
+# 2. Save servers.json
+servers_file = os.path.join(data_dir, "servers.json")
+atomic_write_json(servers_file, server_records, compact=True)
+
+# Remove legacy unused server_storage.json if present
+legacy_storage_file = os.path.join(data_dir, "server_storage.json")
+if os.path.exists(legacy_storage_file):
+    try:
+        os.unlink(legacy_storage_file)
+    except OSError:
+        pass
+
+# 3. Aggregate Locations for 'Location Information'
 locs_map = defaultdict(lambda: {
     "loc": "",
     "code": "",
@@ -236,31 +299,9 @@ for r in records:
 locations_list = sorted(list(locs_map.values()), key=lambda x: x["loc"].lower())
 
 locations_file = os.path.join(data_dir, "locations.json")
-with open(locations_file, "w", encoding="utf-8") as f:
-    json.dump(locations_list, f, separators=(',', ':'))
+atomic_write_json(locations_file, locations_list, compact=True)
 
-# 4. Storage Audit Data (Server Only)
-server_storage_list = []
-for s in server_records:
-    server_storage_list.append({
-        "loc": s["loc"],
-        "code": s["code"],
-        "tier": s["tier"],
-        "host": s["host"],
-        "ssd_brand": s["ssd_brand"],
-        "ssd_type": s["ssd_type"],
-        "ssd_size": s["ssd_size"],
-        "ssd_health": s["ssd_health"],
-        "ssd_usage": s["ssd_usage"],
-        "temp": s["temp"],
-        "sync": s["sync"]
-    })
-
-server_storage_file = os.path.join(data_dir, "server_storage.json")
-with open(server_storage_file, "w", encoding="utf-8") as f:
-    json.dump(server_storage_list, f, separators=(',', ':'))
-
-# 5. Summary Statistics for KPIs
+# 4. Summary Statistics for KPIs
 unique_locs = len(locations_list)
 tier_counts = Counter(r["tier"] for r in records)
 server_overheats = sorted([r for r in server_records if r["temp"] is not None and r["temp"] >= 80], key=lambda x: x["temp"], reverse=True)
@@ -312,8 +353,7 @@ summary = {
 }
 
 summary_file = os.path.join(data_dir, "summary.json")
-with open(summary_file, "w", encoding="utf-8") as f:
-    json.dump(summary, f, indent=2)
+atomic_write_json(summary_file, summary, compact=False)
 
 js_file = os.path.join(js_dir, "summary-data.js")
 with open(js_file, "w", encoding="utf-8") as f:

@@ -4,15 +4,15 @@ check_server_backup.py
 ======================
 Automated Diagnostic & Sync Engine for PARKEE Server Backups
 Performs:
-1. Fetch latest raw rows from Google Sheet 'List Status Server Backup'.
+1. Fetch latest raw rows live from Google Sheet 'List Status Server Backup' via Composio (with local fallback).
 2. Concurrently audit each server backup:
    - Primary server SSH jump (tsh ssh support@server-<code_clean>)
-   - Run repmgr cluster show to check replication status
+   - Run repmgr cluster show to check standby replication status accurately per row
    - Probe backup server via P2P IP and Local IP
    - Check pawdog service status (Auto Promote)
    - Query PostgreSQL replag: select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;
-3. Update Google Sheet via Composio (account: googlesheets_mobile-median / admin@parkee.app).
-4. Save clean telemetry JSON to data/server_backup.json for the dashboard.
+3. Update Google Sheet via Composio (account: googlesheets_mobile-median).
+4. Save clean telemetry JSON atomically to data/server_backup.json for the dashboard.
 """
 
 import os
@@ -20,6 +20,7 @@ import sys
 import json
 import re
 import time
+import tempfile
 import subprocess
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,20 +36,30 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 OUTPUT_JSON = os.path.join(DATA_DIR, "server_backup.json")
 LOCATIONS_JSON = os.path.join(DATA_DIR, "locations.json")
 
+
+def load_dotenv():
+    env_path = os.path.join(BASE_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+load_dotenv()
+
 SPREADSHEET_ID = "1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA"
 SHEET_NAME = "List Status Server Backup"
 COMPOSIO_ACCOUNT = "googlesheets_mobile-median"
 JUMP_HOST = "admin-adg@100.123.138.90"
 
-# Composio MCP API Token & URL
 COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
-DEFAULT_ACCESS_TOKEN = (
-    "eyJhbGciOiJSUzI1NiIsImtpZCI6InNzb19vaWRjX2tleV9wYWlyXzAxSlkwWkRHTjlCOTVGTTBHUEM1QjNZWTVOIn0."
-    "eyJlbWFpbCI6ImF6a2lhYmVuaW5ndG9uMTJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImlzcyI6Imh0dHBzOi8vbG9naW4uY29tcG9zaW8uZGV2IiwiYXVkIjoiaHR0cHM6Ly9jb25uZWN0LmNvbXBvc2lvLmRldi9tY3AiLCJzdWIiOiJ1c2VyXzAxS1QxWFhEMFZFSFhWSjVQMFBUV002WjVZIiwic2lkIjoiYXBwX2NvbnNlbnRfMDFLVEYwRDNOWERYR0pKSEVNVEVFUlhUWFYiLCJqdGkiOiIwMUtURjBESkFWOVA4NURYSEhEQjdEQlAxOSIsIm9yZ19pZCI6Im9yZ18wMUtUM0pCNVRCSFhDQU03MzgzOUFWSDEwUCIsImV4cCI6MTgxMjMwMzcwNSwiaWF0IjoxNzgwNzY3NzA1fQ."
-    "Pyz5m2lqz8abukcaCH7Ds_WJCaUz9DNPtHyUgmyqRboeWkOSBq3litBzmEq_jMUQzNvmxgK9uLlQyofvg4jwD6-TJ8FWx8P7q4b4GAlUDcauQBPS8lGc86WFk4aoPWQW1_yOgP2QUVn6S9uDeW3l2txFOdwOfvYyERVm87UxSEhCIUgeaj5xzB7cihTkLQtk-yATfCS6FTeTjDDevuIDNzLhX12yqNvIUiehejh5GnJpjMsGfzVgtZcey-asS6bDCZ996bN5wA4oYZDwy5tPv9543k3Io3SSHO1xaRr7To5d4GFrF_U_p248PVA5fGa0HfoDuOMPWBz-g2iE1jTarQ"
-)
+COMPOSIO_API_KEY = os.environ.get("COMPOSIO_API_KEY", "")
+SSH_SUPPORT_PASS = os.environ.get("SSH_SUPPORT_PASS", "")
 
-# Known code mapping for edge cases in the sheet
 KNOWN_CODES = {
     "bandara adi soemarmo": "0vx",
     "bandara ahmad yani": "0vy",
@@ -74,7 +85,12 @@ KNOWN_CODES = {
     "manado town square": "045"
 }
 
+
 def call_composio(tool_slug, arguments):
+    if not COMPOSIO_API_KEY:
+        print("[Composio Warning]: COMPOSIO_API_KEY not set in .env", flush=True)
+        return None
+
     payload = {
         "jsonrpc": "2.0",
         "id": int(time.time() * 1000),
@@ -95,7 +111,7 @@ def call_composio(tool_slug, arguments):
         }
     }
     headers = {
-        "Authorization": f"Bearer {DEFAULT_ACCESS_TOKEN}",
+        "x-consumer-api-key": COMPOSIO_API_KEY,
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
     }
@@ -110,19 +126,41 @@ def call_composio(tool_slug, arguments):
                     for c in results:
                         if c.get("type") == "text":
                             parsed = json.loads(c.get("text", "{}"))
-                            return parsed.get("data", {}).get("results", [])[0].get("response", {}).get("data", {})
+                            res_list = parsed.get("data", {}).get("results", [])
+                            if res_list:
+                                resp_obj = res_list[0].get("response", {})
+                                if resp_obj.get("successful") is False:
+                                    print(f"[Composio Tool Error ({tool_slug})]: {resp_obj.get('data')}", flush=True)
+                                    return None
+                                return resp_obj.get("data", {})
     except Exception as e:
-        print(f"[Composio API Error]: {e}", flush=True)
+        print(f"[Composio API Error ({tool_slug})]: {e}", flush=True)
     return None
+
 
 def fetch_sheet_rows():
     raw_path = os.path.join(DATA_DIR, "server_backup_raw.json")
+    print(f"[*] Fetching live sheet rows from '{SHEET_NAME}' via Composio...", flush=True)
+    live_data = call_composio("GOOGLESHEETS_BATCH_GET", {
+        "spreadsheet_id": SPREADSHEET_ID,
+        "ranges": [f"'{SHEET_NAME}'!A3:S60"]
+    })
+    if live_data and isinstance(live_data.get("valueRanges"), list) and live_data["valueRanges"]:
+        values = live_data["valueRanges"][0].get("values", [])
+        if len(values) > 1:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with open(raw_path, "w", encoding="utf-8") as f:
+                json.dump(values, f, indent=2, ensure_ascii=False)
+            print(f"[+] Fetched {len(values) - 1} live backup rows from Google Sheets and cached to {raw_path}.", flush=True)
+            return values
+
     if os.path.exists(raw_path):
-        print(f"[*] Loading sheet data from {raw_path}...", flush=True)
+        print(f"[*] Live fetch unavailable; loading cached sheet data from {raw_path}...", flush=True)
         with open(raw_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    print("[-] raw sheet data not found.", flush=True)
+    print("[-] Raw sheet data not found.", flush=True)
     return []
+
 
 def get_teleport_nodes():
     print("[*] Retrieving Teleport registered nodes from jump host...", flush=True)
@@ -149,28 +187,43 @@ def get_teleport_nodes():
         print(f"[-] Failed to fetch Teleport nodes: {e}", flush=True)
     return set()
 
+
 def resolve_uniq_code(loc_name, raw_code):
     raw_code = raw_code.strip()
     if raw_code and raw_code != "-":
         if len(raw_code) == 2 and raw_code.isdigit():
             return f"0{raw_code}"
         return raw_code.lower()
-    
-    # Try regex inside parentheses like (0vx-backup) or (server-backup-0vy)
+
     m = re.search(r"\(([a-zA-Z0-9]+)-backup|\(server-backup-([a-zA-Z0-9]+)|\(([a-zA-Z0-9]+)\)", loc_name, re.I)
     if m:
         for g in m.groups():
             if g:
                 c = g.lower()
                 return f"0{c}" if (len(c) == 2 and c.isdigit()) else c
-                
-    # Try known codes
+
     clean_name = loc_name.lower()
     for k, v in KNOWN_CODES.items():
         if k in clean_name:
             return v
 
     return ""
+
+
+def parse_repmgr_standby_streaming(rep_out):
+    """
+    Strictly inspect standby rows in `repmgr cluster show` output so a running
+    primary with a failed/unreachable standby is never misclassified as Streaming.
+    """
+    if not rep_out or "error" in rep_out.lower():
+        return False
+    for line in rep_out.splitlines():
+        ll = line.lower()
+        if "standby" in ll and "|" in ll:
+            if ("running" in ll or "streaming" in ll) and "unreachable" not in ll and "failed" not in ll and "stopped" not in ll:
+                return True
+    return False
+
 
 def check_single_server(row_info, teleport_nodes):
     row_idx = row_info["row_idx"]
@@ -179,15 +232,13 @@ def check_single_server(row_info, teleport_nodes):
     ip_local = row_info["ip_local"]
     ip_p2p = row_info["ip_p2p"]
     status_raw = row_info["status"]
-    
+
     result = dict(row_info)
-    
-    # Check if backup server is in Teleport
+
     backup_hostnames = [f"server-backup-{code}", f"server-{code}-backup"]
     teleport_online = any(h in teleport_nodes for h in backup_hostnames)
     result["teleport"] = "Yes" if teleport_online else "No"
-    
-    # If explicitly marked as no asset or blocking, preserve note and skip SSH
+
     if any(k in status_raw.lower() for k in ["belum ada aset", "blocking", "asset sampai"]):
         result["status"] = status_raw or "Belum ada aset"
         result["p2p"] = "Not Connected"
@@ -197,7 +248,7 @@ def check_single_server(row_info, teleport_nodes):
         result["conn_note"] = ""
         result["note_col_s"] = row_info.get("col_s_note", "")
         return result
-        
+
     if not code:
         result["status"] = status_raw or "Tidak Diketahui"
         result["p2p"] = "Not Connected"
@@ -219,15 +270,16 @@ def check_single_server(row_info, teleport_nodes):
     try:
         p_rep = subprocess.run(cmd_repmgr, capture_output=True, text=True, timeout=20)
         rep_out = p_rep.stdout
-        is_streaming = ("standby" in rep_out.lower() and "running" in rep_out.lower()) and ("error" not in rep_out.lower())
+        is_streaming = parse_repmgr_standby_streaming(rep_out)
         result["replication"] = "Streaming" if is_streaming else "Not Streaming"
-    except Exception as e:
+    except Exception:
         result["replication"] = "Not Streaming"
         result["status"] = "Tidak Aktif"
 
     probe_ip_p2p = ip_p2p if ip_p2p else "10.1.1.2"
+    ssh_pass = SSH_SUPPORT_PASS
 
-    # 2. Run remote probe script on primary server via Python PTY (zero dependency, no sshpass needed)
+    # 2. Run remote probe script on primary server via Python PTY
     probe_script = f"""
 import pty, os, select, sys, time, re
 
@@ -248,7 +300,7 @@ def run_cmd(ip, remote_cmd, timeout=6):
                     if not data: break
                     output += data
                     if (b'password:' in output.lower() or b'password for' in output.lower()) and not sent:
-                        os.write(fd, b'support545115\\n')
+                        os.write(fd, {repr((ssh_pass + chr(10)).encode('utf-8'))})
                         sent = True
                 except OSError:
                     break
@@ -275,7 +327,7 @@ if target_ip:
 
     sql_query = "select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;"
     lag_val = ""
-    for pwd in ['{code}545115', 'agent', 'support545115', 'agent545115']:
+    for pwd in ['{code}545115', 'agent', '{ssh_pass}', 'agent545115']:
         sql_cmd = 'PGPASSWORD=' + pwd + ' psql -h 127.0.0.1 -p 5433 -d agent_{code} -U agent -w -tAc \\"' + sql_query + '\\" 2>&1'
         sql_out = run_cmd(target_ip, sql_cmd)
         for line in sql_out.splitlines():
@@ -299,12 +351,10 @@ else:
     try:
         p_probe = subprocess.run(cmd_probe, input=probe_script.replace('\r\n', '\n').encode('utf-8'), capture_output=True, timeout=30)
         probe_out = p_probe.stdout.decode('utf-8', errors='ignore')
-        
-        # Parse P2P and LOCAL
+
         p2p_ok = "P2P_STATUS:1" in probe_out
         loc_ok = "LOCAL_STATUS:1" in probe_out
-        
-        # P2P strictly "Connected" or "Not Connected" (Google Sheet dropdown validation)
+
         if p2p_ok:
             result["p2p"] = "Connected"
             result["status"] = "Aktif"
@@ -319,7 +369,6 @@ else:
             else:
                 result["status"] = "Aktif"
 
-        # Determine connectivity note for Column S / Notes
         conn_note = ""
         if p2p_ok and loc_ok:
             conn_note = ""
@@ -332,7 +381,6 @@ else:
 
         result["conn_note"] = conn_note
 
-        # Merge with existing Column S note
         existing_col_s = row_info.get("col_s_note", "").strip()
         if conn_note:
             if existing_col_s:
@@ -344,12 +392,10 @@ else:
                 result["note_col_s"] = conn_note
         else:
             result["note_col_s"] = existing_col_s
-                
-        # Parse Pawdog
+
         pawdog_active = "PAWDOG_STATUS:active" in probe_out
         result["autopromote"] = "Yes" if pawdog_active else "No"
-        
-        # Parse Replag
+
         m_lag = re.search(r"REPLAG_STATUS:(-?\d+)", probe_out)
         if m_lag and result.get("replication") == "Streaming":
             result["replag"] = f"{m_lag.group(1)}s"
@@ -357,7 +403,7 @@ else:
             result["replag"] = "0s"
         else:
             result["replag"] = "-"
-            
+
     except Exception as e:
         print(f"[-] Probe error on {code}: {e}", flush=True)
         result["p2p"] = "Not Connected"
@@ -372,13 +418,13 @@ else:
                 result["note_col_s"] = existing_col_s
         else:
             result["note_col_s"] = "Local & P2P tidak connect"
-        
+
     print(f"[+] Row {row_idx} Done: {loc_name} | Repl: {result['replication']} | Auto: {result['autopromote']} | Lag: {result['replag']} | P2P: {result['p2p']}", flush=True)
     return result
 
+
 def update_google_sheet(audited_rows):
     print(f"\n[*] Preparing batch updates for Google Sheet '{SHEET_NAME}'...", flush=True)
-    # Range A4:L{4 + len(audited_rows) - 1} and S4:S{4 + len(audited_rows) - 1}
     sheet_values = []
     col_s_values = []
     for r in audited_rows:
@@ -398,35 +444,32 @@ def update_google_sheet(audited_rows):
         ]
         sheet_values.append(row_val)
         col_s_values.append([r.get("note_col_s", "")])
-        
-    payload_path = os.path.join(DATA_DIR, "server_backup_for_sheet.json")
-    with open(payload_path, "w", encoding="utf-8") as f:
-        json.dump(sheet_values, f, indent=2, ensure_ascii=False)
-        
-    col_s_path = os.path.join(DATA_DIR, "server_backup_col_s.json")
-    with open(col_s_path, "w", encoding="utf-8") as f:
-        json.dump(col_s_values, f, indent=2, ensure_ascii=False)
-    print(f"[✓] Saved sheet update payloads to {payload_path} and {col_s_path}", flush=True)
 
     start_row = 4
     end_row = 4 + len(sheet_values) - 1
     update_range = f"'{SHEET_NAME}'!A{start_row}:L{end_row}"
     update_s_range = f"'{SHEET_NAME}'!S{start_row}:S{end_row}"
-    
+
     print(f"[*] Pushing updates to Google Sheet range {update_range} and {update_s_range} via Composio ({COMPOSIO_ACCOUNT})...", flush=True)
-    resp = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
+    resp1 = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
         "spreadsheet_id": SPREADSHEET_ID,
         "range": update_range,
         "value_input_option": "USER_ENTERED",
         "values": sheet_values
     })
-    resp_s = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
+    resp2 = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
         "spreadsheet_id": SPREADSHEET_ID,
         "range": update_s_range,
         "value_input_option": "USER_ENTERED",
         "values": col_s_values
     })
-    return True
+    if resp1 is not None and resp2 is not None:
+        print(f"[✓] Google Sheet '{SHEET_NAME}' updated successfully!", flush=True)
+        return True
+    else:
+        print(f"[!] Warning: Google Sheet update returned incomplete status.", flush=True)
+        return False
+
 
 def save_to_dashboard_json(audited_rows):
     print(f"[*] Exporting dataset to {OUTPUT_JSON}...", flush=True)
@@ -448,22 +491,35 @@ def save_to_dashboard_json(audited_rows):
             "note_col_s": r.get("note_col_s", ""),
             "conn_note": r.get("conn_note", "")
         })
-        
-    with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
-        json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".bkp_", suffix=".json", dir=DATA_DIR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, OUTPUT_JSON)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
     print(f"[✓] Saved {len(export_data)} server backup records to {OUTPUT_JSON}.", flush=True)
+
 
 def main():
     print("==================================================================", flush=True)
     print("  PARKEE HIGH-AVAILABILITY SERVER BACKUP TELEMETRY SWEEP ENGINE   ", flush=True)
     print("==================================================================", flush=True)
-    
+
     raw_rows = fetch_sheet_rows()
     if not raw_rows or len(raw_rows) <= 1:
         print("[-] No rows retrieved from sheet. Aborting.", flush=True)
-        return
+        sys.exit(1)
 
-    # Extract rows 4 onwards
     row_objects = []
     for idx, r in enumerate(raw_rows[1:], start=4):
         loc_name = r[0].strip() if len(r) > 0 else ""
@@ -471,7 +527,7 @@ def main():
             continue
         raw_code = r[1].strip() if len(r) > 1 else ""
         resolved_code = resolve_uniq_code(loc_name, raw_code)
-        
+
         status = r[2].strip() if len(r) > 2 else "Aktif"
         p2p = r[3].strip() if len(r) > 3 else "Connected"
         cable_type = r[4].strip() if len(r) > 4 else "Rakitan CAT6"
@@ -483,7 +539,7 @@ def main():
         replag = r[10].strip() if len(r) > 10 else ""
         notes = r[11].strip() if len(r) > 11 else ""
         col_s_note = r[18].strip() if len(r) > 18 else ""
-        
+
         row_objects.append({
             "row_idx": idx,
             "loc_name": loc_name,
@@ -504,7 +560,6 @@ def main():
     print(f"[+] Loaded {len(row_objects)} backup server locations to audit.", flush=True)
     teleport_nodes = get_teleport_nodes()
 
-    # Parallel audit with ThreadPoolExecutor
     audited_map = {}
     with ThreadPoolExecutor(max_workers=6) as executor:
         future_to_idx = {executor.submit(check_single_server, ro, teleport_nodes): ro["row_idx"] for ro in row_objects}
@@ -516,16 +571,13 @@ def main():
             except Exception as e:
                 print(f"[-] Exception auditing row {idx}: {e}", flush=True)
 
-    # Sort audited rows by row_idx
     audited_rows = [audited_map[ro["row_idx"]] for ro in row_objects if ro["row_idx"] in audited_map]
 
-    # Step 3: Update Google Sheet via Composio
     update_google_sheet(audited_rows)
-
-    # Step 4: Export to dashboard JSON
     save_to_dashboard_json(audited_rows)
 
     print("\n[✓] ALL TASKS COMPLETED SUCCESSFULLY!", flush=True)
+
 
 if __name__ == "__main__":
     main()
