@@ -14,20 +14,54 @@ import re
 import csv
 import io
 import json
-import subprocess
+import tempfile
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
-
-BASE_URL = "https://parkee-ticket.nusa.technology"
-USERNAME = "hafizh.prasetya"
-PASSWORD = "support545115"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CSV_PATH = os.path.join(DATA_DIR, "tickets_3months.csv")
 JSON_PATH = os.path.join(DATA_DIR, "tickets.json")
 SUMMARY_PATH = os.path.join(DATA_DIR, "tickets_summary.json")
+
+
+def load_dotenv():
+    env_path = os.path.join(BASE_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+load_dotenv()
+
+BASE_URL = os.environ.get("GLPI_URL", "https://parkee-ticket.nusa.technology")
+USERNAME = os.environ.get("GLPI_USER", "hafizh.prasetya")
+PASSWORD = os.environ.get("GLPI_PASS", "")
+
+
+def atomic_write_json(target_path, payload):
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tkt_", suffix=".json", dir=os.path.dirname(target_path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, separators=(',', ':'))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, target_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
+
 
 def parse_glpi_date(dt_str):
     if not dt_str or not dt_str.strip():
@@ -40,6 +74,7 @@ def parse_glpi_date(dt_str):
         except ValueError:
             pass
     return dt_str
+
 
 def extract_location(title, desc, loc_col):
     if loc_col and loc_col.strip():
@@ -58,7 +93,10 @@ def extract_location(title, desc, loc_col):
                 return candidate
     return "-"
 
+
 def login_glpi(session):
+    if not PASSWORD:
+        raise RuntimeError("GLPI_PASS is not configured in .env or environment.")
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Authenticating to GLPI ({BASE_URL})...")
     r = session.get(f"{BASE_URL}/index.php", timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
@@ -91,21 +129,17 @@ def login_glpi(session):
         action = BASE_URL + ("/" if not action.startswith("/") else "") + action
 
     res = session.post(action, data=data, timeout=20, allow_redirects=True)
-    if "front/central.php" in res.url or "front/ticket.php" in res.url or "hafizh" in res.text.lower():
+    if "front/central.php" in res.url or "front/ticket.php" in res.url or USERNAME.split(".")[0].lower() in res.text.lower():
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Login successful! Session established.")
         return True
     else:
         raise RuntimeError(f"Login failed. Final URL: {res.url}")
 
+
 def fetch_recent_10d_csv(session, days=10):
-    """
-    High-performance 10-day fetch: retrieves tickets created or updated in the last 10 days.
-    Executes in ~6-7 seconds with zero risk of GLPI PHP memory exhaustion.
-    """
     ten_days_ago = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting tickets active/updated in last {days} days (> {ten_days_ago})...")
 
-    # Field 19 = Last Update (captures both newly opened tickets and existing tickets recently resolved/modified)
     params = {
         "item_type": "Ticket",
         "sort[0]": "19",
@@ -125,10 +159,8 @@ def fetch_recent_10d_csv(session, days=10):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Successfully fetched {days}-day raw CSV ({len(res.content):,} bytes)")
     return res.text
 
+
 def fetch_3month_chunked_csv(session):
-    """
-    Full 90-day multi-window fetch (used when explicitly requested with --full-3months)
-    """
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Requesting full chunked CSV export for last 90 days...")
     windows = [(0, 30), (30, 60), (60, 90)]
     all_ticket_rows = []
@@ -180,6 +212,7 @@ def fetch_3month_chunked_csv(session):
     for r in all_ticket_rows:
         writer.writerow(r)
     return out_io.getvalue()
+
 
 def parse_csv_to_ticket_items(csv_text):
     reader = csv.reader(io.StringIO(csv_text), delimiter=';')
@@ -266,7 +299,6 @@ def parse_csv_to_ticket_items(csv_text):
         prio_norm = raw_priority if raw_priority in ["P0", "P1", "P2", "P3", "P4"] else "Other"
         clean_title = re.sub(r'Loading\.\.\.?$', '', raw_title).strip()
 
-        # Breakdown Category (Product, Kategori Issue, Sub-Kategori)
         cat_full_clean = raw_cat.strip() if raw_cat else ""
         cat_parts = [p.strip() for p in cat_full_clean.split(">") if p.strip()] if cat_full_clean else []
         if len(cat_parts) >= 2:
@@ -282,7 +314,6 @@ def parse_csv_to_ticket_items(csv_text):
             cat_issue_val = "Uncategorized"
             sub_issue_val = ""
 
-        # Calculate Durasi Solving
         dur_solving = "0:00:00"
         dur_seconds = 0
         if open_dt and resolve_dt:
@@ -328,12 +359,8 @@ def parse_csv_to_ticket_items(csv_text):
 
     return ticket_items
 
+
 def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
-    """
-    Upserts fresh tickets into existing master tickets dictionary.
-    Prunes tickets older than 90 days.
-    Regenerates tickets.json and tickets_summary.json.
-    """
     master_tickets = {}
 
     if not is_full_replace and os.path.exists(JSON_PATH):
@@ -346,7 +373,6 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
         except Exception as e:
             print(f"Notice loading existing master tickets: {e}")
 
-    # Upsert fresh tickets (adds new tickets, updates existing ones with latest status/dates)
     updated_count = 0
     new_count = 0
     for t in fresh_ticket_items:
@@ -359,15 +385,15 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
 
     print(f"Upsert Summary: {new_count:,} new tickets added, {updated_count:,} existing tickets refreshed.")
 
-    # Prune tickets older than 90 days
     cutoff_dt = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d %H:%M")
     pruned_tickets = [t for t in master_tickets.values() if t.get("open_date", "") >= cutoff_dt]
     print(f"Retained {len(pruned_tickets):,} tickets within the rolling 90-day window (pruned {len(master_tickets) - len(pruned_tickets):,} expired tickets).")
 
-    # Sort DESC by open_date
+    if len(pruned_tickets) < 100:
+        raise RuntimeError(f"Safety check failed: only {len(pruned_tickets)} tickets after upsert. Aborting save.")
+
     pruned_tickets.sort(key=lambda t: t.get("open_date", ""), reverse=True)
 
-    # Re-calculate aggregates
     status_counts = {"New": 0, "Processing": 0, "Processing (assigned)": 0, "Processing (planned)": 0, "Solved": 0, "Closed": 0, "Pending": 0, "Other": 0}
     priority_counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0, "P4": 0, "Other": 0}
     location_counts = {}
@@ -425,9 +451,7 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
         "tickets": pruned_tickets
     }
 
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(output_payload, f, separators=(',', ':'))
+    atomic_write_json(JSON_PATH, output_payload)
     print(f"Saved master JSON to {JSON_PATH} ({os.path.getsize(JSON_PATH):,} bytes)")
 
     critical_tickets = [t for t in pruned_tickets if t.get("priority") in ("P0", "P1")]
@@ -437,11 +461,11 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
         "critical_tickets": critical_tickets,
         "recent_tickets": pruned_tickets[:50]
     }
-    with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
-        json.dump(summary_payload, f, separators=(",", ":"))
+    atomic_write_json(SUMMARY_PATH, summary_payload)
     print(f"Saved lightweight summary to {SUMMARY_PATH}")
 
     return output_payload
+
 
 def main():
     s = requests.Session()
@@ -471,6 +495,7 @@ def main():
     except Exception as e:
         print(f"Error during GLPI ticket fetch: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

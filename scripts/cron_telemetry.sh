@@ -36,15 +36,19 @@ if [ ! -d "$TELEMETRY_DIR/.git" ]; then
     git commit -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
 else
     cd "$TELEMETRY_DIR"
-    # Ensure remote points to support-parkee/Dashboard
     git remote set-url origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1 || git remote add origin "$TARGET_REPO" >> "$LOG_FILE" 2>&1
     cp "$TEMP_FILE" "$TELEMETRY_DIR/temperature.json"
     git add temperature.json >> "$LOG_FILE" 2>&1
-    # Always amend so that the branch history remains exactly 1 single commit
+    # Always amend so that the branch history remains 1 single commit
     git commit --amend -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
 fi
 
 # 4. Force Push the single commit
 git push --force origin telemetry >> "$LOG_FILE" 2>&1
+
+# 5. Once per hour (at minute 00), prune unreachable amended git objects so .git stays < 500 KB
+if [ "$(date '+%M')" = "00" ]; then
+    git gc --prune=now --quiet >> "$LOG_FILE" 2>&1 || true
+fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Telemetry branch updated successfully with 1 single commit!" >> "$LOG_FILE"

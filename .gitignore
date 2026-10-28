@@ -1,5 +1,12 @@
+# Ignored local & runtime artifacts
 sheet_data.csv
-data/*.csv
-*.pyc
-__pycache__/
+sheet_data.csv.tmp
+*.log
 .DS_Store
+.env
+__pycache__/
+*.py[cod]
+data/tickets_3months.csv
+data/server_backup_for_sheet.json
+data/server_backup_col_s.json
+data/server_storage.json

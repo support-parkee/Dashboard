@@ -294,6 +294,14 @@ const App = {
     }
   },
 
+  debounce(fn, delay = 180) {
+    let timer = null;
+    return (...args) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  },
+
   async startDashboard() {
     if (this.dashboardLoaded) return;
     this.dashboardLoaded = true;
@@ -301,22 +309,26 @@ const App = {
     this.setupDailyRefreshScheduler();
 
     // Check precomputed summary fallback
-    if (window.PRECOMPUTED_SUMMARY) {
+    const hasPrecomputedSummary = Boolean(window.PRECOMPUTED_SUMMARY);
+    if (hasPrecomputedSummary) {
       this.summary = window.PRECOMPUTED_SUMMARY;
       this.renderSummaryKPIs();
     }
 
     // Ultra-Fast Initial Data Fetch (Under 1.2 MB total vs 11.6 MB)
-    await Promise.all([
+    const initialTasks = [
       this.fetchLocations(),
       this.fetchServers(),
-      this.fetchSummary(),
       this.fetchTemperature(),
       this.fetchTicketsSummary(),
       this.fetchServerBackup()
-    ]);
+    ];
+    if (!hasPrecomputedSummary) {
+      initialTasks.push(this.fetchSummary());
+    }
+    await Promise.all(initialTasks);
 
-    // Populate total clients badge from summary data immediately without blocking on fleet.json (4 MB)
+    // Populate total clients badge from summary data immediately without blocking on fleet.json
     const clientBadge = document.getElementById('badgeTotalClients');
     if (clientBadge) {
       const tc = (this.summary && this.summary.total_clients) ? this.summary.total_clients : 6554;
@@ -343,8 +355,11 @@ const App = {
         this.locations = await res.json();
         const badge = document.getElementById('badgeTotalLocs');
         if (badge) badge.textContent = this.locations.length.toLocaleString();
-        this.renderLocationsTable();
-        this.renderClientLocationAccordions();
+        if (this.activeView === 'locations') {
+          this.renderLocationsTable();
+        } else if (this.activeView === 'clients') {
+          this.renderClientLocationAccordions();
+        }
       }
     } catch (e) {
       console.warn('Could not load locations.json', e);
@@ -360,8 +375,13 @@ const App = {
         this.servers = raw.filter(d => (d.host || '').toLowerCase().startsWith('server'));
         const badge = document.getElementById('badgeTotalServers');
         if (badge) badge.textContent = this.servers.length.toLocaleString();
-        this.renderServersTable();
-        this.renderStorageTable();
+        if (this.activeView === 'servers') {
+          this.renderServersTable();
+        } else if (this.activeView === 'storage') {
+          this.renderStorageTable();
+        } else if (this.activeView === 'locations') {
+          this.renderLocationsTable();
+        }
       }
     } catch (e) {
       console.warn('Could not load servers.json', e);
@@ -562,6 +582,9 @@ const App = {
         this.renderBackupTable();
       }
     }
+    if (this.updateFloatingScrollbar) {
+      this.updateFloatingScrollbar();
+    }
   },
 
   // =========================================================================
@@ -691,7 +714,7 @@ const App = {
           <td>
             <span class="version-code-tag">${this.formatVersion(item.wbo)}</span>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.os || ''}">
+          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(item.os || '')}">
             ${this.formatOs(item.os)}
           </td>
           <td>
@@ -702,6 +725,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   jumpToClientSpec(locName) {
@@ -900,13 +924,13 @@ const App = {
             <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
             <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt || '-'}</div>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu || ''}">
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
             ${this.formatCpu(d.cpu)}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
             ${this.formatRam(d.ram, d.ram_brand)}
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.mb || ''}">
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
             ${this.formatMb(d.mb, d.mb_brand)}
           </td>
           <td>
@@ -925,7 +949,7 @@ const App = {
           <td>
             ${d.ssd_usage !== null ? `<div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">${d.ssd_usage}%</div>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
-          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.os || ''}">
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.os || '')}">
             ${this.formatOs(d.os)}
           </td>
           <td>
@@ -936,6 +960,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   openServerDetailModal(hostname) {
@@ -1165,7 +1190,7 @@ const App = {
               </span>
             ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
-          <td style="font-size: 0.74rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.cpu || ''}">
+          <td style="font-size: 0.74rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
             ${this.formatCpu(d.cpu)}
           </td>
           <td>
@@ -1176,6 +1201,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   renderClientLocationAccordions() {
@@ -1602,6 +1628,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   // =========================================================================
@@ -1831,6 +1858,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   // =========================================================================
@@ -2491,12 +2519,12 @@ const App = {
             ${d.open_date || '-'}
           </td>
           <td class="ticket-loc-cell">
-            <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
-            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
+            <div class="ticket-loc-title" title="${this.escapeHtml(d.loc)}">${this.escapeHtml(d.loc)}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${this.escapeHtml(d.source)}</span>` : ''}
           </td>
           <td class="ticket-title-cell" data-ticket-id="${d.id}">
-            <div class="ticket-title-text" title="${d.title}">${d.title}</div>
-            ${d.desc ? `<div class="ticket-desc-snippet" title="${d.desc}">${d.desc}</div>` : ''}
+            <div class="ticket-title-text" title="${this.escapeHtml(d.title)}">${this.escapeHtml(d.title)}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${this.escapeHtml(d.desc)}">${this.escapeHtml(d.desc)}</div>` : ''}
             <div class="ticket-open-hint">
               <span>👁️ Detail Kendala</span>
             </div>
@@ -2530,6 +2558,37 @@ const App = {
   // =========================================================================
   // MODULE 6: TICKETING (GLPI 3 BULAN TERAKHIR)
   // =========================================================================
+  normalizeTicketList(tickets) {
+    if (!Array.isArray(tickets)) return;
+    for (let i = 0; i < tickets.length; i++) {
+      const t = tickets[i];
+      if (!t.product || t.product === 'Uncategorized') {
+        const parsed = this.parseTicketCategory(t.cat_full, t.cat);
+        t.product = parsed.product;
+        t.cat_issue = parsed.cat_issue;
+        t.sub_issue = parsed.sub_issue;
+      }
+      if (t.dur_solving === undefined) {
+        let dur = '0:00:00';
+        let durSec = 0;
+        if (t.open_date && t.resolve_date) {
+          const d1 = Date.parse(t.open_date.replace(' ', 'T'));
+          const d2 = Date.parse(t.resolve_date.replace(' ', 'T'));
+          const diff = Math.floor((d2 - d1) / 1000);
+          if (diff > 0) {
+            durSec = diff;
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            const s = diff % 60;
+            dur = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          }
+        }
+        t.dur_solving = dur;
+        t.dur_seconds = durSec;
+      }
+    }
+  },
+
   async fetchTicketsSummary() {
     try {
       const res = await fetch('./data/tickets_summary.json');
@@ -2539,6 +2598,8 @@ const App = {
           const combined = (sumData.critical_tickets && sumData.critical_tickets.length)
             ? sumData.critical_tickets
             : (sumData.recent_tickets || []);
+          this.normalizeTicketList(combined);
+          if (sumData.critical_tickets) this.normalizeTicketList(sumData.critical_tickets);
           this.ticketingData = {
             meta: sumData.meta,
             stats: sumData.stats,
@@ -2562,7 +2623,9 @@ const App = {
       const url = forceRefresh ? './data/tickets.json?_t=' + Date.now() : './data/tickets.json';
       const res = await fetch(url);
       if (res.ok) {
-        this.ticketingData = await res.json();
+        const data = await res.json();
+        if (data && data.tickets) this.normalizeTicketList(data.tickets);
+        this.ticketingData = data;
         this._fullTicketsLoaded = true;
         this.populateProductDropdown();
         this.populateCategoryDropdown();
@@ -2973,36 +3036,6 @@ const App = {
     if (!this.ticketingData || !this.ticketingData.tickets) return [];
     let list = [...this.ticketingData.tickets];
 
-    // Ensure helper fields exist on each ticket
-    list.forEach(t => {
-      if (!t.product || t.product === 'Uncategorized') {
-        const parsed = this.parseTicketCategory(t.cat_full, t.cat);
-        t.product = parsed.product;
-        t.cat_issue = parsed.cat_issue;
-        t.sub_issue = parsed.sub_issue;
-      }
-      if (t.dur_solving === undefined) {
-        let dur = '0:00:00';
-        let durSec = 0;
-        if (t.open_date && t.resolve_date) {
-          try {
-            const d1 = new Date(t.open_date.replace(' ', 'T')).getTime();
-            const d2 = new Date(t.resolve_date.replace(' ', 'T')).getTime();
-            const diff = Math.floor((d2 - d1) / 1000);
-            if (diff > 0) {
-              durSec = diff;
-              const h = Math.floor(diff / 3600);
-              const m = Math.floor((diff % 3600) / 60);
-              const s = diff % 60;
-              dur = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-            }
-          } catch (e) {}
-        }
-        t.dur_solving = dur;
-        t.dur_seconds = durSec;
-      }
-    });
-
     // 1. Search Filter
     if (this.ticketingState.search) {
       const q = this.ticketingState.search.toLowerCase();
@@ -3115,7 +3148,9 @@ const App = {
         return ((parseInt(va, 10) || 0) - (parseInt(vb, 10) || 0)) * dir;
       }
       if (col === 'open_date') {
-        return (new Date(va || 0).getTime() - new Date(vb || 0).getTime()) * dir;
+        const sa = String(va || '');
+        const sb = String(vb || '');
+        return (sa < sb ? -1 : (sa > sb ? 1 : 0)) * dir;
       }
 
       if (col === 'product') {
@@ -3248,12 +3283,12 @@ const App = {
             </span>
           </td>
           <td class="ticket-loc-cell">
-            <div class="ticket-loc-title" title="${d.loc}">${d.loc}</div>
-            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.source}</span>` : ''}
+            <div class="ticket-loc-title" title="${this.escapeHtml(d.loc)}">${this.escapeHtml(d.loc)}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${this.escapeHtml(d.source)}</span>` : ''}
           </td>
           <td class="ticket-title-cell" data-ticket-id="${d.id}">
-            <div class="ticket-title-text" title="${d.title}">${d.title}</div>
-            ${d.desc ? `<div class="ticket-desc-snippet" title="${d.desc}">${d.desc}</div>` : ''}
+            <div class="ticket-title-text" title="${this.escapeHtml(d.title)}">${this.escapeHtml(d.title)}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${this.escapeHtml(d.desc)}">${this.escapeHtml(d.desc)}</div>` : ''}
             <div class="ticket-open-hint">
               <span>👁️ Detail Kendala</span>
             </div>
@@ -3282,6 +3317,7 @@ const App = {
         </tr>
       `;
     }).join('');
+    if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   openTicketDetailModal(ticketId) {
@@ -3454,11 +3490,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // -----------------------------------------------------------------------
     const locSearch = document.getElementById('locSearchInput');
     if (locSearch) {
-      locSearch.addEventListener('input', (e) => {
+      locSearch.addEventListener('input', this.debounce((e) => {
         this.locState.search = e.target.value;
         this.locState.page = 1;
         this.renderLocationsTable();
-      });
+      }, 180));
     }
 
     const locPageSize = document.getElementById('locPageSizeSelect');
@@ -3554,11 +3590,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // -----------------------------------------------------------------------
     const serverSearch = document.getElementById('serverSearchInput');
     if (serverSearch) {
-      serverSearch.addEventListener('input', (e) => {
+      serverSearch.addEventListener('input', this.debounce((e) => {
         this.serverState.search = e.target.value;
         this.serverState.page = 1;
         this.renderServersTable();
-      });
+      }, 180));
     }
 
     const serverPageSize = document.getElementById('serverPageSizeSelect');
@@ -3735,11 +3771,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // Sisi Kiri: All Clients Nationwide
     const allClientsSearch = document.getElementById('allClientsSearchInput');
     if (allClientsSearch) {
-      allClientsSearch.addEventListener('input', (e) => {
+      allClientsSearch.addEventListener('input', this.debounce((e) => {
         this.allClientsState.search = e.target.value;
         this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
-      });
+      }, 180));
     }
 
     document.querySelectorAll('.filter-pill[data-client-filter]').forEach(btn => {
@@ -3910,10 +3946,10 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // Sisi Kanan: Location Accordions
     const pickerSearch = document.getElementById('pickerSearchInput');
     if (pickerSearch) {
-      pickerSearch.addEventListener('input', (e) => {
+      pickerSearch.addEventListener('input', this.debounce((e) => {
         this.pickerState.search = e.target.value;
         this.renderClientLocationAccordions();
-      });
+      }, 180));
     }
 
     document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(btn => {
@@ -3967,11 +4003,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // -----------------------------------------------------------------------
     const storageSearch = document.getElementById('storageSearchInput');
     if (storageSearch) {
-      storageSearch.addEventListener('input', (e) => {
+      storageSearch.addEventListener('input', this.debounce((e) => {
         this.storageState.search = e.target.value;
         this.storageState.page = 1;
         this.renderStorageTable();
-      });
+      }, 180));
     }
 
     const storagePageSize = document.getElementById('storagePageSizeSelect');
@@ -4116,11 +4152,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     // -----------------------------------------------------------------------
     const tempSearch = document.getElementById('tempSearchInput');
     if (tempSearch) {
-      tempSearch.addEventListener('input', (e) => {
+      tempSearch.addEventListener('input', this.debounce((e) => {
         this.temperatureState.search = e.target.value;
         this.temperatureState.page = 1;
         this.renderTemperatureTable();
-      });
+      }, 180));
     }
 
     document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(btn => {
@@ -4257,11 +4293,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
     // Search Input Event
     if (ticketSearch) {
-      ticketSearch.addEventListener('input', (e) => {
+      ticketSearch.addEventListener('input', this.debounce((e) => {
         this.ticketingState.search = e.target.value;
         this.ticketingState.page = 1;
         this.renderTicketingTable();
-      });
+      }, 180));
     }
 
     // Status Filter Pills
@@ -4786,10 +4822,28 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB)
   // =========================================================================
   setupDailyRefreshScheduler() {
+    this._lastAutoRefreshDay = new Date().toDateString();
     const updateCountdown = () => {
       const now = new Date();
       let target = new Date();
       target.setHours(5, 0, 0, 0);
+
+      // Trigger real background data refresh once per day after 05:05 WIB
+      const todayStr = now.toDateString();
+      if (now.getHours() === 5 && now.getMinutes() >= 5 && this._lastAutoRefreshDay !== todayStr) {
+        this._lastAutoRefreshDay = todayStr;
+        Promise.all([
+          this.fetchLocations(),
+          this.fetchServers(),
+          this.fetchSummary(),
+          this.fetchTemperature(true),
+          this.fetchTickets(true),
+          this.fetchServerBackup(true)
+        ]).then(() => {
+          this.renderActiveView();
+          this.showToast('🔄 Data harian (05:00 WIB) telah diperbarui otomatis.', 'info');
+        }).catch(() => {});
+      }
 
       if (now >= target) {
         target.setDate(target.getDate() + 1);
@@ -4809,14 +4863,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     setInterval(updateCountdown, 60000);
   },
 
-  manualSync() {
-    this.showToast('Menghubungkan ke Google Sheets...', 'info');
-    setTimeout(() => {
-      this.fetchLocations();
-      this.fetchServers();
-      this.fetchFleet();
-      this.showToast('Data telemetri berhasil diperbarui!', 'success');
-    }, 1000);
+  async manualSync() {
+    this.showToast('Memperbarui data dashboard...', 'info');
+    await Promise.all([
+      this.fetchLocations(),
+      this.fetchServers(),
+      this.fetchSummary(),
+      this.fetchTemperature(true),
+      this.fetchServerBackup(true)
+    ]);
+    if (this._fleetLoaded) await this.fetchFleet(true);
+    this.renderActiveView();
+    this.showToast('Data telemetri berhasil diperbarui!', 'success');
   },
 
   initFullscreen() {
@@ -5112,20 +5170,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     window.addEventListener('scroll', requestCheck, { passive: true });
     window.addEventListener('resize', requestCheck, { passive: true });
 
-    // Debounced mutation observer to re-check when views switch or tables render
     let mutationTimer = null;
-    const debouncedCheck = () => {
+    this.updateFloatingScrollbar = () => {
       clearTimeout(mutationTimer);
-      mutationTimer = setTimeout(checkFloatingScrollbar, 80);
+      mutationTimer = setTimeout(checkFloatingScrollbar, 50);
     };
-
-    const mainWrapper = document.querySelector('.view-wrapper') || document.body;
-    if (window.MutationObserver) {
-      const observer = new MutationObserver(debouncedCheck);
-      observer.observe(mainWrapper, { childList: true, subtree: true });
-    }
-
-    this.updateFloatingScrollbar = checkFloatingScrollbar;
     setTimeout(checkFloatingScrollbar, 200);
   },
 
@@ -5151,11 +5200,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   initBackupEventHandlers() {
     const searchInput = document.getElementById('backupSearchInput');
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.addEventListener('input', this.debounce((e) => {
         this.backupState.search = e.target.value;
         this.backupState.page = 1;
         this.renderBackupTable();
-      });
+      }, 180));
     }
 
     const pageSizeSelect = document.getElementById('backupPageSizeSelect');
