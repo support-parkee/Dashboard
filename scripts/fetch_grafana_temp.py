@@ -9,11 +9,17 @@ import json
 import os
 import re
 import sys
+import time
 import tempfile
 import datetime
 import urllib.request
 import urllib.parse
 import http.cookiejar
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVERS_JSON = os.path.join(BASE_DIR, "data", "servers.json")
@@ -75,42 +81,59 @@ def fetch_telemetry():
         print("Error: GRAFANA_PASS not configured in .env or environment.", file=sys.stderr)
         return False
 
-    print(f"[{datetime.datetime.now()}] Logging into Grafana...")
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    max_attempts = 3
+    results = []
 
-    login_payload = {"user": GRAFANA_USER, "password": GRAFANA_PASS}
-    login_req = urllib.request.Request(
-        f"{GRAFANA_URL}/login",
-        data=json.dumps(login_payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
-    )
+    for attempt in range(1, max_attempts + 1):
+        print(f"[{datetime.datetime.now()}] Logging into Grafana (attempt {attempt}/{max_attempts})...")
+        cj = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
 
-    try:
-        with opener.open(login_req, timeout=15) as res:
-            if res.status != 200:
-                raise RuntimeError(f"Login failed: HTTP {res.status}")
-    except Exception as e:
-        print(f"Login error: {e}", file=sys.stderr)
-        return False
+        login_payload = {"user": GRAFANA_USER, "password": GRAFANA_PASS}
+        login_req = urllib.request.Request(
+            f"{GRAFANA_URL}/login",
+            data=json.dumps(login_payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
 
-    print("Querying Prometheus temperature metrics...")
-    query = "max by (instance) (node_hwmon_temp_celsius or node_thermal_zone_temp)"
-    query_url = f"{GRAFANA_URL}/api/datasources/proxy/3/api/v1/query?" + urllib.parse.urlencode({"query": query})
+        try:
+            with opener.open(login_req, timeout=15) as res:
+                if res.status != 200:
+                    raise RuntimeError(f"Login failed: HTTP {res.status}")
+        except Exception as e:
+            print(f"Login error (attempt {attempt}/{max_attempts}): {e}", file=sys.stderr)
+            if attempt < max_attempts:
+                time.sleep(3 * attempt)
+                continue
+            return False
 
-    query_req = urllib.request.Request(query_url)
-    try:
-        with opener.open(query_req, timeout=20) as res:
-            resp_data = json.loads(res.read().decode("utf-8"))
-    except Exception as e:
-        print(f"Query error: {e}", file=sys.stderr)
-        return False
+        print("Querying Prometheus temperature metrics...")
+        query = "max by (instance) (node_hwmon_temp_celsius or node_thermal_zone_temp)"
+        query_url = f"{GRAFANA_URL}/api/datasources/proxy/3/api/v1/query?" + urllib.parse.urlencode({"query": query})
 
-    results = resp_data.get("data", {}).get("result", [])
-    print(f"Raw temperature series count: {len(results)}")
-    if not results:
-        print("Error: Prometheus returned 0 temperature series.", file=sys.stderr)
-        return False
+        query_req = urllib.request.Request(query_url)
+        try:
+            with opener.open(query_req, timeout=35) as res:
+                resp_data = json.loads(res.read().decode("utf-8"))
+        except Exception as e:
+            print(f"Query error (attempt {attempt}/{max_attempts}): {e}", file=sys.stderr)
+            if attempt < max_attempts:
+                time.sleep(3 * attempt)
+                continue
+            return False
+
+        results = resp_data.get("data", {}).get("result", [])
+        print(f"Raw temperature series count: {len(results)}")
+        if not results:
+            print(f"Warning: Prometheus returned 0 temperature series (attempt {attempt}/{max_attempts}).", file=sys.stderr)
+            if attempt < max_attempts:
+                time.sleep(3 * attempt)
+                continue
+            print("Error: Prometheus returned 0 temperature series after all retry attempts.", file=sys.stderr)
+            return False
+
+        # If we reached here with results, break the retry loop
+        break
 
     server_mappings = load_local_mappings()
     records = []
