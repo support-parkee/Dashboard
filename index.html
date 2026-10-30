@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Support Apps — Server & Client Infrastructure Telemetry</title>
-  <meta name="description" content="Support Apps: Platform audit dan pemantauan menyeluruh armada server, pos admin, klien gerbang, RFID reader, serta manajemen storage server lokasi PARKEE seluruh Indonesia.">
+  <meta name="description" content="Support Apps: Platform audit dan pemantauan menyeluruh armada server, pos admin, klien gerbang, Reader PARKEE, serta manajemen storage server lokasi PARKEE seluruh Indonesia.">
   
   <!-- Official PARKEE Favicons -->
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
@@ -13,7 +13,7 @@
   <link rel="shortcut icon" href="favicon.ico">
   
   <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.11.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.11.1">
 
   <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
@@ -163,7 +163,7 @@
           </button>
 
           <!-- 3. Client Specification -->
-          <button class="sidebar-nav-btn" data-view="clients" title="Spesifikasi Klien & Reader RFID Lapangan Per Lokasi">
+          <button class="sidebar-nav-btn" data-view="clients" title="Spesifikasi Klien & Reader PARKEE Lapangan Per Lokasi">
             <div class="nav-btn-left">
               <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -630,11 +630,11 @@
               <!-- Specific Filter Dropdowns Bar -->
               <div class="filter-bar-grid">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">RFID Reader:</span>
+                  <span class="filter-group-label">Reader PARKEE:</span>
                   <select id="locReaderFilter" class="filter-select">
                     <option value="all">Semua Lokasi</option>
-                    <option value="yes">✓ Ada Unit Ber-Reader</option>
-                    <option value="no">Tanpa Reader</option>
+                    <option value="yes">✓ Ada Reader PARKEE</option>
+                    <option value="no">✕ Belum Ada Reader</option>
                   </select>
                 </div>
 
@@ -945,11 +945,11 @@
               <!-- Filter Bar Spesifik Lokasi Sisi Kiri -->
               <div class="filter-bar-grid" style="padding: 0.45rem 0.6rem; gap: 0.35rem 0.5rem;">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">RFID Reader:</span>
-                  <select id="pickerReaderFilter" class="filter-select" style="max-width: 130px; font-size: 0.7rem; padding: 2px 6px;">
+                  <span class="filter-group-label">Reader PARKEE:</span>
+                  <select id="pickerReaderFilter" class="filter-select" style="max-width: 155px; font-size: 0.7rem; padding: 2px 6px;">
                     <option value="all">Semua Lokasi</option>
-                    <option value="yes">✓ Ada Reader</option>
-                    <option value="no">Tanpa Reader</option>
+                    <option value="yes">✓ Ada Reader PARKEE</option>
+                    <option value="no">✕ Belum Ada Reader</option>
                   </select>
                 </div>
 
@@ -1002,7 +1002,8 @@
               <!-- Filter Pills Sisi Kanan -->
               <div class="filter-pills-group" style="width: 100%;">
                 <button class="filter-pill active" data-client-filter="all" style="font-size: 0.7rem; padding: 2px 8px;">Semua</button>
-                <button class="filter-pill" data-client-filter="reader" style="font-size: 0.7rem; padding: 2px 8px;">Ada Reader RFID</button>
+                <button class="filter-pill" data-client-filter="reader" style="font-size: 0.7rem; padding: 2px 8px;">✓ Pakai Reader PARKEE</button>
+                <button class="filter-pill" data-client-filter="no_reader" style="font-size: 0.7rem; padding: 2px 8px;">✕ Belum Pakai</button>
                 <button class="filter-pill" data-client-filter="warm" style="font-size: 0.7rem; padding: 2px 8px;">Suhu ≥ 70°C</button>
                 <button class="filter-pill" data-client-filter="hot" style="font-size: 0.7rem; padding: 2px 8px;">🔥 Panas ≥ 80°C</button>
               </div>
@@ -1021,11 +1022,11 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Reader:</span>
-                  <select id="clientReaderFilter" class="filter-select" style="max-width: 110px; font-size: 0.7rem; padding: 2px 6px;">
-                    <option value="all">Semua</option>
-                    <option value="connected">✓ Terkoneksi</option>
-                    <option value="none">Tidak Ada</option>
+                  <span class="filter-group-label">Reader PARKEE:</span>
+                  <select id="clientReaderFilter" class="filter-select" style="max-width: 130px; font-size: 0.7rem; padding: 2px 6px;">
+                    <option value="all">Semua Status</option>
+                    <option value="connected">✓ Sudah Pakai</option>
+                    <option value="none">✕ Belum Pakai</option>
                   </select>
                 </div>
 
@@ -1073,7 +1074,7 @@
                     <tr>
                       <th class="sortable" data-cl-sort="loc">Lokasi ⇅</th>
                       <th class="sortable" data-cl-sort="host">Hostname ⇅</th>
-                      <th class="sortable" data-cl-sort="reader_ver">Reader Telemetry ⇅</th>
+                      <th class="sortable" data-cl-sort="reader_ver">Reader PARKEE ⇅</th>
                       <th class="sortable" data-cl-sort="ip">IP Local ⇅</th>
                       <th class="sortable" data-cl-sort="temp">Suhu ⇅</th>
                       <th class="sortable" data-cl-sort="cpu">Processor ⇅</th>
@@ -2029,8 +2030,8 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.11.0"></script>
+  <script src="js/summary-data.js?v=2.11.1"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.11.0"></script>
+  <script src="js/app.js?v=2.11.1"></script>
 </body>
 </html>
