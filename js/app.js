@@ -684,8 +684,9 @@ const App = {
         <tr>
           <td>
             <div style="font-weight: 700; color: var(--text-main); font-size: 0.875rem;">${item.loc}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
-              ${item.total_clients} Klien
+            <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
+              <span style="font-size: 0.72rem; color: var(--text-muted);">${item.total_clients} Klien</span>
+              ${item.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.65rem; padding: 1px 4px;">✓ Reader PARKEE</span>' : ''}
             </div>
           </td>
           <td>
@@ -1038,9 +1039,11 @@ const App = {
 
     let list = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
 
-    // Quick filter pills
+    // Quick filter pills (Reader PARKEE & Thermal)
     if (this.allClientsState.filter === 'reader') {
-      list = list.filter(d => d.reader_ver || d.reader_sn);
+      list = list.filter(d => Boolean(d.reader_ver || d.reader_sn));
+    } else if (this.allClientsState.filter === 'no_reader') {
+      list = list.filter(d => !d.reader_ver && !d.reader_sn);
     } else if (this.allClientsState.filter === 'warm') {
       list = list.filter(d => d.temp !== null && d.temp >= 70);
     } else if (this.allClientsState.filter === 'hot') {
@@ -1175,10 +1178,10 @@ const App = {
           <td>
             ${hasReader ? `
               <div style="display: flex; flex-direction: column; gap: 2px;">
-                <span class="reader-ver-tag" style="font-size: 0.68rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader'}</span>
+                <span class="reader-ver-tag" style="font-size: 0.68rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader PARKEE'}</span>
                 ${d.reader_sn ? `<span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary);">${d.reader_sn}</span>` : ''}
               </div>
-            ` : `<span style="font-size: 0.68rem; color: var(--text-muted); font-style: italic;">Tidak Ada</span>`}
+            ` : `<span style="font-size: 0.68rem; color: var(--text-muted); font-style: italic;">Belum Pakai</span>`}
           </td>
           <td style="font-family: var(--font-mono); font-size: 0.74rem;">
             ${d.ip || '-'}
@@ -1288,22 +1291,22 @@ const App = {
                       </span>
                     </div>
 
-                    <!-- RFID Reader Box -->
+                    <!-- Reader PARKEE Box -->
                     <div class="reader-telemetry-box" style="${hasReader ? '' : 'border-style: solid; border-color: var(--border-subtle);'}">
                       <div class="reader-badge-header">
-                        <span>RFID / Barcode Reader Telemetry</span>
-                        ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">TIDAK TERPASANG</span>'}
+                        <span>Reader PARKEE</span>
+                        ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">BELUM TERPASANG</span>'}
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                           <span class="reader-ver-tag">Versi: <strong>${dev.reader_ver || '-'}</strong></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader:</span>
+                          <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader PARKEE:</span>
                           ${dev.reader_sn ? `
                             <div class="reader-sn-code">
                               <span>${dev.reader_sn}</span>
-                              <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number" onclick="App.copyToClipboard('${dev.reader_sn}')">
+                              <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number Reader PARKEE" onclick="App.copyToClipboard('${dev.reader_sn}')">
                                 📋
                               </button>
                             </div>
@@ -1368,7 +1371,7 @@ const App = {
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="badge-pill" style="font-size: 0.72rem;">${l.total_clients} Klien</span>
-              ${l.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.68rem;">✓ RFID</span>' : ''}
+              ${l.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.68rem;">✓ Reader PARKEE</span>' : ''}
             </div>
           </div>
 
@@ -3783,6 +3786,14 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.allClientsState.filter = btn.dataset.clientFilter;
+        // Sync dropdown if reader pill is selected
+        if (btn.dataset.clientFilter === 'reader') {
+          this.allClientsState.readerStatus = 'all';
+          if (clientReaderFilter) clientReaderFilter.value = 'all';
+        } else if (btn.dataset.clientFilter === 'no_reader') {
+          this.allClientsState.readerStatus = 'all';
+          if (clientReaderFilter) clientReaderFilter.value = 'all';
+        }
         this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
       });
@@ -3801,6 +3812,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (clientReaderFilter) {
       clientReaderFilter.addEventListener('change', (e) => {
         this.allClientsState.readerStatus = e.target.value;
+        if (e.target.value !== 'all' && (this.allClientsState.filter === 'reader' || this.allClientsState.filter === 'no_reader')) {
+          this.allClientsState.filter = 'all';
+          document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => {
+            b.classList.toggle('active', b.dataset.clientFilter === 'all');
+          });
+        }
         this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
       });
@@ -4755,7 +4772,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   copyToClipboard(text) {
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
-      this.showToast(`Serial Number ${text} berhasil disalin!`, 'success');
+      this.showToast(`Serial Number Reader PARKEE ${text} berhasil disalin!`, 'success');
     }).catch(() => {
       this.showToast('Gagal menyalin ke clipboard', 'error');
     });
