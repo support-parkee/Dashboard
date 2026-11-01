@@ -891,15 +891,15 @@ const App = {
     }
 
     tbody.innerHTML = pageItems.map(d => {
+      const tierClass = (d.tier || '').toLowerCase() === 'diamond' ? 'tier-diamond' : ((d.tier || '').toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      
       let tempClass = 'temp-cool';
       if (d.temp !== null) {
-        if (d.temp >= 80) tempClass = 'temp-hot';
+        if (d.temp >= 90) tempClass = 'temp-hot';
+        else if (d.temp >= 80) tempClass = 'temp-hot';
         else if (d.temp >= 70) tempClass = 'temp-warm';
         else if (d.temp >= 50) tempClass = 'temp-normal';
       }
-
-      const hasReader = Boolean(d.reader_ver || d.reader_sn);
-      const tierClass = (d.tier || '').toLowerCase() === 'diamond' ? 'tier-diamond' : ((d.tier || '').toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
 
       let healthClass = 'health-good';
       if (d.ssd_health !== null && d.ssd_health < 70) healthClass = 'health-bad';
@@ -907,15 +907,16 @@ const App = {
 
       const ssdBrandFormatted = this.formatBrand(d.ssd_brand);
       const ssdSizeFormatted = this.formatSize(d.ssd_size);
+      const ssdTypeTag = (d.ssd_type && d.ssd_type !== '-') ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.ssd_type}</span>` : '';
 
       return `
         <tr>
           <td>
             <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
-            <div style="display: flex; gap: 4px; align-items: center; margin-top: 3px;">
-              <span class="version-code-tag">${d.code || '-'}</span>
-              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${d.tier || 'Standard'}</span>
-            </div>
+            <span class="version-code-tag">${d.code || '-'}</span>
+          </td>
+          <td>
+            <span class="tier-tag ${tierClass}">${d.tier || 'Standard'}</span>
           </td>
           <td>
             <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
@@ -924,47 +925,39 @@ const App = {
             <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat}</span>
           </td>
           <td>
-            ${hasReader ? `
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <span class="reader-ver-tag" style="font-size: 0.72rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader PARKEE'}</span>
-                ${d.reader_sn ? `
-                  <div class="reader-sn-code" style="font-size: 0.75rem; padding: 2px 6px;">
-                    <span>${d.reader_sn}</span>
-                    <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 4px; padding: 0;" title="Salin Serial Number Reader PARKEE" onclick="App.copyToClipboard('${d.reader_sn}')">
-                      📋
-                    </button>
-                  </div>
-                ` : ''}
-              </div>
-            ` : `<span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Belum Pakai</span>`}
-          </td>
-          <td>
             <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
             <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt || '-'}</div>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 170px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
             ${this.formatCpu(d.cpu)}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
             ${this.formatRam(d.ram, d.ram_brand)}
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 130px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
             ${this.formatMb(d.mb, d.mb_brand)}
           </td>
           <td>
-            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
-              ${ssdSizeFormatted} ${ssdBrandFormatted !== '-' ? `(${ssdBrandFormatted})` : ''}
-            </div>
-            ${d.ssd_health !== null ? `<span class="ssd-health-pill ${healthClass}" style="margin-top: 2px; display: inline-block;">${d.ssd_health}%</span>` : ''}
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${ssdBrandFormatted}</div>
+            ${ssdBrandFormatted !== '-' ? ssdTypeTag : ''}
+          </td>
+          <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
+            ${ssdSizeFormatted}
           </td>
           <td>
             ${d.temp !== null ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${d.temp}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
+          </td>
+          <td>
+            ${d.ssd_health !== null ? `<span class="ssd-health-pill ${healthClass}">${d.ssd_health}%</span>` : `<span style="color: var(--text-muted);">-</span>`}
+          </td>
+          <td>
+            ${d.ssd_usage !== null ? `<div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">${d.ssd_usage}%</div>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.os || '')}">
             ${this.formatOs(d.os)}
           </td>
           <td>
-            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;" onclick="App.openClientDetailModal('${d.host}')">
+            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;" onclick="App.openServerDetailModal('${d.host}')">
               Detail
             </button>
           </td>
@@ -1230,61 +1223,88 @@ const App = {
     if (nextBtn) nextBtn.disabled = this.allClientsState.page >= totalPages;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = pageItems.map(d => {
       let tempClass = 'temp-cool';
-      if (d.temp !== null) {
+      if (d.temp !== null && d.temp !== undefined) {
         if (d.temp >= 80) tempClass = 'temp-hot';
         else if (d.temp >= 70) tempClass = 'temp-warm';
         else if (d.temp >= 50) tempClass = 'temp-normal';
       }
 
       const hasReader = Boolean(d.reader_ver || d.reader_sn);
-      const locEscaped = (d.loc || '').replace(/'/g, "\\'");
+      const tierClass = (d.tier || '').toLowerCase() === 'diamond' ? 'tier-diamond' : ((d.tier || '').toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+
+      let healthClass = 'health-good';
+      if (d.ssd_health !== null && d.ssd_health !== undefined) {
+        if (d.ssd_health < 70) healthClass = 'health-bad';
+        else if (d.ssd_health < 80) healthClass = 'health-warn';
+      }
+
+      const ssdBrandFormatted = this.formatBrand(d.ssd_brand);
+      const ssdSizeFormatted = this.formatSize(d.ssd_size);
       const hostEscaped = (d.host || '').replace(/'/g, "\\'");
 
       return `
-        <tr onclick="App.openLocationInAccordion('${locEscaped}', '${hostEscaped}')" title="Klik untuk membuka dropdown lokasi di sisi kanan">
+        <tr>
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.8rem; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              ${d.loc}
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+            <div style="display: flex; gap: 4px; align-items: center; margin-top: 3px;">
+              <span class="version-code-tag">${d.code || '-'}</span>
+              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${d.tier || 'Standard'}</span>
             </div>
-            <span class="version-code-tag" style="font-size: 0.65rem;">${d.code || '-'}</span>
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.8rem;">
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem; cursor: pointer;" title="Klik untuk rincian modal" onclick="App.openClientDetailModal('${hostEscaped}')">
               ${d.host}
             </div>
-            <span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">${d.cat}</span>
+            <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat || 'Client'}</span>
           </td>
           <td>
             ${hasReader ? `
-              <div style="display: flex; flex-direction: column; gap: 2px;">
-                <span class="reader-ver-tag" style="font-size: 0.68rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader PARKEE'}</span>
-                ${d.reader_sn ? `<span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary);">${d.reader_sn}</span>` : ''}
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <span class="reader-ver-tag" style="font-size: 0.72rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader PARKEE'}</span>
+                ${d.reader_sn ? `
+                  <div class="reader-sn-code" style="font-size: 0.75rem; padding: 2px 6px;">
+                    <span>${d.reader_sn}</span>
+                    <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 4px; padding: 0;" title="Salin Serial Number Reader PARKEE" onclick="App.copyToClipboard('${d.reader_sn}')">
+                      📋
+                    </button>
+                  </div>
+                ` : ''}
               </div>
-            ` : `<span style="font-size: 0.68rem; color: var(--text-muted); font-style: italic;">Belum Pakai</span>`}
-          </td>
-          <td style="font-family: var(--font-mono); font-size: 0.74rem;">
-            ${d.ip || '-'}
+            ` : `<span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Belum Pakai</span>`}
           </td>
           <td>
-            ${d.temp !== null ? `
-              <span class="temp-badge ${tempClass}" style="font-weight: 700; font-size: 0.72rem; padding: 2px 6px;">
-                ${d.temp}°C
-              </span>
-            ` : `<span style="color: var(--text-muted);">-</span>`}
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
+            ${d.zt ? `<div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt}</div>` : ''}
           </td>
-          <td style="font-size: 0.74rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 170px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
             ${this.formatCpu(d.cpu)}
           </td>
+          <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
+            ${this.formatRam(d.ram, d.ram_brand)}
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 130px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
+            ${this.formatMb(d.mb, d.mb_brand)}
+          </td>
           <td>
-            <button class="btn btn-outline" style="padding: 2px 7px; font-size: 0.7rem; white-space: nowrap;" onclick="event.stopPropagation(); App.openLocationInAccordion('${locEscaped}', '${hostEscaped}')">
-              Buka ➔
-            </button>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
+              ${ssdSizeFormatted} ${ssdBrandFormatted !== '-' ? `(${ssdBrandFormatted})` : ''}
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
+              ${d.ssd_health !== null && d.ssd_health !== undefined ? `<span class="ssd-health-pill ${healthClass}">${d.ssd_health}%</span>` : ''}
+              ${d.ssd_usage !== null && d.ssd_usage !== undefined ? `<span style="font-size: 0.7rem; color: var(--text-muted);">${d.ssd_usage}%</span>` : ''}
+            </div>
+          </td>
+          <td>
+            ${d.temp !== null && d.temp !== undefined ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${d.temp}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
+          </td>
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.os || '')}">
+            ${this.formatOs(d.os)}
           </td>
         </tr>
       `;
