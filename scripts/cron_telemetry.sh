@@ -43,8 +43,24 @@ else
     git commit --amend -m "chore(telemetry): live temperature cache at $(date '+%Y-%m-%d %H:%M:%S WIB')" >> "$LOG_FILE" 2>&1
 fi
 
-# 4. Force Push the single commit
-git push --force origin telemetry >> "$LOG_FILE" 2>&1
+# 4. Force Push the single commit with retry (up to 3 attempts with backoff)
+PUSH_SUCCESS=0
+for attempt in 1 2 3; do
+    echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Pushing to telemetry branch (attempt $attempt/3)..." >> "$LOG_FILE"
+    if git push --force origin telemetry >> "$LOG_FILE" 2>&1; then
+        PUSH_SUCCESS=1
+        echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Push to telemetry branch succeeded on attempt $attempt." >> "$LOG_FILE"
+        break
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Git push failed on attempt $attempt/3. Retrying in $((attempt * 5))s..." >> "$LOG_FILE"
+        sleep $((attempt * 5))
+    fi
+done
+
+if [ "$PUSH_SUCCESS" -ne 1 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S WIB')] Error: Git push failed after 3 attempts due to remote GitHub server issue." >> "$LOG_FILE"
+    exit 1
+fi
 
 # 5. Once per hour (at minute 00), prune unreachable amended git objects so .git stays < 500 KB
 if [ "$(date '+%M')" = "00" ]; then
