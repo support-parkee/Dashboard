@@ -10,7 +10,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
+    "replag": "3s",
     "notes": "OK",
     "note_col_s": "",
     "conn_note": ""
@@ -19,7 +19,7 @@
     "loc": "Bandara Ahmad Yani (server-backup-0vy)",
     "code": "0vy",
     "status": "Aktif",
-    "p2p": "Not Connected",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "Yes",
     "ip_local": "111.10.14.55",
@@ -29,7 +29,7 @@
     "replag": "-",
     "notes": "Kalau dicheck untuk PC Server Utama dan PC Server Backup masih OS Ubuntu 18 dan Untuk Spek PC Server Utama dan PC Server Backup belum sesuai tier dan yang terpasang sekarang terdapat perbedaan spesifikasi RAM, RAM di PC Server Utama 32GB dan PC Server Backup 16GB, perlu pengajuan asset terlebih dahulu\n\nDDR4 Ram 32 GB Corsair Vengeance (for server backup)",
     "note_col_s": "Replikasi tidak aktif dan auto promote tidak aktif, teleport server backup tampil tetapi ketika login failed; Local connect, P2P tidak connect",
-    "conn_note": "Local connect, P2P tidak connect"
+    "conn_note": ""
   },
   {
     "loc": "Bandara I Gusti Ngurah Rai Backup (0vt-backup)",
@@ -58,7 +58,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "0s",
+    "replag": "2s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -82,34 +82,34 @@
   {
     "loc": "Bandara Sam Ratulangi Backup (0vw-backup)",
     "code": "0vw",
-    "status": "Tidak Aktif",
-    "p2p": "Not Connected",
+    "status": "Aktif",
+    "p2p": "Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "192.168.10.55",
     "ip_p2p": "10.1.1.2",
-    "replication": "Not Streaming",
-    "autopromote": "No",
-    "replag": "-",
+    "replication": "Streaming",
+    "autopromote": "Yes",
+    "replag": "0s",
     "notes": "",
     "note_col_s": "Server backup tidak connect; Local & P2P tidak connect; P2P connect, Local tidak connect",
-    "conn_note": "Local & P2P tidak connect"
+    "conn_note": "P2P connect, Local tidak connect"
   },
   {
     "loc": "Bandara Sentani Backup (0vs-backup)",
     "code": "0vs",
-    "status": "Tidak Aktif",
+    "status": "Aktif",
     "p2p": "Not Connected",
     "cable_type": "Rakitan  CAT6",
-    "teleport": "No",
+    "teleport": "Yes",
     "ip_local": "192.168.167.55",
     "ip_p2p": "10.1.1.2",
-    "replication": "Not Streaming",
-    "autopromote": "No",
-    "replag": "-",
+    "replication": "Streaming",
+    "autopromote": "Yes",
+    "replag": "0s",
     "notes": "outstanding sisa kabel masih cat6 rakitan untuk p2p",
     "note_col_s": "Local connect, P2P tidak connect; Local & P2P tidak connect",
-    "conn_note": "Local & P2P tidak connect"
+    "conn_note": "Local connect, P2P tidak connect"
   },
   {
     "loc": "Bandara Soekarno Hatta Terminal 2 (0qy-backup)",
@@ -122,7 +122,7 @@
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "11s",
+    "replag": "2s",
     "notes": "Setelah dilakukan pengecekan pada spesifikasi PC Server Utama dan PC Server Backup sudah sesuai. koneksi peer to peer antara utama dan backup juga berjalan normal. secara replikasi juga sudah berjalan dan terbaca. namun untuk auto promote secara service masih not found\n\nDone 26 juni 2026",
     "note_col_s": "",
     "conn_note": ""
@@ -138,7 +138,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
+    "replag": "0s",
     "notes": "arahkan rekomendasi pengadaan kabel cat7 vention",
     "note_col_s": "Local & P2P tidak connect",
     "conn_note": ""
@@ -186,7 +186,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
+    "replag": "3s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -266,7 +266,7 @@
     "ip_p2p": "10.10.10.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "49442636s",
+    "replag": "49529039s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -298,7 +298,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "10s",
+    "replag": "8s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -314,7 +314,7 @@
     "ip_p2p": "10.1.2.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "2s",
+    "replag": "0s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -346,7 +346,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "47s",
+    "replag": "59s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -378,7 +378,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "Yes",
-    "replag": "1s",
+    "replag": "3s",
     "notes": "",
     "note_col_s": "",
     "conn_note": ""
@@ -458,7 +458,7 @@
     "ip_p2p": "10.1.1.2",
     "replication": "Streaming",
     "autopromote": "No",
-    "replag": "16s",
+    "replag": "7s",
     "notes": "Menunggu pergantian storage server backup, penambahan lan card server utama dan kabel lan",
     "note_col_s": "",
     "conn_note": ""
@@ -514,18 +514,18 @@
   {
     "loc": "Bandara Sams Sepinggan (0vr-backup)",
     "code": "0vr",
-    "status": "Aktif",
-    "p2p": "Connected",
+    "status": "Tidak Aktif",
+    "p2p": "Not Connected",
     "cable_type": "Rakitan  CAT6",
     "teleport": "No",
     "ip_local": "192.168.10.54",
     "ip_p2p": "10.1.1.2",
-    "replication": "Streaming",
-    "autopromote": "Yes",
-    "replag": "0s",
+    "replication": "Not Streaming",
+    "autopromote": "No",
+    "replag": "-",
     "notes": "",
-    "note_col_s": "",
-    "conn_note": ""
+    "note_col_s": "Local & P2P tidak connect",
+    "conn_note": "Local & P2P tidak connect"
   },
   {
     "loc": "Bandara Soekarno-Hatta Parkir Inap 1 (0qz-backup)",
