@@ -995,6 +995,10 @@ const App = {
           <span class="modal-spec-val mono">${dev.host} · <span style="text-transform: uppercase;">${dev.cat || 'Client'}</span></span>
         </div>
         <div class="modal-spec-item">
+          <span class="modal-spec-label">Versi Agent</span>
+          <span class="modal-spec-val mono">${dev.agent || '-'}</span>
+        </div>
+        <div class="modal-spec-item">
           <span class="modal-spec-label">Reader PARKEE</span>
           <span class="modal-spec-val" style="color: ${hasReader ? 'var(--color-success)' : 'var(--text-muted)'}; font-weight: 700;">
             ${hasReader ? '✓ ' + readerStatusText : '✕ ' + readerStatusText}
@@ -1191,6 +1195,7 @@ const App = {
         (d.host && d.host.toLowerCase().includes(q)) ||
         (d.ip && d.ip.toLowerCase().includes(q)) ||
         (d.cpu && d.cpu.toLowerCase().includes(q)) ||
+        (d.agent && d.agent.toLowerCase().includes(q)) ||
         (d.reader_sn && d.reader_sn.toLowerCase().includes(q)) ||
         (d.reader_ver && d.reader_ver.toLowerCase().includes(q)) ||
         (d.os && d.os.toLowerCase().includes(q))
@@ -1223,7 +1228,7 @@ const App = {
     if (nextBtn) nextBtn.disabled = this.allClientsState.page >= totalPages;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
       return;
     }
 
@@ -1262,6 +1267,9 @@ const App = {
               ${d.host}
             </div>
             <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat || 'Client'}</span>
+          </td>
+          <td>
+            ${d.agent && d.agent !== '-' ? `<span class="version-code-tag" style="font-size: 0.72rem; white-space: nowrap;" title="${this.escapeHtml(d.agent)}">${d.agent}</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
             ${hasReader ? `
