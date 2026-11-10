@@ -111,7 +111,7 @@ def fetch_telemetry():
         query = "max by (instance) (node_hwmon_temp_celsius or node_thermal_zone_temp)"
         query_url = f"{GRAFANA_URL}/api/datasources/proxy/3/api/v1/query?" + urllib.parse.urlencode({"query": query})
 
-        query_req = urllib.request.Request(query_url)
+        query_req = urllib.request.Request(query_url, headers={"X-Grafana-Org-Id": "3"})
         try:
             with opener.open(query_req, timeout=35) as res:
                 resp_data = json.loads(res.read().decode("utf-8"))
