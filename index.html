@@ -13,7 +13,7 @@
   <link rel="shortcut icon" href="favicon.ico">
   
   <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.12.3">
+  <link rel="stylesheet" href="css/styles.css?v=2.12.4">
 
   <!-- Chart.js (for summary widgets) & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
@@ -326,6 +326,9 @@
              VIEW 0: DASHBOARD (HALAMAN UTAMA - TICKETING 1 BULAN TERAKHIR)
              ========================================================================= -->
         <section id="view-dashboard" class="view-section active-view">
+
+          <!-- Data sync note (shown while the full ticket dataset is still loading) -->
+          <div id="dashSyncNote" class="data-sync-note" style="display: none;"></div>
           
           <!-- Top KPI Deck Row (1 Bulan Terakhir) -->
           <div class="kpi-deck-row kpi-deck-5col">
@@ -1976,8 +1979,8 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.12.3"></script>
+  <script src="js/summary-data.js?v=2.12.4"></script>
   <!-- Application Controller -->
-  <script src="js/app.js?v=2.12.3"></script>
+  <script src="js/app.js?v=2.12.4"></script>
 </body>
 </html>

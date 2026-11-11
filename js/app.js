@@ -11,6 +11,45 @@ const App = {
   storageServers: [],
   serverBackup: [],
   _backupLoaded: false,
+  _inflight: {},
+
+  // Loading status per dataset: 'loading' | 'ready' | 'error'
+  dataStatus: {
+    locations: 'loading',
+    servers: 'loading',
+    fleet: 'loading',
+    summary: 'loading',
+    tickets: 'loading',      // tickets_summary.json (ringkasan, cepat)
+    ticketsFull: 'loading',  // tickets.json (lengkap, ~6 MB)
+    temperature: 'loading',
+    backup: 'loading'
+  },
+
+  // Elements (KPI numbers / badges) that show a shimmer while their dataset loads
+  loadingTargets: {
+    summary: ['storageKpiTotalDrives', 'storageKpiNvmeRatio', 'storageKpiFullCount', 'storageKpiLowHealthCount'],
+    tickets: [
+      'dashKpiTotal', 'dashKpiResolved', 'dashKpiResolvedPct', 'dashKpiProcessing', 'dashKpiNewPending', 'dashKpiHighPrio',
+      'dashStatusSolveRate', 'dashHighPrioBadge', 'dashAvgDailyBadge',
+      'ticketKpiTotal', 'ticketKpiResolved', 'ticketKpiProcessing', 'ticketKpiNewPending', 'ticketKpiHighPrio'
+    ],
+    temperature: ['tempTotalMonitored', 'tempCountOverheat', 'tempCountWarm', 'tempCountNormal', 'tempAvgCelsius'],
+    backup: ['backupKpiTotal', 'backupKpiStreaming', 'backupKpiAutoPromote', 'backupKpiP2P']
+  },
+
+  // Table bodies -> datasets they depend on (+ optional counter labels to reset)
+  tableLoadSpec: {
+    dashCriticalTableBody: { keys: ['tickets'], label: 'Memuat tiket kritis…' },
+    locationsTableBody: { keys: ['locations'], label: 'Memuat data lokasi…', labels: ['locResultCountLabel', 'locTableCountLabel'] },
+    serversTableBody: { keys: ['servers'], label: 'Memuat data server…', labels: ['serverResultCountLabel', 'serverTableCountLabel'] },
+    allClientsTableBody: { keys: ['fleet'], label: 'Memuat data klien (±3,5 MB)…', labels: ['allClientsCountBadge', 'allClientsCountLabel'] },
+    storageTableBody: { keys: ['servers'], label: 'Memuat data storage server…', labels: ['storageResultCountLabel', 'storageTableCountLabel'] },
+    tempTableBody: { keys: ['temperature'], label: 'Memuat telemetri suhu dari Grafana Prometheus…' },
+    ticketTableBody: { keys: ['ticketsFull'], label: 'Memuat seluruh data tiket GLPI (±6 MB)…', labels: ['ticketResultCountLabel', 'ticketTableCountLabel'] },
+    backupTableBody: { keys: ['backup'], label: 'Memuat data server backup…', labels: ['backupResultCountLabel', 'backupTableCountLabel'] }
+  },
+
+  chartCanvasIds: ['chartDashStatus', 'chartDashPriority', 'chartDashCatDonut', 'chartDashDailyTrend', 'chartDashCategories', 'chartDashLocations'],
   summary: null,
 
   // Selected state for Client Specification master-detail
@@ -287,6 +326,9 @@ const App = {
     this.initFullscreen();
     this.initModal();
 
+    // Show "Memuat..." placeholders right away (charts, KPIs, tables) until data arrives
+    this.applyInitialLoadingUI();
+
     // Check Authentication Gate before loading data
     const isAuth = this.initLockScreen();
     if (isAuth) {
@@ -302,6 +344,195 @@ const App = {
     };
   },
 
+  // =========================================================================
+  // LOADING STATES (chart overlay, KPI shimmer, table loading / error rows)
+  // =========================================================================
+  applyInitialLoadingUI() {
+    Object.keys(this.dataStatus).forEach(key => this.setDataStatus(key, 'loading'));
+    this.setChartOverlay('loading', 'Memuat data grafik…');
+  },
+
+  setDataStatus(key, status) {
+    this.dataStatus[key] = status;
+
+    (this.loadingTargets[key] || []).forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('is-loading', status === 'loading');
+      if (status === 'error') el.textContent = '--';
+    });
+
+    if (status !== 'ready') this.paintTableStates(key);
+    if (key === 'tickets' || key === 'ticketsFull') this.syncDashboardLoadingUI();
+  },
+
+  failLoad(key, label) {
+    // Keep showing existing data when a background refresh fails
+    if (this.dataStatus[key] === 'ready') return;
+    this.setDataStatus(key, 'error');
+    this.showToast(`Gagal memuat ${label}. Klik "Coba lagi" untuk mengulang.`, 'error');
+  },
+
+  retryLoad(key) {
+    const loaders = {
+      locations: () => this.fetchLocations(),
+      servers: () => this.fetchServers(),
+      fleet: () => this.fetchFleet(),
+      summary: () => this.fetchSummary(),
+      tickets: () => this.fetchTicketsSummary(),
+      ticketsFull: () => this.fetchTickets(),
+      temperature: () => this.fetchTemperature(),
+      backup: () => this.fetchServerBackup()
+    };
+    const loader = loaders[key];
+    if (!loader) return;
+    this.setDataStatus(key, 'loading');
+    loader();
+  },
+
+  getTableColspan(tbody) {
+    const table = tbody.closest ? tbody.closest('table') : null;
+    const n = table ? table.querySelectorAll('thead th').length : 0;
+    return n || 1;
+  },
+
+  // Returns true when the table is still loading / failed (caller should stop rendering rows)
+  guardTable(tbody) {
+    const spec = this.tableLoadSpec[tbody.id];
+    if (!spec) return false;
+
+    const failedKey = spec.keys.find(k => this.dataStatus[k] === 'error');
+    const isLoading = spec.keys.some(k => this.dataStatus[k] === 'loading');
+    if (!failedKey && !isLoading) return false;
+
+    const colspan = this.getTableColspan(tbody);
+    if (failedKey) {
+      tbody.innerHTML = `
+        <tr class="table-loading-row">
+          <td colspan="${colspan}">
+            <div class="table-loading-box table-error-box">
+              <span>⚠️ Gagal memuat data. Periksa koneksi lalu coba lagi.</span>
+              <button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="App.retryLoad('${failedKey}')">↻ Coba lagi</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    } else {
+      tbody.innerHTML = `
+        <tr class="table-loading-row">
+          <td colspan="${colspan}">
+            <div class="table-loading-box">
+              <span class="loading-spinner"></span>
+              <span>${spec.label}</span>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    (spec.labels || []).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = failedKey ? 'Gagal memuat data' : 'Memuat data…';
+    });
+    return true;
+  },
+
+  paintTableStates(key) {
+    Object.keys(this.tableLoadSpec).forEach(id => {
+      if (!this.tableLoadSpec[id].keys.includes(key)) return;
+      const tbody = document.getElementById(id);
+      if (tbody) this.guardTable(tbody);
+    });
+  },
+
+  // state: 'loading' | 'empty' | 'error' | 'hidden'
+  setChartOverlay(state, message = '', actionHtml = '') {
+    this.chartCanvasIds.forEach(id => {
+      const canvas = document.getElementById(id);
+      if (!canvas || !canvas.parentElement) return;
+      const body = canvas.parentElement;
+      let overlay = body.querySelector('.chart-loading-overlay');
+
+      if (state === 'hidden') {
+        if (overlay) overlay.classList.add('is-hidden');
+        return;
+      }
+
+      if (!overlay) {
+        if (!body.style.position) body.style.position = 'relative';
+        overlay = document.createElement('div');
+        overlay.className = 'chart-loading-overlay';
+        body.appendChild(overlay);
+      }
+      overlay.classList.remove('is-hidden');
+      overlay.classList.toggle('is-error', state === 'error');
+
+      if (state === 'loading') {
+        overlay.innerHTML = `<span class="loading-spinner"></span><span>${message}</span>`;
+      } else if (state === 'error') {
+        overlay.innerHTML = `<span>⚠️ ${message}</span>${actionHtml}`;
+      } else {
+        overlay.innerHTML = `<span style="font-size: 1.4rem;">📭</span><span>${message}</span>`;
+      }
+    });
+  },
+
+  syncDashboardLoadingUI() {
+    const { tickets } = this.dataStatus;
+    if (tickets === 'loading') {
+      this.setChartOverlay('loading', 'Memuat data grafik…');
+    } else if (tickets === 'error' && !this.ticketingData) {
+      this.setChartOverlay(
+        'error',
+        'Gagal memuat data tiket.',
+        `<button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="App.retryLoad('tickets')">↻ Coba lagi</button>`
+      );
+    }
+    // tickets === 'ready' -> overlay is hidden / switched to "empty" by renderDashboardCharts()
+    this.updateDashboardSyncNote();
+  },
+
+  updateDashboardSyncNote() {
+    const note = document.getElementById('dashSyncNote');
+    if (!note) return;
+    const { tickets, ticketsFull } = this.dataStatus;
+
+    if (ticketsFull === 'error') {
+      note.className = 'data-sync-note is-warn';
+      note.innerHTML = `<span>⚠️ Gagal memuat data tiket lengkap — angka & grafik di bawah masih berupa ringkasan.</span>
+        <button class="btn btn-outline" style="padding: 2px 10px; font-size: 0.72rem;" onclick="App.retryLoad('ticketsFull')">↻ Coba lagi</button>`;
+      note.style.display = 'flex';
+    } else if (ticketsFull !== 'ready' && tickets === 'ready') {
+      note.className = 'data-sync-note';
+      note.innerHTML = `<span class="loading-spinner loading-spinner-sm"></span>
+        <span>Menampilkan ringkasan sementara — memuat data tiket lengkap, angka & grafik akan diperbarui otomatis…</span>`;
+      note.style.display = 'flex';
+    } else {
+      note.style.display = 'none';
+    }
+  },
+
+  scheduleChartLibraryRetry() {
+    if (this._chartLibTimer) return;
+    let tries = 0;
+    this._chartLibTimer = setInterval(() => {
+      tries++;
+      if (window.Chart) {
+        clearInterval(this._chartLibTimer);
+        this._chartLibTimer = null;
+        this.renderDashboard();
+      } else if (tries >= 20) {
+        clearInterval(this._chartLibTimer);
+        this._chartLibTimer = null;
+        this.setChartOverlay(
+          'error',
+          'Pustaka grafik gagal dimuat. Periksa koneksi internet.',
+          `<button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="location.reload()">↻ Muat ulang halaman</button>`
+        );
+      }
+    }, 500);
+  },
+
   async startDashboard() {
     if (this.dashboardLoaded) return;
     this.dashboardLoaded = true;
@@ -312,6 +543,7 @@ const App = {
     const hasPrecomputedSummary = Boolean(window.PRECOMPUTED_SUMMARY);
     if (hasPrecomputedSummary) {
       this.summary = window.PRECOMPUTED_SUMMARY;
+      this.setDataStatus('summary', 'ready');
       this.renderSummaryKPIs();
     }
 
@@ -349,73 +581,89 @@ const App = {
   // DATA FETCHING
   // =========================================================================
   async fetchLocations() {
+    if (this.dataStatus.locations !== 'ready') this.setDataStatus('locations', 'loading');
     try {
       const res = await fetch('./data/locations.json');
-      if (res.ok) {
-        this.locations = await res.json();
-        const badge = document.getElementById('badgeTotalLocs');
-        if (badge) badge.textContent = this.locations.length.toLocaleString();
-        if (this.activeView === 'locations') {
-          this.renderLocationsTable();
-        } else if (this.activeView === 'clients') {
-          this.renderAllClientsNationwideTable();
-        }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.locations = await res.json();
+      this.setDataStatus('locations', 'ready');
+      const badge = document.getElementById('badgeTotalLocs');
+      if (badge) badge.textContent = this.locations.length.toLocaleString();
+      if (this.activeView === 'locations') {
+        this.renderLocationsTable();
+      } else if (this.activeView === 'clients') {
+        this.renderAllClientsNationwideTable();
       }
     } catch (e) {
       console.warn('Could not load locations.json', e);
+      this.failLoad('locations', 'data lokasi');
     }
   },
 
   async fetchServers() {
+    if (this.dataStatus.servers !== 'ready') this.setDataStatus('servers', 'loading');
     try {
       const res = await fetch('./data/servers.json');
-      if (res.ok) {
-        const raw = await res.json();
-        // Strict: Only hostnames starting with "server"
-        this.servers = raw.filter(d => (d.host || '').toLowerCase().startsWith('server'));
-        const badge = document.getElementById('badgeTotalServers');
-        if (badge) badge.textContent = this.servers.length.toLocaleString();
-        if (this.activeView === 'servers') {
-          this.renderServersTable();
-        } else if (this.activeView === 'storage') {
-          this.renderStorageTable();
-        } else if (this.activeView === 'locations') {
-          this.renderLocationsTable();
-        }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.json();
+      // Strict: Only hostnames starting with "server"
+      this.servers = raw.filter(d => (d.host || '').toLowerCase().startsWith('server'));
+      this.setDataStatus('servers', 'ready');
+      const badge = document.getElementById('badgeTotalServers');
+      if (badge) badge.textContent = this.servers.length.toLocaleString();
+      if (this.activeView === 'servers') {
+        this.renderServersTable();
+      } else if (this.activeView === 'storage') {
+        this.renderStorageTable();
+      } else if (this.activeView === 'locations') {
+        this.renderLocationsTable();
       }
     } catch (e) {
       console.warn('Could not load servers.json', e);
+      this.failLoad('servers', 'data server');
     }
   },
 
-  async fetchFleet(force = false) {
-    if (this._fleetLoaded && !force) return;
+  // De-duplicated: concurrent callers share the same in-flight request
+  fetchFleet(force = false) {
+    if (this._fleetLoaded && !force) return Promise.resolve();
+    if (!this._inflight.fleet) {
+      this._inflight.fleet = this._loadFleet().finally(() => { delete this._inflight.fleet; });
+    }
+    return this._inflight.fleet;
+  },
+
+  async _loadFleet() {
+    if (this.dataStatus.fleet !== 'ready') this.setDataStatus('fleet', 'loading');
     try {
       const res = await fetch('./data/fleet.json');
-      if (res.ok) {
-        this.fleet = await res.json();
-        this._fleetLoaded = true;
-        const clients = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
-        const badge = document.getElementById('badgeTotalClients');
-        if (badge) badge.textContent = clients.length.toLocaleString();
-        if (this.activeView === 'clients') {
-          this.renderAllClientsNationwideTable();
-        }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.fleet = await res.json();
+      this._fleetLoaded = true;
+      this.setDataStatus('fleet', 'ready');
+      const clients = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
+      const badge = document.getElementById('badgeTotalClients');
+      if (badge) badge.textContent = clients.length.toLocaleString();
+      if (this.activeView === 'clients') {
+        this.renderAllClientsNationwideTable();
       }
     } catch (e) {
       console.warn('Could not load fleet.json', e);
+      this.failLoad('fleet', 'data klien');
     }
   },
 
   async fetchSummary() {
+    if (this.dataStatus.summary !== 'ready') this.setDataStatus('summary', 'loading');
     try {
       const res = await fetch('./data/summary.json');
-      if (res.ok) {
-        this.summary = await res.json();
-        this.renderSummaryKPIs();
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.summary = await res.json();
+      this.setDataStatus('summary', 'ready');
+      this.renderSummaryKPIs();
     } catch (e) {
       console.warn('Could not load summary.json', e);
+      this.failLoad('summary', 'ringkasan data');
     }
   },
 
@@ -589,6 +837,7 @@ const App = {
   renderLocationsTable() {
     const tbody = document.getElementById('locationsTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     let list = [...this.locations];
 
@@ -744,6 +993,7 @@ const App = {
   renderServersTable() {
     const tbody = document.getElementById('serversTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
@@ -1118,6 +1368,7 @@ const App = {
   renderAllClientsNationwideTable() {
     const tbody = document.getElementById('allClientsTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     let list = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
 
@@ -1541,6 +1792,7 @@ const App = {
   renderStorageTable() {
     const tbody = document.getElementById('storageTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
@@ -1751,11 +2003,13 @@ const App = {
   // MODULE 5: TEMPERATURE SERVER (LIVE PROMETHEUS TELEMETRY)
   // =========================================================================
   async fetchTemperature(forceRefresh = false) {
+    if (this.dataStatus.temperature !== 'ready') this.setDataStatus('temperature', 'loading');
     const rawUrl = `https://raw.githubusercontent.com/support-parkee/Dashboard/telemetry/temperature.json?_t=${Date.now()}`;
     try {
       const res = await fetch(rawUrl, { cache: 'no-store' });
       if (res.ok) {
         this.temperatureData = await res.json();
+        this.setDataStatus('temperature', 'ready');
         this.renderTemperatureKPIs();
         if (this.activeView === 'temperature') this.renderTemperatureTable();
         return;
@@ -1768,12 +2022,15 @@ const App = {
       const localRes = await fetch('./data/temperature.json?_t=' + Date.now());
       if (localRes.ok) {
         this.temperatureData = await localRes.json();
+        this.setDataStatus('temperature', 'ready');
         this.renderTemperatureKPIs();
         if (this.activeView === 'temperature') this.renderTemperatureTable();
       }
     } catch (err) {
       console.error('Could not fetch fallback temperature.json:', err);
     }
+
+    if (!this.temperatureData) this.failLoad('temperature', 'telemetri suhu');
   },
 
   renderTemperatureKPIs() {
@@ -1809,6 +2066,7 @@ const App = {
   renderTemperatureTable() {
     const tbody = document.getElementById('tempTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     if (!this.temperatureData || !this.temperatureData.servers) {
       tbody.innerHTML = `
@@ -2118,7 +2376,18 @@ const App = {
   },
 
   renderDashboardCharts(t1m) {
-    if (!window.Chart || !t1m || !t1m.length) return;
+    if (!window.Chart) {
+      this.setChartOverlay('loading', 'Memuat pustaka grafik…');
+      this.scheduleChartLibraryRetry();
+      return;
+    }
+    if (!t1m || !t1m.length) {
+      // Loading / error overlays are managed by syncDashboardLoadingUI()
+      if (this.dataStatus.tickets === 'ready') {
+        this.setChartOverlay('empty', 'Belum ada data tiket untuk 30 hari terakhir.');
+      }
+      return;
+    }
     const tc = this.getChartThemeColors();
 
     // 1. Chart Donut Status (Bagan 1 - Kiri)
@@ -2534,17 +2803,20 @@ const App = {
         }
       });
     }
+
+    this.setChartOverlay('hidden');
   },
 
   renderDashboardCriticalTable(t1m) {
     const tbody = document.getElementById('dashCriticalTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     if (!t1m || !t1m.length) {
       tbody.innerHTML = `
         <tr>
           <td colspan="10" style="text-align: center; padding: 2rem; color: var(--text-muted);">
-            Memuat data tiket...
+            Tidak ada tiket pada 30 hari terakhir.
           </td>
         </tr>
       `;
@@ -2706,6 +2978,7 @@ const App = {
   },
 
   async fetchTicketsSummary() {
+    if (this.dataStatus.tickets !== 'ready') this.setDataStatus('tickets', 'loading');
     try {
       const res = await fetch('./data/tickets_summary.json');
       if (res.ok) {
@@ -2722,19 +2995,32 @@ const App = {
             critical_tickets: sumData.critical_tickets || [],
             tickets: combined
           };
+          this.setDataStatus('tickets', 'ready');
           this.populateProductDropdown();
           this.populateCategoryDropdown();
           this.renderTicketingKPIs();
           this.renderDashboard();
         }
+      } else {
+        throw new Error(`HTTP ${res.status}`);
       }
     } catch (e) {
       console.warn('Could not load tickets_summary.json', e);
+      this.failLoad('tickets', 'ringkasan tiket');
     }
   },
 
-  async fetchTickets(forceRefresh = false) {
-    if (this._fullTicketsLoaded && !forceRefresh) return;
+  // De-duplicated: the background prefetch and the Ticketing view share one request
+  fetchTickets(forceRefresh = false) {
+    if (this._fullTicketsLoaded && !forceRefresh) return Promise.resolve();
+    if (!this._inflight.tickets) {
+      this._inflight.tickets = this._loadTickets(forceRefresh).finally(() => { delete this._inflight.tickets; });
+    }
+    return this._inflight.tickets;
+  },
+
+  async _loadTickets(forceRefresh = false) {
+    if (this.dataStatus.ticketsFull !== 'ready') this.setDataStatus('ticketsFull', 'loading');
     try {
       const url = forceRefresh ? './data/tickets.json?_t=' + Date.now() : './data/tickets.json';
       const res = await fetch(url);
@@ -2743,6 +3029,8 @@ const App = {
         if (data && data.tickets) this.normalizeTicketList(data.tickets);
         this.ticketingData = data;
         this._fullTicketsLoaded = true;
+        this.setDataStatus('ticketsFull', 'ready');
+        this.setDataStatus('tickets', 'ready');
         this.populateProductDropdown();
         this.populateCategoryDropdown();
         this.renderTicketingKPIs();
@@ -2755,6 +3043,7 @@ const App = {
     }
 
     // Fallback to summary if tickets.json fails
+    this.failLoad('ticketsFull', 'data tiket lengkap');
     await this.fetchTicketsSummary();
   },
 
@@ -3225,6 +3514,7 @@ const App = {
   renderTicketingTable() {
     const tbody = document.getElementById('ticketTableBody');
     if (!tbody) return;
+    if (this.guardTable(tbody)) return;
 
     if (!this.ticketingData || !this.ticketingData.tickets) {
       tbody.innerHTML = `
@@ -5329,17 +5619,19 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   // =========================================================================
   async fetchServerBackup(force = false) {
     if (this._backupLoaded && !force) return;
+    if (this.dataStatus.backup !== 'ready') this.setDataStatus('backup', 'loading');
     try {
       const res = await fetch(`./data/server_backup.json?t=${Date.now()}`);
-      if (res.ok) {
-        this.serverBackup = await res.json();
-        this._backupLoaded = true;
-        const badge = document.getElementById('badgeServerBackup');
-        if (badge) badge.textContent = this.serverBackup.length.toLocaleString();
-        this.renderBackupTable();
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.serverBackup = await res.json();
+      this._backupLoaded = true;
+      this.setDataStatus('backup', 'ready');
+      const badge = document.getElementById('badgeServerBackup');
+      if (badge) badge.textContent = this.serverBackup.length.toLocaleString();
+      this.renderBackupTable();
     } catch (e) {
       console.warn('Could not load server_backup.json', e);
+      this.failLoad('backup', 'data server backup');
     }
   },
 
@@ -5498,10 +5790,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   },
 
   renderBackupTable() {
+    const guardBody = document.getElementById('backupTableBody');
+    if (guardBody && this.guardTable(guardBody)) return;
+
     if (!this.serverBackup || !this.serverBackup.length) {
-      const tbody = document.getElementById('backupTableBody');
-      if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Memuat data server backup...</td></tr>';
+      if (guardBody) {
+        guardBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Belum ada data server backup.</td></tr>';
       }
       return;
     }
