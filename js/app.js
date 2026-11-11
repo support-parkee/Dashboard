@@ -700,7 +700,7 @@ const App = {
             ${item.last_sync || '-'}
           </td>
           <td>
-            <span class="version-code-tag">${this.formatVersion(item.agent)}</span>
+            <span class="version-code-tag" style="white-space: nowrap;">${this.formatFullVersion(item.agent)}</span>
           </td>
           <td>
             <span class="version-code-tag">${this.formatVersion(item.fisherman)}</span>
@@ -1100,7 +1100,7 @@ const App = {
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Versi Agent</span>
-          <span class="modal-spec-val mono">${this.formatVersion(dev.agent)}</span>
+          <span class="modal-spec-val mono">${this.formatFullVersion(dev.agent)}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Last Telemetry Sync</span>
@@ -4871,6 +4871,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     let s = String(raw).trim();
     if (s.startsWith('-')) return '-';
     return s.split('(')[0].trim() || '-';
+  },
+
+  formatFullVersion(raw) {
+    if (!raw || raw === '-' || raw.toLowerCase() === 'none' || raw.toLowerCase() === 'unset') return '-';
+    const s = String(raw).trim();
+    if (s.startsWith('-')) return '-';
+    return s;
   },
 
   formatVersion(raw) {
