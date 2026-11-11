@@ -496,6 +496,12 @@ const App = {
     const note = document.getElementById('dashSyncNote');
     if (!note) return;
     const { tickets, ticketsFull } = this.dataStatus;
+    const hasComplete1mStats = Boolean(this.ticketingData && this.ticketingData.stats_1m);
+
+    if (hasComplete1mStats) {
+      note.style.display = 'none';
+      return;
+    }
 
     if (ticketsFull === 'error') {
       note.className = 'data-sync-note is-warn';
@@ -2239,18 +2245,24 @@ const App = {
   // MODULE 0: DASHBOARD (HALAMAN UTAMA - TICKETING 1 BULAN TERAKHIR)
   // =========================================================================
   dashboardCharts: {},
+  _lastChartRenderSig: null,
+  _lastCritTableSig: null,
 
   getOneMonthTickets() {
     if (!this.ticketingData || !this.ticketingData.tickets || !this.ticketingData.tickets.length) return [];
-    if (!this._fullTicketsLoaded && this.ticketingData.critical_tickets) {
-      return this.ticketingData.critical_tickets;
+    const s1m = this.ticketingData.stats_1m;
+    let startStr = s1m && s1m.cutoff_date ? s1m.cutoff_date : '';
+    if (!startStr) {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      startStr = `${y}-${m}-${day}`;
     }
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const startStr = `${y}-${m}-${day}`;
+    if (!this._fullTicketsLoaded && this.ticketingData.critical_tickets) {
+      return this.ticketingData.critical_tickets.filter(t => t.open_date && t.open_date >= startStr);
+    }
     return this.ticketingData.tickets.filter(t => t.open_date && t.open_date >= startStr);
   },
 
@@ -2264,6 +2276,7 @@ const App = {
   renderDashboardKPIs(t1m) {
     if (!this.ticketingData) return;
     const s = this.ticketingData.stats || {};
+    const s1m = this.ticketingData.stats_1m || null;
     let total = t1m.length;
     let closed = 0;
     let solved = 0;
@@ -2273,7 +2286,17 @@ const App = {
     let p0 = 0;
     let p1 = 0;
 
-    if (!this._fullTicketsLoaded && s.total) {
+    if (s1m && s1m.total !== undefined) {
+      total = s1m.total || 0;
+      closed = s1m.closed || 0;
+      solved = s1m.solved || 0;
+      processing = s1m.processing || 0;
+      newCount = s1m.new || 0;
+      pending = s1m.pending || 0;
+      const p = s1m.priority || {};
+      p0 = p.P0 || 0;
+      p1 = p.P1 || 0;
+    } else if (!this._fullTicketsLoaded && s.total) {
       total = Math.round(s.total / 3);
       closed = Math.round((s.closed || 0) / 3);
       solved = Math.round((s.solved || 0) / 3);
@@ -2381,7 +2404,8 @@ const App = {
       this.scheduleChartLibraryRetry();
       return;
     }
-    if (!t1m || !t1m.length) {
+    const s1m = (this.ticketingData && this.ticketingData.stats_1m) || null;
+    if ((!t1m || !t1m.length) && (!s1m || !s1m.total)) {
       // Loading / error overlays are managed by syncDashboardLoadingUI()
       if (this.dataStatus.tickets === 'ready') {
         this.setChartOverlay('empty', 'Belum ada data tiket untuk 30 hari terakhir.');
@@ -2392,36 +2416,197 @@ const App = {
     const isSummaryOnly = !this._fullTicketsLoaded && Boolean(this.ticketingData && this.ticketingData.stats);
     const s = isSummaryOnly ? this.ticketingData.stats : null;
 
+    // Precompute all 6 chart datasets so we can check if re-rendering is actually needed
+    const statusCounts = {
+      Closed: 0,
+      ProcessingAssigned: 0,
+      ProcessingPlanned: 0,
+      'Baru / Pending': 0,
+      Solved: 0
+    };
+    if (s1m && s1m.total !== undefined) {
+      statusCounts.Closed = s1m.closed || 0;
+      statusCounts.ProcessingAssigned = s1m.processing_assigned || 0;
+      statusCounts.ProcessingPlanned = s1m.processing_planned || 0;
+      statusCounts['Baru / Pending'] = (s1m.new || 0) + (s1m.pending || 0);
+      statusCounts.Solved = s1m.solved || 0;
+    } else if (isSummaryOnly && s) {
+      statusCounts.Closed = Math.round((s.closed || 0) / 3);
+      statusCounts.ProcessingAssigned = s.processing_assigned || s.processing || 0;
+      statusCounts.ProcessingPlanned = s.processing_planned || 0;
+      statusCounts['Baru / Pending'] = (s.new || 0) + (s.pending || 0);
+      statusCounts.Solved = Math.round((s.solved || 0) / 3);
+    } else {
+      t1m.forEach(t => {
+        const raw = (t.status_raw || '').toLowerCase();
+        const st = (t.status || '').toLowerCase();
+        if (st === 'closed' || raw.includes('closed')) statusCounts.Closed++;
+        else if (raw.includes('planned') || st.includes('planned')) statusCounts.ProcessingPlanned++;
+        else if (raw.includes('assign') || st.includes('process')) statusCounts.ProcessingAssigned++;
+        else if (st === 'new' || st === 'pending' || raw.includes('new') || raw.includes('pending')) statusCounts['Baru / Pending']++;
+        else if (st === 'solved' || raw.includes('solved')) statusCounts.Solved++;
+      });
+    }
+    const totalStatus = Object.values(statusCounts).reduce((a, b) => a + b, 0) || 1;
+
+    const prioCounts = { P0: 0, P1: 0, P2: 0, P3: 0, P4: 0 };
+    if (s1m && s1m.priority) {
+      prioCounts.P0 = s1m.priority.P0 || 0;
+      prioCounts.P1 = s1m.priority.P1 || 0;
+      prioCounts.P2 = s1m.priority.P2 || 0;
+      prioCounts.P3 = s1m.priority.P3 || 0;
+      prioCounts.P4 = s1m.priority.P4 || 0;
+    } else if (isSummaryOnly && s && s.priority) {
+      const pStats = s.priority || {};
+      prioCounts.P0 = Math.round((pStats.P0 || 0) / 3);
+      prioCounts.P1 = Math.round((pStats.P1 || 0) / 3);
+      prioCounts.P2 = Math.round((pStats.P2 || 0) / 3);
+      prioCounts.P3 = Math.round((pStats.P3 || 0) / 3);
+      prioCounts.P4 = Math.round((pStats.P4 || 0) / 3);
+    } else {
+      t1m.forEach(t => {
+        const p = (t.priority || '').toUpperCase();
+        if (prioCounts[p] !== undefined) prioCounts[p]++;
+        else prioCounts.P2++;
+      });
+    }
+    const totalPrio = Object.values(prioCounts).reduce((a, b) => a + b, 0) || 1;
+
+    let catDonutLabels = [];
+    let catDonutData = [];
+    let topCatText = '';
+    if (s1m && Array.isArray(s1m.categories) && s1m.categories.length) {
+      const top5 = s1m.categories.slice(0, 5);
+      const rest = s1m.categories.slice(5);
+      catDonutLabels = top5.map(x => x.name);
+      catDonutData = top5.map(x => x.count);
+      const restSum = rest.reduce((sum, item) => sum + item.count, 0);
+      if (restSum > 0) {
+        catDonutLabels.push('Kategori Lain');
+        catDonutData.push(restSum);
+      }
+      if (top5.length > 0) topCatText = `${top5[0].name} (${top5[0].count.toLocaleString()})`;
+    } else if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
+      const top5 = s.top_categories.slice(0, 5);
+      const rest = s.top_categories.slice(5);
+      catDonutLabels = top5.map(x => x.name);
+      catDonutData = top5.map(x => Math.round(x.count / 3));
+      const restSum = rest.reduce((sum, item) => sum + Math.round(item.count / 3), 0);
+      if (restSum > 0) {
+        catDonutLabels.push('Kategori Lain');
+        catDonutData.push(restSum);
+      }
+      if (top5.length > 0) topCatText = `${top5[0].name} (${Math.round(top5[0].count / 3).toLocaleString()})`;
+    } else {
+      const catCounts = {};
+      t1m.forEach(t => {
+        const c = t.cat || 'Lainnya';
+        catCounts[c] = (catCounts[c] || 0) + 1;
+      });
+      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+      const top5 = sortedCats.slice(0, 5);
+      const rest = sortedCats.slice(5);
+      const restSum = rest.reduce((sum, item) => sum + item[1], 0);
+      catDonutLabels = top5.map(x => x[0]);
+      catDonutData = top5.map(x => x[1]);
+      if (restSum > 0) {
+        catDonutLabels.push('Kategori Lain');
+        catDonutData.push(restSum);
+      }
+      if (top5.length > 0) topCatText = `${top5[0][0]} (${top5[0][1].toLocaleString()})`;
+    }
+    const totalCat = catDonutData.reduce((a, b) => a + b, 0) || 1;
+    const topCatBadge = document.getElementById('dashTopCatBadge');
+    if (topCatBadge && topCatText) topCatBadge.textContent = topCatText;
+
+    const dayMap = (s1m && s1m.daily_trend) ? s1m.daily_trend : {};
+    if (!s1m || !s1m.daily_trend) {
+      t1m.forEach(t => {
+        if (!t.open_date) return;
+        const day = t.open_date.substring(0, 10);
+        dayMap[day] = (dayMap[day] || 0) + 1;
+      });
+    }
+    const sortedDays = Object.keys(dayMap).sort();
+    const trendLabels = sortedDays.map(d => {
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const mIdx = parseInt(parts[1], 10);
+        return `${parts[2]} ${monthNames[mIdx] || parts[1]}`;
+      }
+      return d;
+    });
+    const trendDataPoints = sortedDays.map(d => dayMap[d]);
+
+    let barCatLabels = [];
+    let barCatData = [];
+    if (s1m && Array.isArray(s1m.categories) && s1m.categories.length) {
+      const top8 = s1m.categories.slice(0, 8);
+      barCatLabels = top8.map(x => x.name);
+      barCatData = top8.map(x => x.count);
+    } else if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
+      const top8 = s.top_categories.slice(0, 8);
+      barCatLabels = top8.map(x => x.name);
+      barCatData = top8.map(x => Math.round(x.count / 3));
+    } else {
+      const catCounts = {};
+      t1m.forEach(t => {
+        const c = t.cat || 'Lainnya';
+        catCounts[c] = (catCounts[c] || 0) + 1;
+      });
+      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      barCatLabels = sortedCats.map(x => x[0]);
+      barCatData = sortedCats.map(x => x[1]);
+    }
+    const totalBarCat = barCatData.reduce((a, b) => a + b, 0) || 1;
+
+    let barLocLabels = [];
+    let barLocData = [];
+    if (s1m && Array.isArray(s1m.top_locations) && s1m.top_locations.length) {
+      const top8 = s1m.top_locations.slice(0, 8);
+      barLocLabels = top8.map(x => x.name);
+      barLocData = top8.map(x => x.count);
+    } else if (isSummaryOnly && s && Array.isArray(s.top_locations) && s.top_locations.length) {
+      const top8 = s.top_locations.slice(0, 8);
+      barLocLabels = top8.map(x => x.name);
+      barLocData = top8.map(x => Math.round(x.count / 3));
+    } else {
+      const locCounts = {};
+      t1m.forEach(t => {
+        const l = t.loc || 'Unknown Site';
+        locCounts[l] = (locCounts[l] || 0) + 1;
+      });
+      const sortedLocs = Object.entries(locCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      barLocLabels = sortedLocs.map(x => x[0]);
+      barLocData = sortedLocs.map(x => x[1]);
+    }
+    const totalBarLoc = barLocData.reduce((a, b) => a + b, 0) || 1;
+
+    // Prevent redundant chart destroy/re-animate if datasets & theme are identical
+    const renderSig = JSON.stringify({
+      isDark: tc.isDark,
+      statusCounts,
+      prioCounts,
+      catDonutLabels,
+      catDonutData,
+      trendLabels,
+      trendDataPoints,
+      barCatLabels,
+      barCatData,
+      barLocLabels,
+      barLocData
+    });
+    if (this._lastChartRenderSig === renderSig && this.dashboardCharts.status && this.dashboardCharts.priority) {
+      this.setChartOverlay('hidden');
+      return;
+    }
+    this._lastChartRenderSig = renderSig;
+
     // 1. Chart Donut Status (Bagan 1 - Kiri)
     const canvasStatus = document.getElementById('chartDashStatus');
     if (canvasStatus) {
       if (this.dashboardCharts.status) this.dashboardCharts.status.destroy();
-      const statusCounts = {
-        Closed: 0,
-        ProcessingAssigned: 0,
-        ProcessingPlanned: 0,
-        'Baru / Pending': 0,
-        Solved: 0
-      };
-
-      if (isSummaryOnly && s) {
-        statusCounts.Closed = Math.round((s.closed || 0) / 3);
-        statusCounts.ProcessingAssigned = s.processing_assigned || s.processing || 0;
-        statusCounts.ProcessingPlanned = s.processing_planned || 0;
-        statusCounts['Baru / Pending'] = (s.new || 0) + (s.pending || 0);
-        statusCounts.Solved = Math.round((s.solved || 0) / 3);
-      } else {
-        t1m.forEach(t => {
-          const raw = (t.status_raw || '').toLowerCase();
-          const st = (t.status || '').toLowerCase();
-          if (st === 'closed' || raw.includes('closed')) statusCounts.Closed++;
-          else if (raw.includes('planned') || st.includes('planned')) statusCounts.ProcessingPlanned++;
-          else if (raw.includes('assign') || st.includes('process')) statusCounts.ProcessingAssigned++;
-          else if (st === 'new' || st === 'pending' || raw.includes('new') || raw.includes('pending')) statusCounts['Baru / Pending']++;
-          else if (st === 'solved' || raw.includes('solved')) statusCounts.Solved++;
-        });
-      }
-      const totalStatus = Object.values(statusCounts).reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.status = new Chart(canvasStatus.getContext('2d'), {
         type: 'doughnut',
@@ -2478,23 +2663,6 @@ const App = {
     const canvasPrio = document.getElementById('chartDashPriority');
     if (canvasPrio) {
       if (this.dashboardCharts.priority) this.dashboardCharts.priority.destroy();
-      const prioCounts = { P0: 0, P1: 0, P2: 0, P3: 0, P4: 0 };
-
-      if (isSummaryOnly && s && s.priority) {
-        const pStats = s.priority || {};
-        prioCounts.P0 = Math.round((pStats.P0 || 0) / 3);
-        prioCounts.P1 = Math.round((pStats.P1 || 0) / 3);
-        prioCounts.P2 = Math.round((pStats.P2 || 0) / 3);
-        prioCounts.P3 = Math.round((pStats.P3 || 0) / 3);
-        prioCounts.P4 = Math.round((pStats.P4 || 0) / 3);
-      } else {
-        t1m.forEach(t => {
-          const p = (t.priority || '').toUpperCase();
-          if (prioCounts[p] !== undefined) prioCounts[p]++;
-          else prioCounts.P2++;
-        });
-      }
-      const totalPrio = Object.values(prioCounts).reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.priority = new Chart(canvasPrio.getContext('2d'), {
         type: 'doughnut',
@@ -2552,49 +2720,6 @@ const App = {
     if (canvasCatDonut) {
       if (this.dashboardCharts.catDonut) this.dashboardCharts.catDonut.destroy();
 
-      let labels = [];
-      let data = [];
-
-      if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
-        const top5 = s.top_categories.slice(0, 5);
-        const rest = s.top_categories.slice(5);
-        labels = top5.map(x => x.name);
-        data = top5.map(x => Math.round(x.count / 3));
-        const restSum = rest.reduce((sum, item) => sum + Math.round(item.count / 3), 0);
-        if (restSum > 0) {
-          labels.push('Kategori Lain');
-          data.push(restSum);
-        }
-        const topCatBadge = document.getElementById('dashTopCatBadge');
-        if (topCatBadge && top5.length > 0) {
-          topCatBadge.textContent = `${top5[0].name} (${Math.round(top5[0].count / 3).toLocaleString()})`;
-        }
-      } else {
-        const catCounts = {};
-        t1m.forEach(t => {
-          const c = t.cat || 'Lainnya';
-          catCounts[c] = (catCounts[c] || 0) + 1;
-        });
-
-        const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
-        const top5 = sortedCats.slice(0, 5);
-        const rest = sortedCats.slice(5);
-        const restSum = rest.reduce((sum, item) => sum + item[1], 0);
-
-        labels = top5.map(x => x[0]);
-        data = top5.map(x => x[1]);
-        if (restSum > 0) {
-          labels.push('Kategori Lain');
-          data.push(restSum);
-        }
-
-        const topCatBadge = document.getElementById('dashTopCatBadge');
-        if (topCatBadge && top5.length > 0) {
-          topCatBadge.textContent = `${top5[0][0]} (${top5[0][1]})`;
-        }
-      }
-      const totalCat = data.reduce((a, b) => a + b, 0) || 1;
-
       const catColors = [
         tc.violet,
         tc.cyan,
@@ -2607,10 +2732,10 @@ const App = {
       this.dashboardCharts.catDonut = new Chart(canvasCatDonut.getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels,
+          labels: catDonutLabels,
           datasets: [{
-            data,
-            backgroundColor: catColors.slice(0, labels.length),
+            data: catDonutData,
+            backgroundColor: catColors.slice(0, catDonutLabels.length),
             borderWidth: 2,
             borderColor: tc.isDark ? '#131b2e' : '#ffffff',
             hoverOffset: 6
@@ -2654,25 +2779,6 @@ const App = {
     if (canvasTrend) {
       if (this.dashboardCharts.trend) this.dashboardCharts.trend.destroy();
 
-      const dayMap = {};
-      t1m.forEach(t => {
-        if (!t.open_date) return;
-        const day = t.open_date.substring(0, 10);
-        dayMap[day] = (dayMap[day] || 0) + 1;
-      });
-
-      const sortedDays = Object.keys(dayMap).sort();
-      const labels = sortedDays.map(d => {
-        const parts = d.split('-');
-        if (parts.length === 3) {
-          const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-          const mIdx = parseInt(parts[1], 10);
-          return `${parts[2]} ${monthNames[mIdx] || parts[1]}`;
-        }
-        return d;
-      });
-      const dataPoints = sortedDays.map(d => dayMap[d]);
-
       const ctx = canvasTrend.getContext('2d');
       const gradient = ctx.createLinearGradient(0, 0, 0, 240);
       gradient.addColorStop(0, tc.isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(37, 99, 235, 0.2)');
@@ -2681,10 +2787,10 @@ const App = {
       this.dashboardCharts.trend = new Chart(ctx, {
         type: 'line',
         data: {
-          labels,
+          labels: trendLabels,
           datasets: [{
             label: 'Volume Tiket Masuk',
-            data: dataPoints,
+            data: trendDataPoints,
             fill: true,
             backgroundColor: gradient,
             borderColor: tc.cobalt,
@@ -2740,32 +2846,13 @@ const App = {
     if (canvasCats) {
       if (this.dashboardCharts.cats) this.dashboardCharts.cats.destroy();
 
-      let labels = [];
-      let data = [];
-
-      if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
-        const top8 = s.top_categories.slice(0, 8);
-        labels = top8.map(x => x.name);
-        data = top8.map(x => Math.round(x.count / 3));
-      } else {
-        const catCounts = {};
-        t1m.forEach(t => {
-          const c = t.cat || 'Lainnya';
-          catCounts[c] = (catCounts[c] || 0) + 1;
-        });
-        const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-        labels = sortedCats.map(x => x[0]);
-        data = sortedCats.map(x => x[1]);
-      }
-      const totalBarCat = data.reduce((a, b) => a + b, 0) || 1;
-
       this.dashboardCharts.cats = new Chart(canvasCats.getContext('2d'), {
         type: 'bar',
         data: {
-          labels,
+          labels: barCatLabels,
           datasets: [{
             label: 'Jumlah Tiket',
-            data,
+            data: barCatData,
             backgroundColor: tc.violet,
             borderRadius: 6,
             barThickness: 18
@@ -2807,32 +2894,13 @@ const App = {
     if (canvasLocs) {
       if (this.dashboardCharts.locs) this.dashboardCharts.locs.destroy();
 
-      let labels = [];
-      let data = [];
-
-      if (isSummaryOnly && s && Array.isArray(s.top_locations) && s.top_locations.length) {
-        const top8 = s.top_locations.slice(0, 8);
-        labels = top8.map(x => x.name);
-        data = top8.map(x => Math.round(x.count / 3));
-      } else {
-        const locCounts = {};
-        t1m.forEach(t => {
-          const l = t.loc || 'Unknown Site';
-          locCounts[l] = (locCounts[l] || 0) + 1;
-        });
-        const sortedLocs = Object.entries(locCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-        labels = sortedLocs.map(x => x[0]);
-        data = sortedLocs.map(x => x[1]);
-      }
-      const totalBarLoc = data.reduce((a, b) => a + b, 0) || 1;
-
       this.dashboardCharts.locs = new Chart(canvasLocs.getContext('2d'), {
         type: 'bar',
         data: {
-          labels,
+          labels: barLocLabels,
           datasets: [{
             label: 'Jumlah Tiket',
-            data,
+            data: barLocData,
             backgroundColor: tc.orange,
             borderRadius: 6,
             barThickness: 18
@@ -2875,9 +2943,13 @@ const App = {
   renderDashboardCriticalTable(t1m) {
     const tbody = document.getElementById('dashCriticalTableBody');
     if (!tbody) return;
-    if (this.guardTable(tbody)) return;
+    if (this.guardTable(tbody)) {
+      this._lastCritTableSig = null;
+      return;
+    }
 
     if (!t1m || !t1m.length) {
+      this._lastCritTableSig = 'empty';
       tbody.innerHTML = `
         <tr>
           <td colspan="10" style="text-align: center; padding: 2rem; color: var(--text-muted);">
@@ -2903,6 +2975,7 @@ const App = {
     }).slice(0, 15);
 
     if (criticalList.length === 0) {
+      this._lastCritTableSig = 'none';
       tbody.innerHTML = `
         <tr>
           <td colspan="10" style="text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600;">
@@ -2912,6 +2985,12 @@ const App = {
       `;
       return;
     }
+
+    const critSig = criticalList.map(d => `${d.id}:${d.status}:${d.priority}:${d.last_update}`).join('|');
+    if (this._lastCritTableSig === critSig && tbody.innerHTML && !tbody.innerHTML.includes('table-loading-row')) {
+      return;
+    }
+    this._lastCritTableSig = critSig;
 
     tbody.innerHTML = criticalList.map((d, index) => {
       if (!d.product || d.product === 'Uncategorized') {
@@ -3057,6 +3136,7 @@ const App = {
           this.ticketingData = {
             meta: sumData.meta,
             stats: sumData.stats,
+            stats_1m: sumData.stats_1m || null,
             critical_tickets: sumData.critical_tickets || [],
             tickets: combined
           };
@@ -3092,6 +3172,9 @@ const App = {
       if (res.ok) {
         const data = await res.json();
         if (data && data.tickets) this.normalizeTicketList(data.tickets);
+        if (data && !data.stats_1m && this.ticketingData && this.ticketingData.stats_1m) {
+          data.stats_1m = this.ticketingData.stats_1m;
+        }
         this.ticketingData = data;
         this._fullTicketsLoaded = true;
         this.setDataStatus('ticketsFull', 'ready');

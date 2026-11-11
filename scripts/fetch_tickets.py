@@ -425,6 +425,66 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
     top_cats = sorted([{"name": k, "count": v} for k, v in category_counts.items()], key=lambda x: -x["count"])[:10]
     top_techs = sorted([{"name": k, "count": v} for k, v in technician_counts.items()], key=lambda x: -x["count"])[:10]
 
+    # Exact 30-day (1-month) precomputed stats for instant, single-render Dashboard loading
+    cutoff_1m = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    tickets_1m = [t for t in pruned_tickets if (t.get("open_date") or "") >= cutoff_1m]
+    st_1m = {"closed": 0, "solved": 0, "processing": 0, "processing_assigned": 0, "processing_planned": 0, "new": 0, "pending": 0}
+    pr_1m = {"P0": 0, "P1": 0, "P2": 0, "P3": 0, "P4": 0}
+    cat_1m = {}
+    loc_1m = {}
+    day_1m = {}
+
+    for t in tickets_1m:
+        st_l = (t.get("status") or "").lower()
+        raw_l = (t.get("status_raw") or "").lower()
+        if st_l == "closed" or "closed" in raw_l:
+            st_1m["closed"] += 1
+        elif st_l == "solved" or "solved" in raw_l:
+            st_1m["solved"] += 1
+        elif "process" in st_l or "process" in raw_l:
+            st_1m["processing"] += 1
+            if "planned" in raw_l or "planned" in st_l:
+                st_1m["processing_planned"] += 1
+            else:
+                st_1m["processing_assigned"] += 1
+        elif st_l == "new" or "new" in raw_l:
+            st_1m["new"] += 1
+        elif st_l == "pending" or "pending" in raw_l:
+            st_1m["pending"] += 1
+
+        p_u = (t.get("priority") or "").upper()
+        if p_u in pr_1m:
+            pr_1m[p_u] += 1
+        else:
+            pr_1m["P2"] += 1
+
+        c_name = t.get("cat") or "Lainnya"
+        cat_1m[c_name] = cat_1m.get(c_name, 0) + 1
+
+        l_name = t.get("loc") or "Unknown Site"
+        loc_1m[l_name] = loc_1m.get(l_name, 0) + 1
+
+        od = t.get("open_date") or ""
+        if len(od) >= 10:
+            d_key = od[:10]
+            day_1m[d_key] = day_1m.get(d_key, 0) + 1
+
+    stats_1m = {
+        "cutoff_date": cutoff_1m,
+        "total": len(tickets_1m),
+        "closed": st_1m["closed"],
+        "solved": st_1m["solved"],
+        "processing": st_1m["processing"],
+        "processing_assigned": st_1m["processing_assigned"],
+        "processing_planned": st_1m["processing_planned"],
+        "new": st_1m["new"],
+        "pending": st_1m["pending"],
+        "priority": pr_1m,
+        "categories": sorted([{"name": k, "count": v} for k, v in cat_1m.items()], key=lambda x: -x["count"]),
+        "top_locations": sorted([{"name": k, "count": v} for k, v in loc_1m.items()], key=lambda x: -x["count"])[:10],
+        "daily_trend": {k: day_1m[k] for k in sorted(day_1m.keys())}
+    }
+
     output_payload = {
         "meta": {
             "title": "PARKEE GLPI Ticketing (Last 3 Months)",
@@ -448,6 +508,7 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
             "top_categories": top_cats,
             "top_technicians": top_techs
         },
+        "stats_1m": stats_1m,
         "tickets": pruned_tickets
     }
 
@@ -458,6 +519,7 @@ def upsert_and_save_dataset(fresh_ticket_items, is_full_replace=False):
     summary_payload = {
         "meta": output_payload["meta"],
         "stats": output_payload["stats"],
+        "stats_1m": stats_1m,
         "critical_tickets": critical_tickets,
         "recent_tickets": pruned_tickets[:50]
     }
