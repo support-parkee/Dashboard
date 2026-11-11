@@ -2389,6 +2389,8 @@ const App = {
       return;
     }
     const tc = this.getChartThemeColors();
+    const isSummaryOnly = !this._fullTicketsLoaded && Boolean(this.ticketingData && this.ticketingData.stats);
+    const s = isSummaryOnly ? this.ticketingData.stats : null;
 
     // 1. Chart Donut Status (Bagan 1 - Kiri)
     const canvasStatus = document.getElementById('chartDashStatus');
@@ -2401,15 +2403,25 @@ const App = {
         'Baru / Pending': 0,
         Solved: 0
       };
-      t1m.forEach(t => {
-        const raw = (t.status_raw || '').toLowerCase();
-        const st = (t.status || '').toLowerCase();
-        if (st === 'closed' || raw.includes('closed')) statusCounts.Closed++;
-        else if (raw.includes('planned') || st.includes('planned')) statusCounts.ProcessingPlanned++;
-        else if (raw.includes('assign') || st.includes('process')) statusCounts.ProcessingAssigned++;
-        else if (st === 'new' || st === 'pending' || raw.includes('new') || raw.includes('pending')) statusCounts['Baru / Pending']++;
-        else if (st === 'solved' || raw.includes('solved')) statusCounts.Solved++;
-      });
+
+      if (isSummaryOnly && s) {
+        statusCounts.Closed = Math.round((s.closed || 0) / 3);
+        statusCounts.ProcessingAssigned = s.processing_assigned || s.processing || 0;
+        statusCounts.ProcessingPlanned = s.processing_planned || 0;
+        statusCounts['Baru / Pending'] = (s.new || 0) + (s.pending || 0);
+        statusCounts.Solved = Math.round((s.solved || 0) / 3);
+      } else {
+        t1m.forEach(t => {
+          const raw = (t.status_raw || '').toLowerCase();
+          const st = (t.status || '').toLowerCase();
+          if (st === 'closed' || raw.includes('closed')) statusCounts.Closed++;
+          else if (raw.includes('planned') || st.includes('planned')) statusCounts.ProcessingPlanned++;
+          else if (raw.includes('assign') || st.includes('process')) statusCounts.ProcessingAssigned++;
+          else if (st === 'new' || st === 'pending' || raw.includes('new') || raw.includes('pending')) statusCounts['Baru / Pending']++;
+          else if (st === 'solved' || raw.includes('solved')) statusCounts.Solved++;
+        });
+      }
+      const totalStatus = Object.values(statusCounts).reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.status = new Chart(canvasStatus.getContext('2d'), {
         type: 'doughnut',
@@ -2452,7 +2464,7 @@ const App = {
               callbacks: {
                 label: (ctx) => {
                   const val = ctx.raw || 0;
-                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  const pct = ((val / totalStatus) * 100).toFixed(1);
                   return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
                 }
               }
@@ -2467,11 +2479,22 @@ const App = {
     if (canvasPrio) {
       if (this.dashboardCharts.priority) this.dashboardCharts.priority.destroy();
       const prioCounts = { P0: 0, P1: 0, P2: 0, P3: 0, P4: 0 };
-      t1m.forEach(t => {
-        const p = (t.priority || '').toUpperCase();
-        if (prioCounts[p] !== undefined) prioCounts[p]++;
-        else prioCounts.P2++;
-      });
+
+      if (isSummaryOnly && s && s.priority) {
+        const pStats = s.priority || {};
+        prioCounts.P0 = Math.round((pStats.P0 || 0) / 3);
+        prioCounts.P1 = Math.round((pStats.P1 || 0) / 3);
+        prioCounts.P2 = Math.round((pStats.P2 || 0) / 3);
+        prioCounts.P3 = Math.round((pStats.P3 || 0) / 3);
+        prioCounts.P4 = Math.round((pStats.P4 || 0) / 3);
+      } else {
+        t1m.forEach(t => {
+          const p = (t.priority || '').toUpperCase();
+          if (prioCounts[p] !== undefined) prioCounts[p]++;
+          else prioCounts.P2++;
+        });
+      }
+      const totalPrio = Object.values(prioCounts).reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.priority = new Chart(canvasPrio.getContext('2d'), {
         type: 'doughnut',
@@ -2514,7 +2537,7 @@ const App = {
               callbacks: {
                 label: (ctx) => {
                   const val = ctx.raw || 0;
-                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  const pct = ((val / totalPrio) * 100).toFixed(1);
                   return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
                 }
               }
@@ -2529,28 +2552,48 @@ const App = {
     if (canvasCatDonut) {
       if (this.dashboardCharts.catDonut) this.dashboardCharts.catDonut.destroy();
 
-      const catCounts = {};
-      t1m.forEach(t => {
-        const c = t.cat || 'Lainnya';
-        catCounts[c] = (catCounts[c] || 0) + 1;
-      });
+      let labels = [];
+      let data = [];
 
-      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
-      const top5 = sortedCats.slice(0, 5);
-      const rest = sortedCats.slice(5);
-      const restSum = rest.reduce((sum, item) => sum + item[1], 0);
+      if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
+        const top5 = s.top_categories.slice(0, 5);
+        const rest = s.top_categories.slice(5);
+        labels = top5.map(x => x.name);
+        data = top5.map(x => Math.round(x.count / 3));
+        const restSum = rest.reduce((sum, item) => sum + Math.round(item.count / 3), 0);
+        if (restSum > 0) {
+          labels.push('Kategori Lain');
+          data.push(restSum);
+        }
+        const topCatBadge = document.getElementById('dashTopCatBadge');
+        if (topCatBadge && top5.length > 0) {
+          topCatBadge.textContent = `${top5[0].name} (${Math.round(top5[0].count / 3).toLocaleString()})`;
+        }
+      } else {
+        const catCounts = {};
+        t1m.forEach(t => {
+          const c = t.cat || 'Lainnya';
+          catCounts[c] = (catCounts[c] || 0) + 1;
+        });
 
-      const labels = top5.map(x => x[0]);
-      const data = top5.map(x => x[1]);
-      if (restSum > 0) {
-        labels.push('Kategori Lain');
-        data.push(restSum);
+        const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+        const top5 = sortedCats.slice(0, 5);
+        const rest = sortedCats.slice(5);
+        const restSum = rest.reduce((sum, item) => sum + item[1], 0);
+
+        labels = top5.map(x => x[0]);
+        data = top5.map(x => x[1]);
+        if (restSum > 0) {
+          labels.push('Kategori Lain');
+          data.push(restSum);
+        }
+
+        const topCatBadge = document.getElementById('dashTopCatBadge');
+        if (topCatBadge && top5.length > 0) {
+          topCatBadge.textContent = `${top5[0][0]} (${top5[0][1]})`;
+        }
       }
-
-      const topCatBadge = document.getElementById('dashTopCatBadge');
-      if (topCatBadge && top5.length > 0) {
-        topCatBadge.textContent = `${top5[0][0]} (${top5[0][1]})`;
-      }
+      const totalCat = data.reduce((a, b) => a + b, 0) || 1;
 
       const catColors = [
         tc.violet,
@@ -2596,7 +2639,7 @@ const App = {
               callbacks: {
                 label: (ctx) => {
                   const val = ctx.raw || 0;
-                  const pct = t1m.length ? ((val / t1m.length) * 100).toFixed(1) : 0;
+                  const pct = ((val / totalCat) * 100).toFixed(1);
                   return ` ${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
                 }
               }
@@ -2696,14 +2739,25 @@ const App = {
     const canvasCats = document.getElementById('chartDashCategories');
     if (canvasCats) {
       if (this.dashboardCharts.cats) this.dashboardCharts.cats.destroy();
-      const catCounts = {};
-      t1m.forEach(t => {
-        const c = t.cat || 'Lainnya';
-        catCounts[c] = (catCounts[c] || 0) + 1;
-      });
-      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-      const labels = sortedCats.map(x => x[0]);
-      const data = sortedCats.map(x => x[1]);
+
+      let labels = [];
+      let data = [];
+
+      if (isSummaryOnly && s && Array.isArray(s.top_categories) && s.top_categories.length) {
+        const top8 = s.top_categories.slice(0, 8);
+        labels = top8.map(x => x.name);
+        data = top8.map(x => Math.round(x.count / 3));
+      } else {
+        const catCounts = {};
+        t1m.forEach(t => {
+          const c = t.cat || 'Lainnya';
+          catCounts[c] = (catCounts[c] || 0) + 1;
+        });
+        const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        labels = sortedCats.map(x => x[0]);
+        data = sortedCats.map(x => x[1]);
+      }
+      const totalBarCat = data.reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.cats = new Chart(canvasCats.getContext('2d'), {
         type: 'bar',
@@ -2726,7 +2780,7 @@ const App = {
             tooltip: {
               backgroundColor: tc.tooltipBg,
               callbacks: {
-                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / t1m.length) * 100).toFixed(1)}%)`
+                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / totalBarCat) * 100).toFixed(1)}%)`
               }
             }
           },
@@ -2752,14 +2806,25 @@ const App = {
     const canvasLocs = document.getElementById('chartDashLocations');
     if (canvasLocs) {
       if (this.dashboardCharts.locs) this.dashboardCharts.locs.destroy();
-      const locCounts = {};
-      t1m.forEach(t => {
-        const l = t.loc || 'Unknown Site';
-        locCounts[l] = (locCounts[l] || 0) + 1;
-      });
-      const sortedLocs = Object.entries(locCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-      const labels = sortedLocs.map(x => x[0]);
-      const data = sortedLocs.map(x => x[1]);
+
+      let labels = [];
+      let data = [];
+
+      if (isSummaryOnly && s && Array.isArray(s.top_locations) && s.top_locations.length) {
+        const top8 = s.top_locations.slice(0, 8);
+        labels = top8.map(x => x.name);
+        data = top8.map(x => Math.round(x.count / 3));
+      } else {
+        const locCounts = {};
+        t1m.forEach(t => {
+          const l = t.loc || 'Unknown Site';
+          locCounts[l] = (locCounts[l] || 0) + 1;
+        });
+        const sortedLocs = Object.entries(locCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        labels = sortedLocs.map(x => x[0]);
+        data = sortedLocs.map(x => x[1]);
+      }
+      const totalBarLoc = data.reduce((a, b) => a + b, 0) || 1;
 
       this.dashboardCharts.locs = new Chart(canvasLocs.getContext('2d'), {
         type: 'bar',
@@ -2782,7 +2847,7 @@ const App = {
             tooltip: {
               backgroundColor: tc.tooltipBg,
               callbacks: {
-                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / t1m.length) * 100).toFixed(1)}%)`
+                label: (ctx) => ` ${ctx.raw.toLocaleString()} Tiket (${((ctx.raw / totalBarLoc) * 100).toFixed(1)}%)`
               }
             }
           },
