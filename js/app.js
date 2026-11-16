@@ -95,20 +95,122 @@ const App = {
     cpu: 'all',
     tempRange: 'all',
     page: 1,
-    pageSize: 15,
+    pageSize: 50,
     sortCol: 'loc',
     sortDir: 'asc'
   },
 
-  // Sisi Kanan (50%): Location Accordion Dropdowns
-  pickerState: {
-    search: '',
-    tier: 'all',
-    reader: 'all',
-    condition: 'all'
+  _trustedHtmlPolicy: null,
+  _lastFocusedEl: null,
+  _collator: (typeof Intl !== 'undefined' && typeof Intl.Collator === 'function')
+    ? new Intl.Collator('id', { numeric: true, sensitivity: 'base' })
+    : null,
+
+  getTrustedHtmlPolicy() {
+    if (this._trustedHtmlPolicy) return this._trustedHtmlPolicy;
+    if (typeof window !== 'undefined' && window.trustedTypes && typeof window.trustedTypes.createPolicy === 'function') {
+      try {
+        this._trustedHtmlPolicy = window.trustedTypes.createPolicy('parkee-html', {
+          createHTML: (html) => String(html ?? '')
+        });
+      } catch (e) {
+        this._trustedHtmlPolicy = null;
+      }
+    }
+    return this._trustedHtmlPolicy;
   },
-  expandedLocations: new Set(['Ancol Mansion']),
-  targetHighlightedHost: null,
+
+  setHtml(el, html) {
+    if (!el) return;
+    const str = html == null ? '' : String(html);
+    const policy = this.getTrustedHtmlPolicy();
+    el.innerHTML = policy ? policy.createHTML(str) : str;
+  },
+
+  escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
+  sanitizeCsvValue(val) {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (/^-\d+(\.\d+)?$/.test(str.trim())) return str;
+    if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
+    return str;
+  },
+
+  escapeCsvCell(val) {
+    const safe = this.sanitizeCsvValue(val);
+    if (/[",\n\r]/.test(safe)) {
+      return `"${safe.replace(/"/g, '""')}"`;
+    }
+    return safe;
+  },
+
+  getWibParts(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    try {
+      const dtf = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const map = {};
+      for (const p of dtf.formatToParts(d)) {
+        if (p.type !== 'literal') map[p.type] = p.value;
+      }
+      const hourNum = Number(map.hour) === 24 ? 0 : Number(map.hour);
+      const year = Number(map.year);
+      const month = Number(map.month);
+      const day = Number(map.day);
+      const minute = Number(map.minute);
+      const second = Number(map.second);
+      return {
+        year,
+        month,
+        day,
+        hour: hourNum,
+        minute,
+        second,
+        ymd: `${map.year}-${map.month}-${map.day}`
+      };
+    } catch (e) {
+      const utcMs = d.getTime() + 7 * 3600 * 1000;
+      const w = new Date(utcMs);
+      const pad = (n) => String(n).padStart(2, '0');
+      const year = w.getUTCFullYear();
+      const month = w.getUTCMonth() + 1;
+      const day = w.getUTCDate();
+      return {
+        year,
+        month,
+        day,
+        hour: w.getUTCHours(),
+        minute: w.getUTCMinutes(),
+        second: w.getUTCSeconds(),
+        ymd: `${year}-${pad(month)}-${pad(day)}`
+      };
+    }
+  },
+
+  isTextInputFocused(el) {
+    const target = el || document.activeElement;
+    if (!target) return false;
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return Boolean(target.isContentEditable);
+  },
 
   storageState: {
     search: '',
@@ -198,6 +300,7 @@ const App = {
   },
 
   initLockScreen() {
+    const appContainer = document.querySelector('.app-container');
     const lockScreen = document.getElementById('appLockScreen');
     const lockForm = document.getElementById('lockForm');
     const passwordInput = document.getElementById('lockPasswordInput');
@@ -225,21 +328,28 @@ const App = {
       if (lockScreen) {
         lockScreen.classList.add('unlocked');
         lockScreen.style.display = 'none';
+        lockScreen.inert = true;
       }
+      if (appContainer) appContainer.inert = false;
       return true; // Authenticated
     }
 
     // Show Lock Screen
+    if (appContainer) appContainer.inert = true;
     if (lockScreen) {
+      lockScreen.inert = false;
       lockScreen.classList.remove('unlocked');
       lockScreen.style.display = 'flex';
       setTimeout(() => passwordInput?.focus(), 150);
     }
 
     if (toggleEyeBtn && passwordInput) {
+      toggleEyeBtn.setAttribute('aria-pressed', 'false');
       toggleEyeBtn.onclick = () => {
         const isPass = passwordInput.type === 'password';
         passwordInput.type = isPass ? 'text' : 'password';
+        toggleEyeBtn.setAttribute('aria-pressed', isPass ? 'true' : 'false');
+        toggleEyeBtn.setAttribute('aria-label', isPass ? 'Sembunyikan password' : 'Lihat password');
         if (eyeIcon) eyeIcon.textContent = isPass ? '🙈' : '👁️';
       };
     }
@@ -267,8 +377,10 @@ const App = {
         }
 
         if (errorMsg) errorMsg.style.display = 'none';
+        if (appContainer) appContainer.inert = false;
         if (lockScreen) {
           lockScreen.classList.add('unlocked');
+          lockScreen.inert = true;
           setTimeout(() => { lockScreen.style.display = 'none'; }, 320);
         }
 
@@ -276,6 +388,7 @@ const App = {
           this.startDashboard();
         }
 
+        document.getElementById('mainContent')?.focus({ preventScroll: true });
         this.showToast('🔓 Akses Berhasil. Selamat datang di Dashboard Parkee.', 'success');
       } else {
         // Wrong password
@@ -305,12 +418,15 @@ const App = {
   lockDashboard() {
     localStorage.removeItem(this.AUTH_STORAGE_KEY);
     sessionStorage.removeItem(this.AUTH_STORAGE_KEY);
+    const appContainer = document.querySelector('.app-container');
     const lockScreen = document.getElementById('appLockScreen');
     const passwordInput = document.getElementById('lockPasswordInput');
     const errorMsg = document.getElementById('lockErrorMsg');
     if (errorMsg) errorMsg.style.display = 'none';
     if (passwordInput) passwordInput.value = '';
+    if (appContainer) appContainer.inert = true;
     if (lockScreen) {
+      lockScreen.inert = false;
       lockScreen.style.display = 'flex';
       void lockScreen.offsetWidth;
       lockScreen.classList.remove('unlocked');
@@ -407,27 +523,27 @@ const App = {
 
     const colspan = this.getTableColspan(tbody);
     if (failedKey) {
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr class="table-loading-row">
           <td colspan="${colspan}">
             <div class="table-loading-box table-error-box">
               <span>⚠️ Gagal memuat data. Periksa koneksi lalu coba lagi.</span>
-              <button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="App.retryLoad('${failedKey}')">↻ Coba lagi</button>
+              <button type="button" class="btn btn-outline btn-compact-retry" data-action="retry-load" data-retry-key="${this.escapeHtml(failedKey)}">↻ Coba lagi</button>
             </div>
           </td>
         </tr>
-      `;
+      `);
     } else {
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr class="table-loading-row">
           <td colspan="${colspan}">
             <div class="table-loading-box">
               <span class="loading-spinner"></span>
-              <span>${spec.label}</span>
+              <span>${this.escapeHtml(spec.label)}</span>
             </div>
           </td>
         </tr>
-      `;
+      `);
     }
 
     (spec.labels || []).forEach(id => {
@@ -467,12 +583,13 @@ const App = {
       overlay.classList.remove('is-hidden');
       overlay.classList.toggle('is-error', state === 'error');
 
+      const safeMsg = this.escapeHtml(message);
       if (state === 'loading') {
-        overlay.innerHTML = `<span class="loading-spinner"></span><span>${message}</span>`;
+        this.setHtml(overlay, `<span class="loading-spinner"></span><span>${safeMsg}</span>`);
       } else if (state === 'error') {
-        overlay.innerHTML = `<span>⚠️ ${message}</span>${actionHtml}`;
+        this.setHtml(overlay, `<span>⚠️ ${safeMsg}</span>${actionHtml}`);
       } else {
-        overlay.innerHTML = `<span style="font-size: 1.4rem;">📭</span><span>${message}</span>`;
+        this.setHtml(overlay, `<span style="font-size: 1.4rem;" aria-hidden="true">📭</span><span>${safeMsg}</span>`);
       }
     });
   },
@@ -485,7 +602,7 @@ const App = {
       this.setChartOverlay(
         'error',
         'Gagal memuat data tiket.',
-        `<button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="App.retryLoad('tickets')">↻ Coba lagi</button>`
+        `<button type="button" class="btn btn-outline btn-compact-retry" data-action="retry-load" data-retry-key="tickets">↻ Coba lagi</button>`
       );
     }
     // tickets === 'ready' -> overlay is hidden / switched to "empty" by renderDashboardCharts()
@@ -505,13 +622,13 @@ const App = {
 
     if (ticketsFull === 'error') {
       note.className = 'data-sync-note is-warn';
-      note.innerHTML = `<span>⚠️ Gagal memuat data tiket lengkap — angka & grafik di bawah masih berupa ringkasan.</span>
-        <button class="btn btn-outline" style="padding: 2px 10px; font-size: 0.72rem;" onclick="App.retryLoad('ticketsFull')">↻ Coba lagi</button>`;
+      this.setHtml(note, `<span>⚠️ Gagal memuat data tiket lengkap — angka &amp; grafik di bawah masih berupa ringkasan.</span>
+        <button type="button" class="btn btn-outline btn-compact-retry" data-action="retry-load" data-retry-key="ticketsFull">↻ Coba lagi</button>`);
       note.style.display = 'flex';
     } else if (ticketsFull !== 'ready' && tickets === 'ready') {
       note.className = 'data-sync-note';
-      note.innerHTML = `<span class="loading-spinner loading-spinner-sm"></span>
-        <span>Menampilkan ringkasan sementara — memuat data tiket lengkap, angka & grafik akan diperbarui otomatis…</span>`;
+      this.setHtml(note, `<span class="loading-spinner loading-spinner-sm"></span>
+        <span>Menampilkan ringkasan sementara — memuat data tiket lengkap, angka &amp; grafik akan diperbarui otomatis…</span>`);
       note.style.display = 'flex';
     } else {
       note.style.display = 'none';
@@ -533,7 +650,7 @@ const App = {
         this.setChartOverlay(
           'error',
           'Pustaka grafik gagal dimuat. Periksa koneksi internet.',
-          `<button class="btn btn-outline" style="padding: 3px 12px; font-size: 0.75rem;" onclick="location.reload()">↻ Muat ulang halaman</button>`
+          `<button type="button" class="btn btn-outline btn-compact-retry" data-action="reload-page">↻ Muat ulang halaman</button>`
         );
       }
     }, 500);
@@ -566,11 +683,15 @@ const App = {
     }
     await Promise.all(initialTasks);
 
-    // Populate total clients badge from summary data immediately without blocking on fleet.json
+    // Populate total clients badge & pill from summary data immediately without blocking on fleet.json
+    const tc = (this.summary && this.summary.total_clients) ? this.summary.total_clients : 6585;
     const clientBadge = document.getElementById('badgeTotalClients');
     if (clientBadge) {
-      const tc = (this.summary && this.summary.total_clients) ? this.summary.total_clients : 6554;
       clientBadge.textContent = tc.toLocaleString();
+    }
+    const allClientPill = document.querySelector('.filter-pill[data-client-filter="all"]');
+    if (allClientPill) {
+      allClientPill.textContent = `Semua Klien (${tc.toLocaleString()})`;
     }
 
     this.initEventHandlers();
@@ -581,6 +702,16 @@ const App = {
     setTimeout(() => {
       this.fetchTickets();
     }, 400);
+  },
+
+  matchesTier(itemTier, filterTier) {
+    if (!filterTier || filterTier === 'all') return true;
+    const t = String(itemTier || 'Standard').trim().toLowerCase();
+    const f = String(filterTier).trim().toLowerCase();
+    if (f === 'standard') {
+      return t.includes('standard') || t.includes('unset') || t === '-' || t === '';
+    }
+    return t === f;
   },
 
   // =========================================================================
@@ -615,8 +746,14 @@ const App = {
       // Strict: Only hostnames starting with "server"
       this.servers = raw.filter(d => (d.host || '').toLowerCase().startsWith('server'));
       this.setDataStatus('servers', 'ready');
+      const srvCountStr = this.servers.length.toLocaleString();
       const badge = document.getElementById('badgeTotalServers');
-      if (badge) badge.textContent = this.servers.length.toLocaleString();
+      if (badge) badge.textContent = srvCountStr;
+      const allSrvPill = document.querySelector('.filter-pill[data-server-filter="all"]');
+      if (allSrvPill) allSrvPill.textContent = `Semua Server (${srvCountStr})`;
+      const allStoragePill = document.querySelector('.filter-pill[data-storage-filter="all"]');
+      if (allStoragePill) allStoragePill.textContent = `Semua Server Storage (${srvCountStr})`;
+      this.updateStorageKpisFromServers();
       if (this.activeView === 'servers') {
         this.renderServersTable();
       } else if (this.activeView === 'storage') {
@@ -627,6 +764,31 @@ const App = {
     } catch (e) {
       console.warn('Could not load servers.json', e);
       this.failLoad('servers', 'data server');
+    }
+  },
+
+  updateStorageKpisFromServers() {
+    if (!this.servers || !this.servers.length) return;
+    const totalServersVal = this.servers.length;
+    const nvmeVal = this.servers.filter(d => d.ssd_type === 'NVMe').length;
+    const sataVal = this.servers.filter(d => d.ssd_type === 'SATA').length;
+    const fullVal = this.servers.filter(d => d.ssd_usage !== null && d.ssd_usage !== undefined && d.ssd_usage >= 85).length;
+    const lowHealthVal = this.servers.filter(d => d.ssd_health !== null && d.ssd_health !== undefined && d.ssd_health < 70).length;
+
+    const elStorageTotal = document.getElementById('storageKpiTotalDrives');
+    const elNvmeRatio = document.getElementById('storageKpiNvmeRatio');
+    const elFullCount = document.getElementById('storageKpiFullCount');
+    const elLowHealth = document.getElementById('storageKpiLowHealthCount');
+    const elSataLabel = document.getElementById('storageKpiSataLabel');
+    const elNvmePctMeta = document.getElementById('storageKpiNvmePctMeta');
+
+    if (elStorageTotal) elStorageTotal.textContent = totalServersVal.toLocaleString();
+    if (elNvmeRatio) elNvmeRatio.textContent = `${nvmeVal.toLocaleString()} NVMe`;
+    if (elFullCount) elFullCount.textContent = fullVal.toLocaleString();
+    if (elLowHealth) elLowHealth.textContent = lowHealthVal.toLocaleString();
+    if (elSataLabel) elSataLabel.textContent = `vs ${sataVal.toLocaleString()} SATA Server`;
+    if (elNvmePctMeta && totalServersVal > 0) {
+      elNvmePctMeta.textContent = `${Math.round((nvmeVal / totalServersVal) * 100)}% Armada NVMe`;
     }
   },
 
@@ -648,8 +810,11 @@ const App = {
       this._fleetLoaded = true;
       this.setDataStatus('fleet', 'ready');
       const clients = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
+      const clCountStr = clients.length.toLocaleString();
       const badge = document.getElementById('badgeTotalClients');
-      if (badge) badge.textContent = clients.length.toLocaleString();
+      if (badge) badge.textContent = clCountStr;
+      const allClientPill = document.querySelector('.filter-pill[data-client-filter="all"]');
+      if (allClientPill) allClientPill.textContent = `Semua Klien (${clCountStr})`;
       if (this.activeView === 'clients') {
         this.renderAllClientsNationwideTable();
       }
@@ -688,10 +853,28 @@ const App = {
     const elFullCount = document.getElementById('storageKpiFullCount');
     const elLowHealth = document.getElementById('storageKpiLowHealthCount');
 
-    if (elStorageTotal) elStorageTotal.textContent = (s.total_servers || 1982).toLocaleString();
-    if (elNvmeRatio) elNvmeRatio.textContent = `${(s.server_nvme_count || 1328).toLocaleString()} NVMe`;
-    if (elFullCount) elFullCount.textContent = (s.critical_server_storage_count || 39).toLocaleString();
-    if (elLowHealth) elLowHealth.textContent = (s.critical_server_ssd_count || 19).toLocaleString();
+    const totalServersVal = (this.servers && this.servers.length) ? this.servers.length : (s.total_servers ?? 969);
+    const nvmeVal = s.server_nvme_count ?? 543;
+    const sataVal = s.server_sata_count ?? Math.max(0, totalServersVal - nvmeVal);
+    if (elStorageTotal) elStorageTotal.textContent = totalServersVal.toLocaleString();
+    if (elNvmeRatio) elNvmeRatio.textContent = `${nvmeVal.toLocaleString()} NVMe`;
+    if (elFullCount) elFullCount.textContent = (s.critical_server_storage_count ?? 0).toLocaleString();
+    if (elLowHealth) elLowHealth.textContent = (s.critical_server_ssd_count ?? 7).toLocaleString();
+    const elSataLabel = document.getElementById('storageKpiSataLabel');
+    const elNvmePctMeta = document.getElementById('storageKpiNvmePctMeta');
+    if (elSataLabel) elSataLabel.textContent = `vs ${sataVal.toLocaleString()} SATA Server`;
+    if (elNvmePctMeta && totalServersVal > 0) {
+      elNvmePctMeta.textContent = `${Math.round((nvmeVal / totalServersVal) * 100)}% Armada NVMe`;
+    }
+
+    const allSrvPill = document.querySelector('.filter-pill[data-server-filter="all"]');
+    if (allSrvPill) allSrvPill.textContent = `Semua Server (${totalServersVal.toLocaleString()})`;
+    const allStoragePill = document.querySelector('.filter-pill[data-storage-filter="all"]');
+    if (allStoragePill) allStoragePill.textContent = `Semua Server Storage (${totalServersVal.toLocaleString()})`;
+    if (s.total_clients && !this._fleetLoaded) {
+      const allClientPill = document.querySelector('.filter-pill[data-client-filter="all"]');
+      if (allClientPill) allClientPill.textContent = `Semua Klien (${s.total_clients.toLocaleString()})`;
+    }
   },
 
   // =========================================================================
@@ -700,32 +883,71 @@ const App = {
   initSidebarToggle() {
     const appContainer = document.querySelector('.app-container');
     const sidebar = document.getElementById('appSidebar');
+    const mainContent = document.getElementById('mainContent');
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const collapseBtn = document.getElementById('sidebarCollapseBtn');
     const backdrop = document.getElementById('sidebarBackdrop');
 
     if (!appContainer || !sidebar) return;
 
+    const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 899px)') : null;
+    const isMobileViewport = () => mobileQuery ? mobileQuery.matches : window.innerWidth < 900;
+
+    const syncSidebarA11y = () => {
+      const mobile = isMobileViewport();
+      if (mobile) {
+        const isOpen = sidebar.classList.contains('open');
+        sidebar.inert = !isOpen;
+        if (mainContent) mainContent.inert = isOpen;
+        if (toggleBtn) {
+          toggleBtn.setAttribute('aria-expanded', String(isOpen));
+          toggleBtn.title = isOpen ? 'Tutup Sidebar' : 'Tampilkan Sidebar (Ctrl+B)';
+        }
+        if (collapseBtn) collapseBtn.setAttribute('aria-expanded', String(isOpen));
+      } else {
+        const isCollapsed = appContainer.classList.contains('sidebar-collapsed');
+        const expanded = !isCollapsed;
+        sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
+        sidebar.inert = isCollapsed;
+        if (mainContent) mainContent.inert = false;
+        if (toggleBtn) {
+          toggleBtn.setAttribute('aria-expanded', String(expanded));
+          toggleBtn.title = isCollapsed ? 'Tampilkan Sidebar (Ctrl+B)' : 'Sembunyikan Sidebar (Ctrl+B)';
+        }
+        if (collapseBtn) collapseBtn.setAttribute('aria-expanded', String(expanded));
+      }
+    };
+
+    const closeMobileDrawer = (restoreFocus = false) => {
+      sidebar.classList.remove('open');
+      if (backdrop) backdrop.classList.remove('active');
+      syncSidebarA11y();
+      if (restoreFocus && toggleBtn) toggleBtn.focus();
+    };
+
     // Restore desktop preference from localStorage
     const isSavedCollapsed = localStorage.getItem('parkee_sidebar_collapsed') === 'true';
-    if (isSavedCollapsed && window.innerWidth >= 900) {
+    if (isSavedCollapsed && !isMobileViewport()) {
       appContainer.classList.add('sidebar-collapsed');
-      if (toggleBtn) toggleBtn.title = 'Tampilkan Sidebar (Ctrl+B)';
     }
+    syncSidebarA11y();
 
     const toggleSidebar = () => {
-      const isMobile = window.innerWidth < 900;
-      if (isMobile) {
+      if (isMobileViewport()) {
         const isOpen = sidebar.classList.toggle('open');
         if (backdrop) backdrop.classList.toggle('active', isOpen);
+        syncSidebarA11y();
+        if (isOpen) {
+          const firstNav = sidebar.querySelector('.sidebar-nav-btn');
+          if (firstNav) firstNav.focus();
+        } else if (toggleBtn) {
+          toggleBtn.focus();
+        }
       } else {
         const isCollapsed = appContainer.classList.toggle('sidebar-collapsed');
         localStorage.setItem('parkee_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-        if (toggleBtn) {
-          toggleBtn.title = isCollapsed
-            ? 'Tampilkan Sidebar (Ctrl+B)'
-            : 'Sembunyikan Sidebar (Ctrl+B)';
-        }
+        syncSidebarA11y();
         // Notify window resize so floating scrollbars & table geometries re-calculate smoothly
         setTimeout(() => {
           window.dispatchEvent(new Event('resize'));
@@ -734,20 +956,28 @@ const App = {
     };
 
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
-    if (collapseBtn) collapseBtn.addEventListener('click', toggleSidebar);
+    if (collapseBtn) collapseBtn.addEventListener('click', () => {
+      if (isMobileViewport()) closeMobileDrawer(true);
+      else toggleSidebar();
+    });
 
     if (backdrop) {
-      backdrop.addEventListener('click', () => {
-        sidebar.classList.remove('open');
-        backdrop.classList.remove('active');
-      });
+      backdrop.addEventListener('click', () => closeMobileDrawer(true));
     }
 
-    // Keyboard shortcut: Ctrl + B or Cmd + B
+    if (mobileQuery) {
+      mobileQuery.addEventListener('change', syncSidebarA11y);
+    }
+
+    // Keyboard shortcuts: Escape closes mobile drawer; Ctrl/Cmd + B toggles sidebar
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isMobileViewport() && sidebar.classList.contains('open')) {
+        e.preventDefault();
+        closeMobileDrawer(true);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
-        const tag = (document.activeElement && document.activeElement.tagName) || '';
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (this.isTextInputFocused()) return;
         e.preventDefault();
         toggleSidebar();
       }
@@ -761,6 +991,8 @@ const App = {
     const navBtns = document.querySelectorAll('.sidebar-nav-btn');
     const topTitle = document.getElementById('topBarTitle');
     const crumbCurrent = document.getElementById('crumbCurrent');
+    const mainContent = document.getElementById('mainContent');
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
 
     const metaMap = {
       dashboard: { title: 'Dashboard (1 Bulan Terakhir)', crumb: 'GLPI Assistance Tickets' },
@@ -773,17 +1005,29 @@ const App = {
       backup: { title: 'Server Backup (Standby & Auto Promote Telemetry)', crumb: 'High Availability & Standby Fleet' }
     };
 
+    const syncViewVisibility = (activeView) => {
+      navBtns.forEach(b => {
+        const isCurrent = b.dataset.view === activeView;
+        b.classList.toggle('active', isCurrent);
+        if (isCurrent) b.setAttribute('aria-current', 'page');
+        else b.removeAttribute('aria-current');
+      });
+
+      document.querySelectorAll('.view-section').forEach(sec => {
+        const isTarget = sec.id === `view-${activeView}`;
+        sec.classList.toggle('active-view', isTarget);
+        sec.inert = !isTarget;
+      });
+    };
+
+    syncViewVisibility(this.activeView || 'dashboard');
+
     navBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
         if (!view) return;
 
-        navBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-view'));
-        const targetSec = document.getElementById(`view-${view}`);
-        if (targetSec) targetSec.classList.add('active-view');
+        syncViewVisibility(view);
 
         this.activeView = view;
         if (metaMap[view]) {
@@ -796,6 +1040,11 @@ const App = {
         if (sidebar) sidebar.classList.remove('open');
         const backdrop = document.getElementById('sidebarBackdrop');
         if (backdrop) backdrop.classList.remove('active');
+        if (window.innerWidth < 900) {
+          if (sidebar) sidebar.inert = true;
+          if (mainContent) mainContent.inert = false;
+          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+        }
 
         this.renderActiveView();
       });
@@ -840,17 +1089,13 @@ const App = {
   // =========================================================================
   // MODULE 1: LOCATION INFORMATION (10 Columns Requested)
   // =========================================================================
-  renderLocationsTable() {
-    const tbody = document.getElementById('locationsTableBody');
-    if (!tbody) return;
-    if (this.guardTable(tbody)) return;
-
+  getFilteredLocations() {
     let list = [...this.locations];
 
     // Search filter
     if (this.locState.search) {
       const q = this.locState.search.toLowerCase();
-      list = list.filter(item => 
+      list = list.filter(item =>
         (item.loc && item.loc.toLowerCase().includes(q)) ||
         (item.code && item.code.toLowerCase().includes(q)) ||
         (item.zt && item.zt.toLowerCase().includes(q)) ||
@@ -864,7 +1109,7 @@ const App = {
 
     // Tier filter
     if (this.locState.tier !== 'all') {
-      list = list.filter(item => item.tier && item.tier.toLowerCase() === this.locState.tier.toLowerCase());
+      list = list.filter(item => this.matchesTier(item.tier, this.locState.tier));
     }
 
     // Specific Filter: RFID Reader
@@ -890,6 +1135,16 @@ const App = {
       list = list.filter(item => item.loc && fullStorageLocs.has(item.loc.toLowerCase()));
     }
 
+    return list;
+  },
+
+  renderLocationsTable() {
+    const tbody = document.getElementById('locationsTableBody');
+    if (!tbody) return;
+    if (this.guardTable(tbody)) return;
+
+    let list = this.getFilteredLocations();
+
     // Sort
     list = this.sortData(list, this.locState.sortCol, this.locState.sortDir === 'asc' ? 1 : -1);
     this.updateSortIndicators('#view-locations', 'data-loc-sort', this.locState.sortCol, this.locState.sortDir);
@@ -910,73 +1165,78 @@ const App = {
     const pageLabel = document.getElementById('locCurrentPageLabel');
     if (pageLabel) pageLabel.textContent = `Halaman ${this.locState.page} / ${totalPages}`;
     const tableCount = document.getElementById('locTableCountLabel');
-    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.locState.pageSize, list.length)} dari ${list.length.toLocaleString()} lokasi`;
+    if (tableCount) tableCount.textContent = `Menampilkan ${list.length === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + this.locState.pageSize, list.length)} dari ${list.length.toLocaleString()} lokasi`;
 
-    // Render 10 columns:
-    // 1. Nama Lokasi
-    // 2. Kode Unik Lokasi
-    // 3. Tier
-    // 4. IP ZT Lokasi
-    // 5. Last Sync
-    // 6. Agent Version
-    // 7. Fisherman Version
-    // 8. Watersheep Version
-    // 9. WBO Version
-    // 10. OS Version
-    // 11. Aksi (Lihat Klien)
+    const prevBtn = document.getElementById('locPrevPageBtn');
+    const nextBtn = document.getElementById('locNextPageBtn');
+    if (prevBtn) prevBtn.disabled = this.locState.page <= 1;
+    if (nextBtn) nextBtn.disabled = this.locState.page >= totalPages;
+
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada lokasi yang cocok dengan filter.</td></tr>`;
+      this.setHtml(tbody, `<tr><td colspan="10" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada lokasi yang cocok dengan filter.</td></tr>`);
       return;
     }
 
-    tbody.innerHTML = pageItems.map(item => {
-      const tierClass = item.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (item.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+    const rowsHtml = pageItems.map(item => {
+      const tierRaw = item.tier || 'Standard';
+      const tierLower = tierRaw.toLowerCase();
+      const tierClass = tierLower === 'diamond' ? 'tier-diamond' : (tierLower === 'gold' ? 'tier-gold' : 'tier-silver');
+      const eLoc = this.escapeHtml(item.loc || '-');
+      const eCode = this.escapeHtml(item.code || '-');
+      const eCodeAttr = this.escapeHtml(item.code || '');
+      const eTier = this.escapeHtml(tierRaw);
+      const eZt = this.escapeHtml(item.zt || '-');
+      const eSync = this.escapeHtml(item.last_sync || '-');
+      const eAgent = this.escapeHtml(this.formatFullVersion(item.agent));
+      const eFish = this.escapeHtml(this.formatVersion(item.fisherman));
+      const eWater = this.escapeHtml(this.formatVersion(item.watersheep));
+      const eWbo = this.escapeHtml(this.formatVersion(item.wbo));
+      const eOs = this.escapeHtml(this.formatOs(item.os));
+      const eOsTitle = this.escapeHtml(item.os || '');
+      const eLocAttr = this.escapeHtml(item.loc || '');
+
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" aria-label="Buka detail lokasi ${eLoc}" title="Klik baris untuk melihat detail lengkap lokasi ${eLoc}" data-action="open-location-modal" data-loc="${eLocAttr}" data-code="${eCodeAttr}">
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.875rem;">${item.loc}</div>
+            <div class="row-primary-title" style="font-weight: 700; color: var(--text-main); font-size: 0.875rem;">${eLoc}</div>
             <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-              <span style="font-size: 0.72rem; color: var(--text-muted);">${item.total_clients} Klien</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">${Number(item.total_clients || 0).toLocaleString()} Klien</span>
               ${item.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.65rem; padding: 1px 4px;">✓ Reader PARKEE</span>' : ''}
             </div>
           </td>
           <td>
-            <span class="version-code-tag">${item.code || '-'}</span>
+            <span class="version-code-tag">${eCode}</span>
           </td>
           <td>
-            <span class="tier-tag ${tierClass}">${item.tier || 'Standard'}</span>
+            <span class="tier-tag ${tierClass}">${eTier}</span>
           </td>
           <td>
             <span style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--accent-primary);">
-              ${item.zt || '-'}
+              ${eZt}
             </span>
           </td>
           <td style="font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">
-            ${item.last_sync || '-'}
+            ${eSync}
           </td>
           <td>
-            <span class="version-code-tag" style="white-space: nowrap;">${this.formatFullVersion(item.agent)}</span>
+            <span class="version-code-tag" style="white-space: nowrap;">${eAgent}</span>
           </td>
           <td>
-            <span class="version-code-tag">${this.formatVersion(item.fisherman)}</span>
+            <span class="version-code-tag">${eFish}</span>
           </td>
           <td>
-            <span class="version-code-tag">${this.formatVersion(item.watersheep)}</span>
+            <span class="version-code-tag">${eWater}</span>
           </td>
           <td>
-            <span class="version-code-tag">${this.formatVersion(item.wbo)}</span>
+            <span class="version-code-tag">${eWbo}</span>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(item.os || '')}">
-            ${this.formatOs(item.os)}
-          </td>
-          <td>
-            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.72rem; white-space: nowrap;" onclick="App.jumpToClientSpec('${item.loc.replace(/'/g, "\\'")}')">
-              Lihat Klien ➜
-            </button>
+          <td style="font-size: 0.78rem; color: var(--text-secondary); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eOsTitle}">
+            ${eOs}
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
@@ -993,14 +1253,20 @@ const App = {
     }
   },
 
+  jumpToServerSpec(locName) {
+    this.serverState.search = locName;
+    this.serverState.page = 1;
+    const searchInput = document.getElementById('serverSearchInput');
+    if (searchInput) searchInput.value = locName;
+    const srvNavBtn = document.querySelector('.sidebar-nav-btn[data-view="servers"]');
+    if (srvNavBtn) srvNavBtn.click();
+    this.renderServersTable();
+  },
+
   // =========================================================================
   // MODULE 2: SERVER SPECIFICATION (Data Lengkap Server)
   // =========================================================================
-  renderServersTable() {
-    const tbody = document.getElementById('serversTableBody');
-    if (!tbody) return;
-    if (this.guardTable(tbody)) return;
-
+  getFilteredServers() {
     let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
     // Filter by Condition (overheat, low_ssd, full_storage)
@@ -1014,7 +1280,7 @@ const App = {
 
     // Filter by Tier
     if (this.serverState.tier !== 'all') {
-      list = list.filter(d => d.tier && d.tier.toLowerCase() === this.serverState.tier.toLowerCase());
+      list = list.filter(d => this.matchesTier(d.tier, this.serverState.tier));
     }
 
     // Specific Filter: CPU
@@ -1026,7 +1292,7 @@ const App = {
     // Specific Filter: Motherboard
     if (this.serverState.mb !== 'all') {
       const qMb = this.serverState.mb.toLowerCase();
-      list = list.filter(d => 
+      list = list.filter(d =>
         (d.mb && d.mb.toLowerCase().includes(qMb)) ||
         (d.mb_brand && d.mb_brand.toLowerCase().includes(qMb))
       );
@@ -1109,7 +1375,7 @@ const App = {
     // Search filter
     if (this.serverState.search) {
       const q = this.serverState.search.toLowerCase();
-      list = list.filter(d => 
+      list = list.filter(d =>
         (d.loc && d.loc.toLowerCase().includes(q)) ||
         (d.code && d.code.toLowerCase().includes(q)) ||
         (d.host && d.host.toLowerCase().includes(q)) ||
@@ -1120,6 +1386,16 @@ const App = {
         (d.zt && d.zt.toLowerCase().includes(q))
       );
     }
+
+    return list;
+  },
+
+  renderServersTable() {
+    const tbody = document.getElementById('serversTableBody');
+    if (!tbody) return;
+    if (this.guardTable(tbody)) return;
+
+    let list = this.getFilteredServers();
 
     // Sort
     list = this.sortData(list, this.serverState.sortCol, this.serverState.sortDir === 'asc' ? 1 : -1);
@@ -1139,20 +1415,26 @@ const App = {
     const pageLabel = document.getElementById('serverCurrentPageLabel');
     if (pageLabel) pageLabel.textContent = `Halaman ${this.serverState.page} / ${totalPages}`;
     const tableCount = document.getElementById('serverTableCountLabel');
-    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.serverState.pageSize, list.length)} dari ${list.length.toLocaleString()} server`;
+    if (tableCount) tableCount.textContent = `Menampilkan ${list.length === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + this.serverState.pageSize, list.length)} dari ${list.length.toLocaleString()} server`;
+
+    const prevBtn = document.getElementById('serverPrevPageBtn');
+    const nextBtn = document.getElementById('serverNextPageBtn');
+    if (prevBtn) prevBtn.disabled = this.serverState.page <= 1;
+    if (nextBtn) nextBtn.disabled = this.serverState.page >= totalPages;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada server yang cocok.</td></tr>`;
+      this.setHtml(tbody, `<tr><td colspan="13" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada server yang cocok.</td></tr>`);
       return;
     }
 
-    tbody.innerHTML = pageItems.map(d => {
-      const tierClass = (d.tier || '').toLowerCase() === 'diamond' ? 'tier-diamond' : ((d.tier || '').toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
-      
+    const rowsHtml = pageItems.map(d => {
+      const tierRaw = d.tier || 'Standard';
+      const tierLower = tierRaw.toLowerCase();
+      const tierClass = tierLower === 'diamond' ? 'tier-diamond' : (tierLower === 'gold' ? 'tier-gold' : 'tier-silver');
+
       let tempClass = 'temp-cool';
       if (d.temp !== null) {
-        if (d.temp >= 90) tempClass = 'temp-hot';
-        else if (d.temp >= 80) tempClass = 'temp-hot';
+        if (d.temp >= 80) tempClass = 'temp-hot';
         else if (d.temp >= 70) tempClass = 'temp-warm';
         else if (d.temp >= 50) tempClass = 'temp-normal';
       }
@@ -1163,219 +1445,604 @@ const App = {
 
       const ssdBrandFormatted = this.formatBrand(d.ssd_brand);
       const ssdSizeFormatted = this.formatSize(d.ssd_size);
-      const ssdTypeTag = (d.ssd_type && d.ssd_type !== '-') ? `<span class="version-code-tag" style="font-size: 0.65rem;">${d.ssd_type}</span>` : '';
+      const ssdTypeTag = (d.ssd_type && d.ssd_type !== '-') ? `<span class="version-code-tag" style="font-size: 0.65rem;">${this.escapeHtml(d.ssd_type)}</span>` : '';
+
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eLocAttr = this.escapeHtml(d.loc || '');
+      const eCode = this.escapeHtml(d.code || '-');
+      const eCodeAttr = this.escapeHtml(d.code || '');
+      const eTier = this.escapeHtml(tierRaw);
+      const eHost = this.escapeHtml(d.host || '-');
+      const eHostAttr = this.escapeHtml(d.host || '');
+      const eIp = this.escapeHtml(d.ip || '-');
+      const eZt = this.escapeHtml(d.zt || '-');
+      const eCpuTitle = this.escapeHtml(d.cpu || '');
+      const eCpu = this.escapeHtml(this.formatCpu(d.cpu));
+      const eRam = this.escapeHtml(this.formatRam(d.ram, d.ram_brand));
+      const eMbTitle = this.escapeHtml(d.mb || '');
+      const eMb = this.escapeHtml(this.formatMb(d.mb, d.mb_brand));
+      const eSsdBrand = this.escapeHtml(ssdBrandFormatted);
+      const eSsdSize = this.escapeHtml(ssdSizeFormatted);
+      const eOsTitle = this.escapeHtml(d.os || '');
+      const eOs = this.escapeHtml(this.formatOs(d.os));
 
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" aria-label="Buka detail server ${eHost} (${eLoc})" title="Klik baris untuk melihat detail spesifikasi server ${eHost}" data-action="open-server-modal" data-host="${eHostAttr}" data-code="${eCodeAttr}" data-loc="${eLocAttr}">
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
-            <span class="version-code-tag">${d.code || '-'}</span>
+            <div class="row-primary-title" style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${eLoc}</div>
+            <span class="version-code-tag">${eCode}</span>
           </td>
           <td>
-            <span class="tier-tag ${tierClass}">${d.tier || 'Standard'}</span>
+            <span class="tier-tag ${tierClass}">${eTier}</span>
           </td>
           <td>
             <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
-              ${d.host}
+              ${eHost}
             </div>
-            <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat}</span>
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
-            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt || '-'}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${eIp}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${eZt}</div>
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
-            ${this.formatCpu(d.cpu)}
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 180px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eCpuTitle}">
+            ${eCpu}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
-            ${this.formatRam(d.ram, d.ram_brand)}
+            ${eRam}
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
-            ${this.formatMb(d.mb, d.mb_brand)}
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 150px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eMbTitle}">
+            ${eMb}
           </td>
           <td>
-            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${ssdBrandFormatted}</div>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">${eSsdBrand}</div>
             ${ssdBrandFormatted !== '-' ? ssdTypeTag : ''}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
-            ${ssdSizeFormatted}
+            ${eSsdSize}
           </td>
           <td>
-            ${d.temp !== null ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${d.temp}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
+            ${d.temp !== null && d.temp !== undefined ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${this.escapeHtml(d.temp)}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            ${d.ssd_health !== null ? `<span class="ssd-health-pill ${healthClass}">${d.ssd_health}%</span>` : `<span style="color: var(--text-muted);">-</span>`}
+            ${d.ssd_health !== null && d.ssd_health !== undefined ? `<span class="ssd-health-pill ${healthClass}">${this.escapeHtml(d.ssd_health)}%</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            ${d.ssd_usage !== null ? `<div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">${d.ssd_usage}%</div>` : `<span style="color: var(--text-muted);">-</span>`}
+            ${d.ssd_usage !== null && d.ssd_usage !== undefined ? `<div style="font-size: 0.75rem; font-weight: 600; color: ${d.ssd_usage >= 85 ? 'var(--color-danger)' : 'var(--text-main)'};">${this.escapeHtml(d.ssd_usage)}%</div>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
-          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.os || '')}">
-            ${this.formatOs(d.os)}
-          </td>
-          <td>
-            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem;" onclick="App.openServerDetailModal('${d.host}')">
-              Detail
-            </button>
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eOsTitle}">
+            ${eOs}
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
-    openClientDetailModal(hostname) {
-    const dev = this.fleet.find(d => d.host === hostname) || this.servers.find(d => d.host === hostname);
+  openNativeModal(modal) {
+    if (!modal) return;
+    this._lastFocusedEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (typeof modal.showModal === 'function') {
+      if (!modal.open) modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  },
+
+  closeNativeModal(modal) {
+    if (!modal) return;
+    if (typeof modal.close === 'function') {
+      if (modal.open) modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+    if (this._lastFocusedEl && typeof this._lastFocusedEl.focus === 'function' && document.contains(this._lastFocusedEl)) {
+      this._lastFocusedEl.focus({ preventScroll: true });
+      this._lastFocusedEl = null;
+    }
+  },
+
+  setDeviceModalFooter(lastSyncText, summaryText, extraButtonsHtml = '') {
+    const syncEl = document.getElementById('modalDeviceLastSync');
+    if (syncEl) syncEl.textContent = lastSyncText || '-';
+    this._activeModalDeviceSummary = summaryText || '';
+    const actionsEl = document.getElementById('modalDeviceActions');
+    if (actionsEl) {
+      this.setHtml(actionsEl, `
+        <button type="button" data-action="copy-device-modal" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+          <span aria-hidden="true">📋</span>
+          <span>Salin Ringkasan</span>
+        </button>
+        ${extraButtonsHtml}
+        <button type="button" data-action="close-device-modal" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px;">
+          Tutup
+        </button>
+      `);
+    }
+  },
+
+  copyDeviceModalSummary() {
+    if (!this._activeModalDeviceSummary) return;
+    navigator.clipboard.writeText(this._activeModalDeviceSummary).then(() => {
+      this.showToast('Ringkasan detail berhasil disalin ke clipboard!', 'success');
+    }).catch(() => {
+      this.showToast('Gagal menyalin ringkasan ke clipboard', 'warn');
+    });
+  },
+
+  openLocationDetailModal(locName, locCode) {
+    const qCode = (locCode || '').trim().toLowerCase();
+    const qLoc = (locName || '').trim().toLowerCase();
+    const item = this.locations.find(l =>
+      (qCode && (l.code || '').toLowerCase() === qCode) ||
+      (qLoc && (l.loc || '').toLowerCase() === qLoc)
+    );
+    if (!item) return;
+
+    const srv = this.servers.find(s =>
+      (item.code && (s.code || '').toLowerCase() === item.code.toLowerCase()) ||
+      (item.loc && (s.loc || '').toLowerCase() === item.loc.toLowerCase())
+    );
+    const liveTemp = (this.temperatureData && Array.isArray(this.temperatureData.servers))
+      ? this.temperatureData.servers.find(t =>
+          (item.code && (t.code || '').toLowerCase() === item.code.toLowerCase()) ||
+          (item.loc && (t.loc || '').toLowerCase() === item.loc.toLowerCase())
+        )
+      : null;
+
+    const modal = document.getElementById('deviceDetailModal');
+    const title = document.getElementById('modalDeviceTitle');
+    const body = document.getElementById('modalDeviceBody');
+
+    if (title) title.textContent = `Detail Lokasi: ${item.loc || '-'}`;
+
+    const fullOs = this.formatFullOs(item.os || srv?.os);
+    const fullAgent = this.formatFullVersion(item.agent || srv?.agent);
+    const fullFish = this.formatFullVersion(item.fisherman || srv?.fisherman);
+    const fullWater = this.formatFullVersion(item.watersheep || srv?.watersheep);
+    const fullWbo = this.formatFullVersion(item.wbo || srv?.wbo);
+    const syncTime = item.last_sync || srv?.sync || '-';
+    const totalDevs = Number(item.total_devs || 0);
+    const totalSrvs = Number(item.total_servers || 0);
+    const totalClients = Number(item.total_clients || 0);
+    const srvOverheat = Number(item.server_overheats || 0);
+    const clOverheat = Number(item.client_overheats || 0);
+    const tempDisplay = liveTemp && liveTemp.temp != null
+      ? `${Number(liveTemp.temp).toFixed(1)}°C (Live Prometheus)`
+      : (srv && srv.temp != null ? `${srv.temp}°C` : '-');
+
+    if (body) {
+      this.setHtml(body, `
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Nama Lokasi</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.loc || '-')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Unique Code / Tier</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.code || '-')} · ${this.escapeHtml(item.tier || 'Standard')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">IP ZeroTier Lokasi</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(item.zt || srv?.zt || '-')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">IP Local Server</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(srv?.ip || '-')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Populasi Perangkat</span>
+          <span class="modal-spec-val">${totalDevs.toLocaleString()} Unit (${totalSrvs.toLocaleString()} Server · ${totalClients.toLocaleString()} Klien)</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Status Reader PARKEE</span>
+          <span class="modal-spec-val" style="color: ${item.has_reader ? 'var(--color-success)' : 'var(--text-muted)'}; font-weight: 700;">
+            ${item.has_reader ? '✓ Sudah Ada Reader PARKEE' : '✕ Belum Ada Reader PARKEE'}
+          </span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Agent Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullAgent)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Fisherman Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullFish)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Watersheep Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullWater)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">WBO Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullWbo)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Sistem Operasi / OS Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullOs)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Kondisi Termal &amp; Suhu Operasional</span>
+          <span class="modal-spec-val">
+            Suhu Server: <strong>${this.escapeHtml(tempDisplay)}</strong> · Server Overheat: <strong style="color: ${srvOverheat > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">${srvOverheat}</strong> · Klien Overheat: <strong style="color: ${clOverheat > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">${clOverheat}</strong>
+          </span>
+        </div>
+        ${srv ? `
+          <div class="modal-spec-item full-width">
+            <span class="modal-spec-label">Spesifikasi Hardware Server Utama (${this.escapeHtml(srv.host || 'Server')})</span>
+            <span class="modal-spec-val">
+              CPU: ${this.escapeHtml(srv.cpu || '-')} · RAM: ${this.escapeHtml(this.formatRam(srv.ram, srv.ram_brand))} · MB: ${this.escapeHtml(srv.mb || srv.mb_brand || '-')} · Storage: ${this.escapeHtml(this.formatStorageSummary(srv.ssd_brand, srv.ssd_type, srv.ssd_size))} (Health: ${srv.ssd_health !== null && srv.ssd_health !== undefined ? this.escapeHtml(srv.ssd_health) + '%' : '-'}, Usage: ${srv.ssd_usage !== null && srv.ssd_usage !== undefined ? this.escapeHtml(srv.ssd_usage) + '%' : '-'})
+            </span>
+          </div>
+        ` : ''}
+      `);
+    }
+
+    const summaryText = `[PARKEE LOCATION DETAIL]
+Lokasi: ${item.loc || '-'} (${item.code || '-'} / ${item.tier || 'Standard'})
+IP ZeroTier: ${item.zt || srv?.zt || '-'}
+IP Local Server: ${srv?.ip || '-'}
+Last Sync: ${syncTime}
+OS Version: ${fullOs}
+Agent: ${fullAgent}
+Fisherman: ${fullFish}
+Watersheep: ${fullWater}
+WBO: ${fullWbo}
+Total Perangkat: ${totalDevs} (${totalSrvs} Server, ${totalClients} Klien)
+Reader PARKEE: ${item.has_reader ? 'Ada' : 'Belum Ada'}`;
+
+    const eLocAttr = this.escapeHtml(item.loc || '');
+    const extraBtns = `
+      <button type="button" class="btn btn-outline" data-action="modal-jump-server" data-loc="${eLocAttr}" style="font-size: 0.76rem; padding: 5px 12px;">
+        🖧 Lihat Server
+      </button>
+      <button type="button" class="btn btn-primary" data-action="modal-jump-clients" data-loc="${eLocAttr}" style="font-size: 0.76rem; padding: 5px 12px;">
+        🖥️ Lihat Klien (${totalClients.toLocaleString()}) ➜
+      </button>
+    `;
+    this.setDeviceModalFooter(syncTime, summaryText, extraBtns);
+    this.openNativeModal(modal);
+  },
+
+  openClientDetailModal(hostname, locName = '', ipAddr = '') {
+    const qHost = (hostname || '').trim();
+    const qLoc = (locName || '').trim().toLowerCase();
+    const qIp = (ipAddr || '').trim();
+    const dev = this.fleet.find(d =>
+      d.host === qHost &&
+      (!qLoc || (d.loc || '').toLowerCase() === qLoc) &&
+      (!qIp || d.ip === qIp)
+    ) || this.fleet.find(d => d.host === qHost) || this.servers.find(d => d.host === qHost);
     if (!dev) return;
 
     const modal = document.getElementById('deviceDetailModal');
     const title = document.getElementById('modalDeviceTitle');
     const body = document.getElementById('modalDeviceBody');
 
-    if (title) title.textContent = `Client: ${dev.host} — ${dev.loc}`;
+    if (title) title.textContent = `Detail Klien: ${dev.host} — ${dev.loc}`;
 
     const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
-    const readerStatusText = hasReader ? `Terkoneksi (Versi: ${dev.reader_ver || '-'}, SN: ${dev.reader_sn || '-'})` : 'Belum Terpasang';
+    const readerStatusText = hasReader ? `Terkoneksi (Firmware: ${dev.reader_ver || '-'}, SN: ${dev.reader_sn || '-'})` : 'Belum Terpasang';
+    const fullOs = this.formatFullOs(dev.os);
+    const fullAgent = this.formatFullVersion(dev.agent);
+    const fullCpu = dev.cpu && dev.cpu !== '-' ? dev.cpu : '-';
+    const fullMb = dev.mb && dev.mb !== '-' ? dev.mb : (dev.mb_brand || '-');
 
     if (body) {
-      body.innerHTML = `
+      this.setHtml(body, `
         <div class="modal-spec-item">
           <span class="modal-spec-label">Nama Lokasi</span>
-          <span class="modal-spec-val">${dev.loc || '-'}</span>
+          <span class="modal-spec-val">${this.escapeHtml(dev.loc || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Kode Unik / Tier</span>
-          <span class="modal-spec-val">${dev.code || '-'} · ${dev.tier || 'Standard'}</span>
+          <span class="modal-spec-label">Unique Code / Tier</span>
+          <span class="modal-spec-val">${this.escapeHtml(dev.code || '-')} · ${this.escapeHtml(dev.tier || 'Standard')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Hostname / Role</span>
-          <span class="modal-spec-val mono">${dev.host} · <span style="text-transform: uppercase;">${dev.cat || 'Client'}</span></span>
+          <span class="modal-spec-label">Hostname</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(dev.host)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Versi Agent</span>
-          <span class="modal-spec-val mono">${dev.agent || '-'}</span>
+          <span class="modal-spec-label">Versi Agent (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullAgent)}</span>
         </div>
         <div class="modal-spec-item">
+          <span class="modal-spec-label">IP Local</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(dev.ip || '-')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">IP ZeroTier</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(dev.zt || '-')}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Memori RAM</span>
+          <span class="modal-spec-val">${this.escapeHtml(this.formatRam(dev.ram, dev.ram_brand))}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Suhu Operasional</span>
+          <span class="modal-spec-val ${dev.temp !== null && dev.temp !== undefined && dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null && dev.temp !== undefined ? this.escapeHtml(dev.temp) + '°C' : '-'}</span>
+        </div>
+        <div class="modal-spec-item full-width">
           <span class="modal-spec-label">Reader PARKEE</span>
           <span class="modal-spec-val" style="color: ${hasReader ? 'var(--color-success)' : 'var(--text-muted)'}; font-weight: 700;">
-            ${hasReader ? '✓ ' + readerStatusText : '✕ ' + readerStatusText}
+            ${hasReader ? '✓ ' : '✕ '}${this.escapeHtml(readerStatusText)}
+          </span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Processor / CPU (Lengkap)</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullCpu)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Motherboard (Lengkap)</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullMb)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Storage SSD &amp; Kesehatan</span>
+          <span class="modal-spec-val">${this.escapeHtml(this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size))} · Health: ${dev.ssd_health !== null && dev.ssd_health !== undefined ? this.escapeHtml(dev.ssd_health) + '%' : '-'} · Disk Usage: ${dev.ssd_usage !== null && dev.ssd_usage !== undefined ? this.escapeHtml(dev.ssd_usage) + '%' : '-'}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Sistem Operasi / OS Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullOs)}</span>
+        </div>
+      `);
+    }
+
+    const summaryText = `[PARKEE CLIENT DETAIL]
+Lokasi: ${dev.loc || '-'} (${dev.code || '-'} / ${dev.tier || 'Standard'})
+Hostname: ${dev.host || '-'}
+IP Local: ${dev.ip || '-'} | IP ZT: ${dev.zt || '-'}
+Agent: ${fullAgent}
+Reader PARKEE: ${readerStatusText}
+CPU: ${fullCpu}
+RAM: ${this.formatRam(dev.ram, dev.ram_brand)}
+Motherboard: ${fullMb}
+Storage: ${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)} (Health: ${dev.ssd_health ?? '-'}%, Usage: ${dev.ssd_usage ?? '-'}%)
+Suhu: ${dev.temp != null ? dev.temp + '°C' : '-'}
+OS Version: ${fullOs}
+Last Sync: ${dev.sync || '-'}`;
+
+    this.setDeviceModalFooter(dev.sync || '-', summaryText);
+    this.openNativeModal(modal);
+  },
+
+  openServerDetailModal(hostname, code = '', locName = '') {
+    const qHost = (hostname || '').trim();
+    const qCode = (code || '').trim().toLowerCase();
+    const qLoc = (locName || '').trim().toLowerCase();
+
+    const srv = this.servers.find(d =>
+      (qHost && d.host === qHost && (!qCode || (d.code || '').toLowerCase() === qCode))
+    ) || this.servers.find(d =>
+      (qHost && d.host === qHost) ||
+      (qCode && (d.code || '').toLowerCase() === qCode) ||
+      (qLoc && (d.loc || '').toLowerCase() === qLoc)
+    ) || this.fleet.find(d => qHost && d.host === qHost);
+
+    const liveTemp = (this.temperatureData && Array.isArray(this.temperatureData.servers))
+      ? this.temperatureData.servers.find(t =>
+          (qHost && t.host === qHost) ||
+          (qCode && (t.code || '').toLowerCase() === qCode) ||
+          (qLoc && (t.loc || '').toLowerCase() === qLoc)
+        )
+      : null;
+
+    const dev = srv || liveTemp;
+    if (!dev) return;
+
+    const locObj = this.locations.find(l =>
+      (dev.code && (l.code || '').toLowerCase() === (dev.code || '').toLowerCase()) ||
+      (dev.loc && (l.loc || '').toLowerCase() === (dev.loc || '').toLowerCase())
+    );
+
+    const modal = document.getElementById('deviceDetailModal');
+    const title = document.getElementById('modalDeviceTitle');
+    const body = document.getElementById('modalDeviceBody');
+
+    const dispLoc = dev.loc || locObj?.loc || '-';
+    const dispCode = dev.code || locObj?.code || '-';
+    const dispTier = dev.tier || locObj?.tier || 'Standard';
+    const dispHost = dev.host || '-';
+
+    if (title) title.textContent = `Detail Server: ${dispHost} — ${dispLoc}`;
+
+    const fullOs = this.formatFullOs(dev.os || locObj?.os);
+    const fullCpu = (srv?.cpu && srv.cpu !== '-') ? srv.cpu : (dev.cpu || '-');
+    const fullMb = (srv?.mb && srv.mb !== '-') ? srv.mb : (srv?.mb_brand || this.formatMb(dev.mb, dev.mb_brand));
+    const fullRam = this.formatRam(srv?.ram || dev.ram, srv?.ram_brand);
+    const fullAgent = this.formatFullVersion(dev.agent || locObj?.agent);
+    const fullFish = this.formatFullVersion(dev.fisherman || locObj?.fisherman);
+    const fullWater = this.formatFullVersion(dev.watersheep || locObj?.watersheep);
+    const fullWbo = this.formatFullVersion(dev.wbo || locObj?.wbo);
+    const tempVal = (liveTemp && liveTemp.temp != null) ? Number(liveTemp.temp).toFixed(1) : (dev.temp != null ? dev.temp : null);
+    const syncTime = dev.sync || locObj?.last_sync || (this.temperatureData?.updated_at) || '-';
+
+    if (body) {
+      this.setHtml(body, `
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Nama Lokasi</span>
+          <span class="modal-spec-val">${this.escapeHtml(dispLoc)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Unique Code / Tier</span>
+          <span class="modal-spec-val">${this.escapeHtml(dispCode)} · ${this.escapeHtml(dispTier)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Hostname</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(dispHost)}</span>
+        </div>
+        <div class="modal-spec-item">
+          <span class="modal-spec-label">Suhu Operasional</span>
+          <span class="modal-spec-val ${tempVal !== null && Number(tempVal) >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">
+            ${tempVal !== null ? `${this.escapeHtml(tempVal)}°C` : '-'}
+            ${liveTemp && liveTemp.status ? ` (${this.escapeHtml(liveTemp.status.toUpperCase())})` : ''}
           </span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">IP Local</span>
-          <span class="modal-spec-val mono">${dev.ip || '-'}</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(srv?.ip || dev.ip || '-')}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">IP ZeroTier</span>
-          <span class="modal-spec-val mono">${dev.zt || '-'}</span>
-        </div>
-        <div class="modal-spec-item">
-          <span class="modal-spec-label">Processor (CPU)</span>
-          <span class="modal-spec-val">${this.formatCpu(dev.cpu)}</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(srv?.zt || locObj?.zt || dev.ip || '-')}</span>
         </div>
         <div class="modal-spec-item">
           <span class="modal-spec-label">Memori RAM</span>
-          <span class="modal-spec-val">${this.formatRam(dev.ram, dev.ram_brand)}</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullRam)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Motherboard</span>
-          <span class="modal-spec-val">${this.formatMb(dev.mb, dev.mb_brand)}</span>
+          <span class="modal-spec-label">Storage SSD &amp; Kesehatan</span>
+          <span class="modal-spec-val">${this.escapeHtml(this.formatStorageSummary(srv?.ssd_brand, srv?.ssd_type, srv?.ssd_size))} · Health: ${srv?.ssd_health !== null && srv?.ssd_health !== undefined ? this.escapeHtml(srv.ssd_health) + '%' : '-'} · Usage: ${srv?.ssd_usage !== null && srv?.ssd_usage !== undefined ? this.escapeHtml(srv.ssd_usage) + '%' : '-'}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Processor / CPU (Lengkap)</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullCpu)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Motherboard (Lengkap)</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullMb)}</span>
+        </div>
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Sistem Operasi / OS Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullOs)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Storage SSD</span>
-          <span class="modal-spec-val">${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)} · Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Usage: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
+          <span class="modal-spec-label">Agent Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullAgent)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Suhu Operasional</span>
-          <span class="modal-spec-val ${dev.temp !== null && dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null ? dev.temp + '°C' : '-'}</span>
+          <span class="modal-spec-label">Fisherman Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullFish)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Sistem Operasi (OS)</span>
-          <span class="modal-spec-val">${this.formatOs(dev.os)}</span>
+          <span class="modal-spec-label">Watersheep Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullWater)}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Last Telemetry Sync</span>
-          <span class="modal-spec-val">${dev.sync || '-'}</span>
+          <span class="modal-spec-label">WBO Version (Lengkap)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(fullWbo)}</span>
         </div>
-      `;
+      `);
     }
 
-    if (modal) modal.classList.add('open');
+    const summaryText = `[PARKEE SERVER DETAIL]
+Lokasi: ${dispLoc} (${dispCode} / ${dispTier})
+Hostname: ${dispHost}
+IP Local: ${srv?.ip || dev.ip || '-'} | IP ZT: ${srv?.zt || locObj?.zt || dev.ip || '-'}
+CPU: ${fullCpu}
+RAM: ${fullRam}
+Motherboard: ${fullMb}
+Storage: ${this.formatStorageSummary(srv?.ssd_brand, srv?.ssd_type, srv?.ssd_size)} (Health: ${srv?.ssd_health ?? '-'}%, Usage: ${srv?.ssd_usage ?? '-'}%)
+Suhu: ${tempVal !== null ? tempVal + '°C' : '-'}
+OS Version: ${fullOs}
+Agent: ${fullAgent} | Fisherman: ${fullFish} | Watersheep: ${fullWater} | WBO: ${fullWbo}
+Last Sync: ${syncTime}`;
+
+    const eLocAttr = this.escapeHtml(dispLoc !== '-' ? dispLoc : '');
+    const extraBtns = eLocAttr ? `
+      <button type="button" class="btn btn-primary" data-action="modal-jump-clients" data-loc="${eLocAttr}" style="font-size: 0.76rem; padding: 5px 12px;">
+        🖥️ Lihat Klien Lokasi Ini ➜
+      </button>
+    ` : '';
+    this.setDeviceModalFooter(syncTime, summaryText, extraBtns);
+    this.openNativeModal(modal);
   },
 
-  openServerDetailModal(hostname) {
-    const dev = this.servers.find(d => d.host === hostname) || this.fleet.find(d => d.host === hostname);
-    if (!dev) return;
+  openBackupDetailModal(code, locName) {
+    const qCode = (code || '').trim().toLowerCase();
+    const qLoc = (locName || '').trim().toLowerCase();
+    const item = this.serverBackup.find(b =>
+      (qCode && (b.code || '').toLowerCase() === qCode) ||
+      (qLoc && (b.loc || '').toLowerCase() === qLoc)
+    );
+    if (!item) return;
 
     const modal = document.getElementById('deviceDetailModal');
     const title = document.getElementById('modalDeviceTitle');
     const body = document.getElementById('modalDeviceBody');
 
-    if (title) title.textContent = `Server: ${dev.host} — ${dev.loc}`;
+    if (title) title.textContent = `Detail Server Backup: ${item.loc || '-'}`;
+
+    const fullNotes = item.notes || item.note_col_s || '-';
+    const connNote = item.conn_note || '-';
 
     if (body) {
-      body.innerHTML = `
+      this.setHtml(body, `
         <div class="modal-spec-item">
           <span class="modal-spec-label">Nama Lokasi</span>
-          <span class="modal-spec-val">${dev.loc || '-'}</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.loc || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Kode Unik / Tier</span>
-          <span class="modal-spec-val">${dev.code || '-'} · ${dev.tier || 'Standard'}</span>
+          <span class="modal-spec-label">Unique Code</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(item.code || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">IP Local</span>
-          <span class="modal-spec-val mono">${dev.ip || '-'}</span>
+          <span class="modal-spec-label">Status Aset Backup</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.status || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">IP ZeroTier</span>
-          <span class="modal-spec-val mono">${dev.zt || '-'}</span>
+          <span class="modal-spec-label">Koneksi P2P</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.p2p || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Processor (CPU)</span>
-          <span class="modal-spec-val">${this.formatCpu(dev.cpu)}</span>
+          <span class="modal-spec-label">Tipe Kabel P2P</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.cable_type || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Memori RAM</span>
-          <span class="modal-spec-val">${this.formatRam(dev.ram, dev.ram_brand)}</span>
+          <span class="modal-spec-label">Teleport Node</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.teleport || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Motherboard</span>
-          <span class="modal-spec-val">${this.formatMb(dev.mb, dev.mb_brand)}</span>
+          <span class="modal-spec-label">IP Local Backup</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(item.ip_local || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Storage SSD</span>
-          <span class="modal-spec-val">${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)} · Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Usage: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}</span>
+          <span class="modal-spec-label">IP P2P</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(item.ip_p2p || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Suhu Operasional</span>
-          <span class="modal-spec-val ${dev.temp !== null && dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null ? dev.temp + '°C' : '-'}</span>
+          <span class="modal-spec-label">Status Replikasi (repmgr)</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.replication || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Sistem Operasi (OS)</span>
-          <span class="modal-spec-val">${this.formatOs(dev.os)}</span>
+          <span class="modal-spec-label">Auto Promote (Pawdog)</span>
+          <span class="modal-spec-val">${this.escapeHtml(item.autopromote || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Versi Agent</span>
-          <span class="modal-spec-val mono">${this.formatFullVersion(dev.agent)}</span>
+          <span class="modal-spec-label">Replication Lag (Replag)</span>
+          <span class="modal-spec-val mono">${this.escapeHtml(item.replag || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Last Telemetry Sync</span>
-          <span class="modal-spec-val">${dev.sync || '-'}</span>
+          <span class="modal-spec-label">Catatan Konektivitas</span>
+          <span class="modal-spec-val">${this.escapeHtml(connNote)}</span>
         </div>
-      `;
+        <div class="modal-spec-item full-width">
+          <span class="modal-spec-label">Keterangan Lengkap</span>
+          <span class="modal-spec-val">${this.escapeHtml(fullNotes)}</span>
+        </div>
+      `);
     }
 
-    if (modal) modal.classList.add('open');
+    const summaryText = `[PARKEE SERVER BACKUP DETAIL]
+Lokasi: ${item.loc || '-'} (${item.code || '-'})
+Status: ${item.status || '-'}
+P2P: ${item.p2p || '-'} (${item.cable_type || '-'})
+Teleport: ${item.teleport || '-'}
+IP Local: ${item.ip_local || '-'} | IP P2P: ${item.ip_p2p || '-'}
+Replication: ${item.replication || '-'} | Auto Promote: ${item.autopromote || '-'} | Replag: ${item.replag || '-'}
+Keterangan: ${fullNotes}${item.conn_note ? ' (' + item.conn_note + ')' : ''}`;
+
+    const eLocAttr = this.escapeHtml(item.loc || '');
+    const extraBtns = eLocAttr ? `
+      <button type="button" class="btn btn-outline" data-action="modal-jump-server" data-loc="${eLocAttr}" style="font-size: 0.76rem; padding: 5px 12px;">
+        🖧 Lihat Server Utama ➜
+      </button>
+    ` : '';
+    this.setDeviceModalFooter('Google Sheet HA Fleet', summaryText, extraBtns);
+    this.openNativeModal(modal);
   },
 
   // =========================================================================
-  // MODULE 3: CLIENT SPECIFICATION (50:50 All Clients & Location Dropdowns)
+  // MODULE 3: CLIENT SPECIFICATION
   // =========================================================================
-  renderAllClientsNationwideTable() {
-    const tbody = document.getElementById('allClientsTableBody');
-    if (!tbody) return;
-    if (this.guardTable(tbody)) return;
-
+  getFilteredClients() {
     let list = this.fleet.filter(d => !(d.host || '').toLowerCase().startsWith('server'));
 
     // Quick filter pills (Reader PARKEE & Thermal)
@@ -1387,30 +2054,6 @@ const App = {
       list = list.filter(d => d.temp !== null && d.temp >= 70);
     } else if (this.allClientsState.filter === 'hot') {
       list = list.filter(d => d.temp !== null && d.temp >= 80);
-    }
-
-    // Specific Filter: Role
-    if (this.allClientsState.role !== 'all') {
-      list = list.filter(d => {
-        const cat = (d.cat || '').toLowerCase();
-        const host = (d.host || '').toLowerCase();
-        if (this.allClientsState.role === 'gate') {
-          return cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
-        }
-        if (this.allClientsState.role === 'cashier') {
-          return cat.includes('cashier') || cat.includes('kasir');
-        }
-        if (this.allClientsState.role === 'admin') {
-          return cat.includes('admin') || host.startsWith('admin');
-        }
-        if (this.allClientsState.role === 'other') {
-          const isGate = cat.includes('gate') || cat.includes('dispenser') || cat.includes('entry') || cat.includes('exit') || cat.includes('barrier');
-          const isCashier = cat.includes('cashier') || cat.includes('kasir');
-          const isAdmin = cat.includes('admin') || host.startsWith('admin');
-          return !isGate && !isCashier && !isAdmin;
-        }
-        return true;
-      });
     }
 
     // Specific Filter: Reader Status
@@ -1459,6 +2102,16 @@ const App = {
       );
     }
 
+    return list;
+  },
+
+  renderAllClientsNationwideTable() {
+    const tbody = document.getElementById('allClientsTableBody');
+    if (!tbody) return;
+    if (this.guardTable(tbody)) return;
+
+    let list = this.getFilteredClients();
+
     // Sort
     list = this.sortData(list, this.allClientsState.sortCol, this.allClientsState.sortDir === 'asc' ? 1 : -1);
     this.updateSortIndicators('#view-clients', 'data-cl-sort', this.allClientsState.sortCol, this.allClientsState.sortDir);
@@ -1477,7 +2130,7 @@ const App = {
     const pageLabel = document.getElementById('allClientsPageLabel');
     if (pageLabel) pageLabel.textContent = `Halaman ${this.allClientsState.page} / ${totalPages}`;
     const countLabel = document.getElementById('allClientsCountLabel');
-    if (countLabel) countLabel.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.allClientsState.pageSize, list.length)} dari ${list.length.toLocaleString()} klien`;
+    if (countLabel) countLabel.textContent = `Menampilkan ${list.length === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + this.allClientsState.pageSize, list.length)} dari ${list.length.toLocaleString()} klien`;
 
     const prevBtn = document.getElementById('allClientsPrevBtn');
     const nextBtn = document.getElementById('allClientsNextBtn');
@@ -1485,11 +2138,11 @@ const App = {
     if (nextBtn) nextBtn.disabled = this.allClientsState.page >= totalPages;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`;
+      this.setHtml(tbody, `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada unit klien yang cocok.</td></tr>`);
       return;
     }
 
-    tbody.innerHTML = pageItems.map(d => {
+    const rowsHtml = pageItems.map(d => {
       let tempClass = 'temp-cool';
       if (d.temp !== null && d.temp !== undefined) {
         if (d.temp >= 80) tempClass = 'temp-hot';
@@ -1498,7 +2151,9 @@ const App = {
       }
 
       const hasReader = Boolean(d.reader_ver || d.reader_sn);
-      const tierClass = (d.tier || '').toLowerCase() === 'diamond' ? 'tier-diamond' : ((d.tier || '').toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
+      const tierRaw = d.tier || 'Standard';
+      const tierLower = tierRaw.toLowerCase();
+      const tierClass = tierLower === 'diamond' ? 'tier-diamond' : (tierLower === 'gold' ? 'tier-gold' : 'tier-silver');
 
       let healthClass = 'health-good';
       if (d.ssd_health !== null && d.ssd_health !== undefined) {
@@ -1508,35 +2163,55 @@ const App = {
 
       const ssdBrandFormatted = this.formatBrand(d.ssd_brand);
       const ssdSizeFormatted = this.formatSize(d.ssd_size);
-      const hostEscaped = (d.host || '').replace(/'/g, "\\'");
+
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eLocAttr = this.escapeHtml(d.loc || '');
+      const eCode = this.escapeHtml(d.code || '-');
+      const eTier = this.escapeHtml(tierRaw);
+      const eHost = this.escapeHtml(d.host || '-');
+      const eHostAttr = this.escapeHtml(d.host || '');
+      const eAgent = this.escapeHtml(d.agent || '');
+      const eReaderVer = this.escapeHtml(d.reader_ver || 'Reader PARKEE');
+      const eReaderSn = this.escapeHtml(d.reader_sn || '');
+      const eIp = this.escapeHtml(d.ip || '-');
+      const eIpAttr = this.escapeHtml(d.ip || '');
+      const eZt = this.escapeHtml(d.zt || '');
+      const eCpuTitle = this.escapeHtml(d.cpu || '');
+      const eCpu = this.escapeHtml(this.formatCpu(d.cpu));
+      const eRam = this.escapeHtml(this.formatRam(d.ram, d.ram_brand));
+      const eMbTitle = this.escapeHtml(d.mb || '');
+      const eMb = this.escapeHtml(this.formatMb(d.mb, d.mb_brand));
+      const eSsdSize = this.escapeHtml(ssdSizeFormatted);
+      const eSsdBrand = this.escapeHtml(ssdBrandFormatted);
+      const eOsTitle = this.escapeHtml(d.os || '');
+      const eOs = this.escapeHtml(this.formatOs(d.os));
 
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" aria-label="Buka detail klien ${eHost} (${eLoc})" title="Klik baris untuk melihat spesifikasi lengkap klien ${eHost}" data-action="open-client-modal" data-host="${eHostAttr}" data-loc="${eLocAttr}" data-ip="${eIpAttr}">
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+            <div class="row-primary-title" style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${eLoc}</div>
             <div style="display: flex; gap: 4px; align-items: center; margin-top: 3px;">
-              <span class="version-code-tag">${d.code || '-'}</span>
-              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${d.tier || 'Standard'}</span>
+              <span class="version-code-tag">${eCode}</span>
+              <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${eTier}</span>
             </div>
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem; cursor: pointer;" title="Klik untuk rincian modal" onclick="App.openClientDetailModal('${hostEscaped}')">
-              ${d.host}
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
+              ${eHost}
             </div>
-            <span style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${d.cat || 'Client'}</span>
           </td>
           <td>
-            ${d.agent && d.agent !== '-' ? `<span class="version-code-tag" style="font-size: 0.72rem; white-space: nowrap;" title="${this.escapeHtml(d.agent)}">${d.agent}</span>` : `<span style="color: var(--text-muted);">-</span>`}
+            ${d.agent && d.agent !== '-' ? `<span class="version-code-tag" style="font-size: 0.72rem; white-space: nowrap;" title="${eAgent}">${eAgent}</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
             ${hasReader ? `
               <div style="display: flex; flex-direction: column; gap: 3px;">
-                <span class="reader-ver-tag" style="font-size: 0.72rem; font-weight: 600; color: var(--color-success);">✓ ${d.reader_ver || 'Reader PARKEE'}</span>
+                <span class="reader-ver-tag" style="font-size: 0.72rem; font-weight: 600; color: var(--color-success);">✓ ${eReaderVer}</span>
                 ${d.reader_sn ? `
                   <div class="reader-sn-code" style="font-size: 0.75rem; padding: 2px 6px;">
-                    <span>${d.reader_sn}</span>
-                    <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 4px; padding: 0;" title="Salin Serial Number Reader PARKEE" onclick="App.copyToClipboard('${d.reader_sn}')">
-                      📋
+                    <span>${eReaderSn}</span>
+                    <button type="button" class="btn-copy-inline" aria-label="Salin Serial Number Reader PARKEE ${eReaderSn}" title="Salin Serial Number Reader PARKEE" data-action="copy-text" data-copy-text="${eReaderSn}">
+                      <span aria-hidden="true">📋</span>
                     </button>
                   </div>
                 ` : ''}
@@ -1544,262 +2219,90 @@ const App = {
             ` : `<span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Belum Pakai</span>`}
           </td>
           <td>
-            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${d.ip || '-'}</div>
-            ${d.zt ? `<div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${d.zt}</div>` : ''}
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-main);">${eIp}</div>
+            ${d.zt ? `<div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ZT: ${eZt}</div>` : ''}
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 170px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.cpu || '')}">
-            ${this.formatCpu(d.cpu)}
+          <td style="font-size: 0.78rem; color: var(--text-main); min-width: 170px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eCpuTitle}">
+            ${eCpu}
           </td>
           <td style="font-size: 0.78rem; font-weight: 600; color: var(--text-main);">
-            ${this.formatRam(d.ram, d.ram_brand)}
+            ${eRam}
           </td>
-          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 130px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.mb || '')}">
-            ${this.formatMb(d.mb, d.mb_brand)}
+          <td style="font-size: 0.78rem; color: var(--text-secondary); min-width: 130px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eMbTitle}">
+            ${eMb}
           </td>
           <td>
             <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono);">
-              ${ssdSizeFormatted} ${ssdBrandFormatted !== '-' ? `(${ssdBrandFormatted})` : ''}
+              ${eSsdSize} ${ssdBrandFormatted !== '-' ? `(${eSsdBrand})` : ''}
             </div>
             <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-              ${d.ssd_health !== null && d.ssd_health !== undefined ? `<span class="ssd-health-pill ${healthClass}">${d.ssd_health}%</span>` : ''}
-              ${d.ssd_usage !== null && d.ssd_usage !== undefined ? `<span style="font-size: 0.7rem; color: var(--text-muted);">${d.ssd_usage}%</span>` : ''}
+              ${d.ssd_health !== null && d.ssd_health !== undefined ? `<span class="ssd-health-pill ${healthClass}">${this.escapeHtml(d.ssd_health)}%</span>` : ''}
+              ${d.ssd_usage !== null && d.ssd_usage !== undefined ? `<span style="font-size: 0.7rem; color: var(--text-muted);">${this.escapeHtml(d.ssd_usage)}%</span>` : ''}
             </div>
           </td>
           <td>
-            ${d.temp !== null && d.temp !== undefined ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${d.temp}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
+            ${d.temp !== null && d.temp !== undefined ? `<span class="temp-badge ${tempClass}" style="font-weight: 700;">${this.escapeHtml(d.temp)}°C</span>` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
-          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(d.os || '')}">
-            ${this.formatOs(d.os)}
+          <td style="font-size: 0.72rem; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${eOsTitle}">
+            ${eOs}
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
-  },
-
-  renderClientLocationAccordions() {
-    const container = document.getElementById('clientLocAccordionList');
-    if (!container) return;
-
-    let locs = [...this.locations];
-
-    if (this.pickerState.search) {
-      const q = this.pickerState.search.toLowerCase();
-      locs = locs.filter(l => 
-        (l.loc && l.loc.toLowerCase().includes(q)) ||
-        (l.code && l.code.toLowerCase().includes(q))
-      );
-    }
-
-    if (this.pickerState.tier !== 'all') {
-      locs = locs.filter(l => l.tier && l.tier.toLowerCase() === this.pickerState.tier.toLowerCase());
-    }
-
-    // Specific Filter: RFID Reader
-    if (this.pickerState.reader === 'yes') {
-      locs = locs.filter(l => l.has_reader === true);
-    } else if (this.pickerState.reader === 'no') {
-      locs = locs.filter(l => !l.has_reader);
-    }
-
-    // Specific Filter: Condition (overheat, low_ssd)
-    if (this.pickerState.condition === 'overheat') {
-      locs = locs.filter(l => (l.client_overheats || 0) > 0 || (l.server_overheats || 0) > 0);
-    } else if (this.pickerState.condition === 'low_ssd') {
-      const lowSsdLocs = new Set(this.fleet.filter(d => d.ssd_health !== null && d.ssd_health < 70).map(d => (d.loc || '').toLowerCase()));
-      locs = locs.filter(l => l.loc && lowSsdLocs.has(l.loc.toLowerCase()));
-    }
-
-    const badge = document.getElementById('pickerCountBadge');
-    if (badge) badge.textContent = `${locs.length} Sites`;
-
-    if (locs.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem;">Lokasi tidak ditemukan.</div>`;
-      return;
-    }
-
-    container.innerHTML = locs.map(l => {
-      const isOpen = this.expandedLocations.has(l.loc);
-      const tierClass = l.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (l.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
-      const locEscaped = l.loc.replace(/'/g, "\\'");
-      const safeId = 'loc-acc-' + (l.code || l.loc).replace(/[^a-zA-Z0-9_-]/g, '_');
-
-      let clientsHtml = '';
-      if (isOpen) {
-        const clients = this.fleet.filter(d => d.loc.toLowerCase() === l.loc.toLowerCase() && !(d.host || '').toLowerCase().startsWith('server'));
-        if (clients.length === 0) {
-          clientsHtml = `
-            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: var(--surface-card); border-radius: var(--radius-sm);">
-              Seluruh unit di lokasi ini terdaftar sebagai server atau belum ada unit klien yang aktif.
-            </div>
-          `;
-        } else {
-          clientsHtml = `
-            <div class="loc-accordion-clients-grid">
-              ${clients.map(dev => {
-                let tempClass = 'temp-cool';
-                if (dev.temp !== null) {
-                  if (dev.temp >= 80) tempClass = 'temp-hot';
-                  else if (dev.temp >= 70) tempClass = 'temp-warm';
-                  else if (dev.temp >= 50) tempClass = 'temp-normal';
-                }
-                const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
-                const isTarget = this.targetHighlightedHost === dev.host;
-
-                return `
-                  <div class="client-device-card ${isTarget ? 'pulse-highlight' : ''}" id="card-client-${dev.host}">
-                    <!-- Top Row -->
-                    <div class="client-card-top">
-                      <div>
-                        <div class="client-host-title">${dev.host}</div>
-                        <span class="badge-pill" style="font-size: 0.68rem; margin-top: 3px; display: inline-block;">
-                          ${dev.cat}
-                        </span>
-                      </div>
-                      <span class="temp-badge ${tempClass}" style="font-weight: 700;">
-                        ${dev.temp !== null ? dev.temp + '°C' : '-'}
-                      </span>
-                    </div>
-
-                    <!-- Reader PARKEE Box -->
-                    <div class="reader-telemetry-box" style="${hasReader ? '' : 'border-style: solid; border-color: var(--border-subtle);'}">
-                      <div class="reader-badge-header">
-                        <span>Reader PARKEE</span>
-                        ${hasReader ? '<span style="color: var(--color-success); font-weight: 700;">✓ TERKONEKSI</span>' : '<span style="color: var(--text-muted);">BELUM TERPASANG</span>'}
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span class="reader-ver-tag">Versi: <strong>${dev.reader_ver || '-'}</strong></span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span style="font-size: 0.72rem; color: var(--text-muted);">SN Reader PARKEE:</span>
-                          ${dev.reader_sn ? `
-                            <div class="reader-sn-code">
-                              <span>${dev.reader_sn}</span>
-                              <button style="background: none; border: none; cursor: pointer; color: var(--accent-primary); margin-left: 6px; padding: 0;" title="Salin Serial Number Reader PARKEE" onclick="App.copyToClipboard('${dev.reader_sn}')">
-                                📋
-                              </button>
-                            </div>
-                          ` : '<span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">-</span>'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Hardware Specs Grid -->
-                    <div class="client-specs-grid">
-                      <div class="client-spec-cell">
-                        <span class="lbl">Processor</span>
-                        <span class="val" title="${dev.cpu || ''}">${this.formatCpu(dev.cpu)}</span>
-                      </div>
-                      <div class="client-spec-cell">
-                        <span class="lbl">RAM</span>
-                        <span class="val">${this.formatRam(dev.ram, dev.ram_brand)}</span>
-                      </div>
-                      <div class="client-spec-cell">
-                        <span class="lbl">Motherboard</span>
-                        <span class="val" title="${dev.mb || ''}">${this.formatMb(dev.mb, dev.mb_brand)}</span>
-                      </div>
-                      <div class="client-spec-cell">
-                        <span class="lbl">Storage SSD</span>
-                        <span class="val">${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)}</span>
-                      </div>
-                      <div class="client-spec-cell">
-                        <span class="lbl">SSD Health / Usage</span>
-                        <span class="val">${dev.ssd_health !== null || dev.ssd_usage !== null ? `Health: ${dev.ssd_health !== null ? dev.ssd_health + '%' : '-'} · Use: ${dev.ssd_usage !== null ? dev.ssd_usage + '%' : '-'}` : '-'}</span>
-                      </div>
-                      <div class="client-spec-cell">
-                        <span class="lbl">IP Local / ZT</span>
-                        <span class="val mono">${dev.ip || '-'}</span>
-                      </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-size: 0.7rem; color: var(--text-muted);">
-                      <span>OS: ${this.formatOs(dev.os)}</span>
-                      <span>Sync: ${dev.sync || '-'}</span>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          `;
-        }
-      }
-
-      return `
-        <div class="loc-accordion-item ${isOpen ? 'open' : ''}" id="${safeId}">
-          <div class="loc-accordion-header" onclick="App.toggleLocationAccordion('${locEscaped}')">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="loc-accordion-chevron">▶</span>
-              <div>
-                <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem;">${l.loc}</div>
-                <div style="display: flex; gap: 6px; align-items: center; margin-top: 3px;">
-                  <span class="version-code-tag" style="font-size: 0.65rem;">${l.code || '-'}</span>
-                  <span class="tier-tag ${tierClass}" style="font-size: 0.65rem; padding: 1px 5px;">${l.tier}</span>
-                </div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="badge-pill" style="font-size: 0.72rem;">${l.total_clients} Klien</span>
-              ${l.has_reader ? '<span class="version-code-tag" style="color: var(--color-success); font-weight: 700; font-size: 0.68rem;">✓ Reader PARKEE</span>' : ''}
-            </div>
-          </div>
-
-          ${isOpen ? `
-            <div class="loc-accordion-body">
-              <div class="loc-accordion-meta-bar">
-                <span>IP ZeroTier: <strong style="font-family: var(--font-mono);">${l.zt || '-'}</strong></span>
-                <span>Last Telemetry Sync: <strong>${l.last_sync || '-'}</strong></span>
-              </div>
-              ${clientsHtml}
-            </div>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
-  },
-
-  toggleLocationAccordion(locName) {
-    if (this.expandedLocations.has(locName)) {
-      this.expandedLocations.delete(locName);
-    } else {
-      this.expandedLocations.add(locName);
-    }
-    this.renderClientLocationAccordions();
-  },
-
-  openLocationInAccordion(locName, targetHost = null) {
-    this.expandedLocations.add(locName);
-    this.targetHighlightedHost = targetHost;
-    this.renderClientLocationAccordions();
-
-    setTimeout(() => {
-      const locMeta = this.locations.find(l => l.loc.toLowerCase() === locName.toLowerCase());
-      const safeId = 'loc-acc-' + (locMeta ? (locMeta.code || locMeta.loc) : locName).replace(/[^a-zA-Z0-9_-]/g, '_');
-      const el = document.getElementById(safeId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-
-      if (targetHost) {
-        const cardEl = document.getElementById(`card-client-${targetHost}`);
-        if (cardEl) {
-          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          cardEl.classList.add('pulse-highlight');
-          setTimeout(() => cardEl.classList.remove('pulse-highlight'), 2000);
-        }
-      }
-    }, 60);
   },
 
   // =========================================================================
   // MODULE 4: STORAGE (SERVER ONLY)
   // =========================================================================
-  renderStorageTable() {
-    const tbody = document.getElementById('storageTableBody');
-    if (!tbody) return;
-    if (this.guardTable(tbody)) return;
+  setStorageQuickFilter(filterVal, fromKpiCard = false) {
+    let nextFilter = filterVal || 'all';
+    if (fromKpiCard && nextFilter === 'nvme') {
+      if (this.storageState.filter === 'nvme') nextFilter = 'sata';
+      else if (this.storageState.filter === 'sata') nextFilter = 'all';
+      else nextFilter = 'nvme';
+    } else if (fromKpiCard && nextFilter !== 'all' && this.storageState.filter === nextFilter) {
+      nextFilter = 'all';
+    }
 
+    this.storageState.filter = nextFilter;
+    this.storageState.page = 1;
+
+    // Reset conflicting specific dropdowns so KPI card count matches table rows
+    const storageTypeFilter = document.getElementById('storageTypeFilter');
+    const storageHealthFilter = document.getElementById('storageHealthFilter');
+    const storageUsageFilter = document.getElementById('storageUsageFilter');
+
+    if (nextFilter === 'nvme' || nextFilter === 'sata') {
+      this.storageState.type = 'all';
+      if (storageTypeFilter) storageTypeFilter.value = 'all';
+    } else if (nextFilter === 'critical_usage') {
+      this.storageState.usageRange = 'all';
+      if (storageUsageFilter) storageUsageFilter.value = 'all';
+    } else if (nextFilter === 'critical_health') {
+      this.storageState.healthRange = 'all';
+      if (storageHealthFilter) storageHealthFilter.value = 'all';
+    }
+
+    this.syncStorageFilterUI();
+    this.renderStorageTable();
+  },
+
+  syncStorageFilterUI() {
+    const cur = this.storageState.filter || 'all';
+    document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.storageFilter === cur);
+    });
+    document.querySelectorAll('[data-storage-kpi]').forEach(card => {
+      const kpi = card.dataset.storageKpi;
+      const isActive = (kpi === cur) || (kpi === 'nvme' && (cur === 'nvme' || cur === 'sata'));
+      card.classList.toggle('kpi-active-filter', isActive);
+      card.setAttribute('aria-pressed', String(isActive));
+    });
+  },
+
+  getFilteredStorageServers() {
     let list = this.servers.filter(d => (d.host || '').toLowerCase().startsWith('server'));
 
     // Filter condition
@@ -1862,13 +2365,13 @@ const App = {
 
     // Specific Filter: Tier
     if (this.storageState.tier !== 'all') {
-      list = list.filter(d => d.tier && d.tier.toLowerCase() === this.storageState.tier.toLowerCase());
+      list = list.filter(d => this.matchesTier(d.tier, this.storageState.tier));
     }
 
     // Search filter
     if (this.storageState.search) {
       const q = this.storageState.search.toLowerCase();
-      list = list.filter(d => 
+      list = list.filter(d =>
         (d.loc && d.loc.toLowerCase().includes(q)) ||
         (d.code && d.code.toLowerCase().includes(q)) ||
         (d.host && d.host.toLowerCase().includes(q)) ||
@@ -1876,6 +2379,17 @@ const App = {
         (d.ssd_type && d.ssd_type.toLowerCase().includes(q))
       );
     }
+
+    return list;
+  },
+
+  renderStorageTable() {
+    const tbody = document.getElementById('storageTableBody');
+    if (!tbody) return;
+    if (this.guardTable(tbody)) return;
+
+    this.syncStorageFilterUI();
+    let list = this.getFilteredStorageServers();
 
     // Sort
     list = this.sortData(list, this.storageState.sortCol, this.storageState.sortDir === 'asc' ? 1 : -1);
@@ -1895,119 +2409,172 @@ const App = {
     const pageLabel = document.getElementById('storageCurrentPageLabel');
     if (pageLabel) pageLabel.textContent = `Halaman ${this.storageState.page} / ${totalPages}`;
     const tableCount = document.getElementById('storageTableCountLabel');
-    if (tableCount) tableCount.textContent = `Menampilkan ${startIdx + 1}-${Math.min(startIdx + this.storageState.pageSize, list.length)} dari ${list.length.toLocaleString()} server storage`;
+    if (tableCount) tableCount.textContent = `Menampilkan ${list.length === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + this.storageState.pageSize, list.length)} dari ${list.length.toLocaleString()} server storage`;
+
+    const prevBtn = document.getElementById('storagePrevPageBtn');
+    const nextBtn = document.getElementById('storageNextPageBtn');
+    if (prevBtn) prevBtn.disabled = this.storageState.page <= 1;
+    if (nextBtn) nextBtn.disabled = this.storageState.page >= totalPages;
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada data storage server yang cocok.</td></tr>`;
+      this.setHtml(tbody, `<tr><td colspan="11" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Tidak ada data storage server yang cocok.</td></tr>`);
       return;
     }
 
-    tbody.innerHTML = pageItems.map(d => {
-      const tierClass = d.tier.toLowerCase() === 'diamond' ? 'tier-diamond' : (d.tier.toLowerCase() === 'gold' ? 'tier-gold' : 'tier-silver');
-      
+    const rowsHtml = pageItems.map(d => {
+      const tierRaw = d.tier || 'Standard';
+      const tierLower = tierRaw.toLowerCase();
+      const tierClass = tierLower === 'diamond' ? 'tier-diamond' : (tierLower === 'gold' ? 'tier-gold' : 'tier-silver');
+
       let usageColor = 'var(--color-success)';
-      let usageBadge = 'Normal';
-      if (d.ssd_usage !== null) {
+      if (d.ssd_usage !== null && d.ssd_usage !== undefined) {
         if (d.ssd_usage >= 85) {
           usageColor = 'var(--color-danger)';
-          usageBadge = '🚨 Kritis Full';
         } else if (d.ssd_usage >= 70) {
           usageColor = 'var(--color-warning)';
-          usageBadge = '⚠️ Waspada';
         }
       }
 
       let healthColor = 'var(--color-success)';
-      if (d.ssd_health !== null && d.ssd_health < 70) {
+      if (d.ssd_health !== null && d.ssd_health !== undefined && d.ssd_health < 70) {
         healthColor = 'var(--color-danger)';
-      } else if (d.ssd_health !== null && d.ssd_health < 80) {
+      } else if (d.ssd_health !== null && d.ssd_health !== undefined && d.ssd_health < 80) {
         healthColor = 'var(--color-warning)';
       }
 
       let actionRecommendation = 'Operasional Normal';
-      if (d.ssd_usage >= 85) {
+      if (d.ssd_usage !== null && d.ssd_usage >= 85) {
         actionRecommendation = 'Log rotate & vacuum PostgreSQL';
-      } else if (d.ssd_health < 70) {
+      } else if (d.ssd_health !== null && d.ssd_health < 70) {
         actionRecommendation = 'Jadwalkan kloning SSD cadangan';
       }
 
+      const healthPct = d.ssd_health !== null && d.ssd_health !== undefined ? Math.max(0, Math.min(100, Number(d.ssd_health) || 0)) : null;
+      const usagePct = d.ssd_usage !== null && d.ssd_usage !== undefined ? Math.max(0, Math.min(100, Number(d.ssd_usage) || 0)) : null;
+
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eLocAttr = this.escapeHtml(d.loc || '');
+      const eCode = this.escapeHtml(d.code || '-');
+      const eCodeAttr = this.escapeHtml(d.code || '');
+      const eTier = this.escapeHtml(tierRaw);
+      const eHost = this.escapeHtml(d.host || '-');
+      const eHostAttr = this.escapeHtml(d.host || '');
+      const eBrand = this.escapeHtml(this.formatBrand(d.ssd_brand));
+      const eType = this.escapeHtml(d.ssd_type || '-');
+      const eSize = this.escapeHtml(this.formatSize(d.ssd_size));
+      const eSync = this.escapeHtml(d.sync || '-');
+      const eAction = this.escapeHtml(actionRecommendation);
+
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" aria-label="Buka detail storage server ${eHost} (${eLoc})" title="Klik baris untuk melihat detail spesifikasi server ${eHost}" data-action="open-server-modal" data-host="${eHostAttr}" data-code="${eCodeAttr}" data-loc="${eLocAttr}">
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
-            <span class="version-code-tag">${d.code || '-'}</span>
+            <div class="row-primary-title" style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${eLoc}</div>
+            <span class="version-code-tag">${eCode}</span>
           </td>
           <td>
-            <span class="tier-tag ${tierClass}">${d.tier || 'Standard'}</span>
+            <span class="tier-tag ${tierClass}">${eTier}</span>
           </td>
           <td>
             <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
-              ${d.host}
+              ${eHost}
             </div>
           </td>
           <td>
-            <span style="font-weight: 600; color: var(--text-main); font-size: 0.825rem;">${this.formatBrand(d.ssd_brand)}</span>
+            <span style="font-weight: 600; color: var(--text-main); font-size: 0.825rem;">${eBrand}</span>
           </td>
           <td>
             ${d.ssd_type && d.ssd_type !== '-' ? `
               <span class="version-code-tag" style="font-weight: 700; color: ${d.ssd_type === 'NVMe' ? 'var(--accent-primary)' : 'var(--text-secondary)'};">
-                ${d.ssd_type}
+                ${eType}
               </span>
             ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-family: var(--font-mono); font-size: 0.825rem; font-weight: 600;">
-            ${this.formatSize(d.ssd_size)}
+            ${eSize}
           </td>
           <td>
-            ${d.ssd_health !== null ? `
+            ${healthPct !== null ? `
               <div class="storage-bar-wrap">
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${healthColor};">
                   <span>Health</span>
-                  <span>${d.ssd_health}%</span>
+                  <span>${this.escapeHtml(d.ssd_health)}%</span>
                 </div>
                 <div class="storage-bar-track">
-                  <div class="storage-bar-fill" style="width: ${d.ssd_health}%; background: ${healthColor};"></div>
+                  <div class="storage-bar-fill" style="width: ${healthPct}%; background: ${healthColor};"></div>
                 </div>
               </div>
             ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            ${d.ssd_usage !== null ? `
+            ${usagePct !== null ? `
               <div class="storage-bar-wrap">
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: ${usageColor};">
                   <span>Usage</span>
-                  <span>${d.ssd_usage}%</span>
+                  <span>${this.escapeHtml(d.ssd_usage)}%</span>
                 </div>
                 <div class="storage-bar-track">
-                  <div class="storage-bar-fill" style="width: ${d.ssd_usage}%; background: ${usageColor};"></div>
+                  <div class="storage-bar-fill" style="width: ${usagePct}%; background: ${usageColor};"></div>
                 </div>
               </div>
             ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td>
-            ${d.temp !== null ? `
+            ${d.temp !== null && d.temp !== undefined ? `
               <span class="temp-badge ${d.temp >= 80 ? 'temp-hot' : 'temp-cool'}" style="font-weight: 700;">
-                ${d.temp}°C
+                ${this.escapeHtml(d.temp)}°C
               </span>
             ` : `<span style="color: var(--text-muted);">-</span>`}
           </td>
           <td style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;">
-            ${d.sync || '-'}
+            ${eSync}
           </td>
           <td style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">
             <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: var(--surface-hover); border: 1px solid var(--border-subtle);">
-              ${actionRecommendation}
+              ${eAction}
             </span>
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   // =========================================================================
   // MODULE 5: TEMPERATURE SERVER (LIVE PROMETHEUS TELEMETRY)
   // =========================================================================
+  setTemperatureFilter(filterVal, fromKpiCard = false) {
+    let targetFilter = filterVal || 'all';
+    if (targetFilter === 'avg') {
+      targetFilter = 'all';
+      this.temperatureState.sortCol = 'temp';
+      this.temperatureState.sortDir = 'desc';
+    } else if (fromKpiCard && targetFilter !== 'all' && this.temperatureState.filter === targetFilter) {
+      targetFilter = 'all';
+    }
+
+    this.temperatureState.filter = targetFilter;
+    this.temperatureState.page = 1;
+    this.syncTemperatureFilterUI(filterVal === 'avg' ? 'avg' : targetFilter);
+    this.renderTemperatureTable();
+  },
+
+  syncTemperatureFilterUI(activeKpiOverride = null) {
+    const curFilter = this.temperatureState.filter || 'all';
+    const curKpi = activeKpiOverride || curFilter;
+
+    document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.tempFilter === curFilter);
+    });
+
+    document.querySelectorAll('[data-temp-kpi]').forEach(card => {
+      const kpi = card.dataset.tempKpi;
+      const isActive = kpi === curKpi;
+      card.classList.toggle('kpi-active-filter', isActive);
+      card.setAttribute('aria-pressed', String(isActive));
+    });
+  },
+
   async fetchTemperature(forceRefresh = false) {
     if (this.dataStatus.temperature !== 'ready') this.setDataStatus('temperature', 'loading');
     const rawUrl = `https://raw.githubusercontent.com/support-parkee/Dashboard/telemetry/temperature.json?_t=${Date.now()}`;
@@ -2069,23 +2636,8 @@ const App = {
     }
   },
 
-  renderTemperatureTable() {
-    const tbody = document.getElementById('tempTableBody');
-    if (!tbody) return;
-    if (this.guardTable(tbody)) return;
-
-    if (!this.temperatureData || !this.temperatureData.servers) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
-            Memuat telemetri suhu dari Grafana Prometheus...
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
+  getFilteredTemperatureServers() {
+    if (!this.temperatureData || !Array.isArray(this.temperatureData.servers)) return [];
     let list = [...this.temperatureData.servers];
 
     // 1. Search Filter
@@ -2105,6 +2657,30 @@ const App = {
       list = list.filter(item => item.status === this.temperatureState.filter);
     }
 
+    return list;
+  },
+
+  renderTemperatureTable() {
+    const tbody = document.getElementById('tempTableBody');
+    if (!tbody) return;
+    if (this.guardTable(tbody)) return;
+
+    this.syncTemperatureFilterUI();
+
+    if (!this.temperatureData || !this.temperatureData.servers) {
+      this.setHtml(tbody, `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
+            Memuat telemetri suhu dari Grafana Prometheus...
+          </td>
+        </tr>
+      `);
+      return;
+    }
+
+    let list = this.getFilteredTemperatureServers();
+
     // 3. Sorting
     const col = this.temperatureState.sortCol;
     const dir = this.temperatureState.sortDir === 'desc' ? -1 : 1;
@@ -2121,19 +2697,18 @@ const App = {
 
       va = (va || '').toString().toLowerCase();
       vb = (vb || '').toString().toLowerCase();
-      return va.localeCompare(vb) * dir;
+      return (this._collator ? this._collator.compare(va, vb) : va.localeCompare(vb)) * dir;
     });
 
-    // Update Sorting arrows in table headers
+    // Update Sorting arrows & aria-sort in table headers (preserve <button class="th-sort-btn">)
     document.querySelectorAll('#tempTable th.sortable[data-temp-sort]').forEach(th => {
       const c = th.dataset.tempSort;
-      let label = th.textContent.replace(/[⇅▲▼]/g, '').trim();
-      if (c === this.temperatureState.sortCol) {
-        th.textContent = `${label} ${this.temperatureState.sortDir === 'asc' ? '▲' : '▼'}`;
-        th.style.color = 'var(--accent-primary)';
-      } else {
-        th.textContent = `${label} ⇅`;
-        th.style.color = '';
+      const isSorted = c === this.temperatureState.sortCol;
+      th.setAttribute('aria-sort', isSorted ? (this.temperatureState.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+      th.style.color = isSorted ? 'var(--accent-primary)' : '';
+      const icon = th.querySelector('.sort-icon');
+      if (icon) {
+        icon.textContent = isSorted ? (this.temperatureState.sortDir === 'asc' ? '▲' : '▼') : '⇅';
       }
     });
 
@@ -2166,17 +2741,17 @@ const App = {
     if (nextBtn) nextBtn.disabled = this.temperatureState.page >= totalPages;
 
     if (paginated.length === 0) {
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr>
           <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
             Tidak ada unit server yang cocok dengan filter suhu saat ini.
           </td>
         </tr>
-      `;
+      `);
       return;
     }
 
-    tbody.innerHTML = paginated.map((d, index) => {
+    const rowsHtml = paginated.map((d, index) => {
       const rowNo = start + index + 1;
       let statusHtml = '';
       let fillClass = 'fill-normal';
@@ -2196,23 +2771,36 @@ const App = {
         valClass = 'temp-val-normal';
       }
 
+      const tempNum = Number(d.temp);
+      const safeTemp = Number.isFinite(tempNum) ? tempNum : 0;
       // Visual bar fill percentage (20C = 0%, 100C = 100%)
-      const barPercent = Math.min(100, Math.max(8, ((d.temp - 20) / 80) * 100));
+      const barPercent = Math.min(100, Math.max(8, ((safeTemp - 20) / 80) * 100));
+
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eLocAttr = this.escapeHtml(d.loc || '');
+      const eCode = this.escapeHtml(d.code || '-');
+      const eCodeAttr = this.escapeHtml(d.code || '');
+      const eHost = this.escapeHtml(d.host || '-');
+      const eHostAttr = this.escapeHtml(d.host || '');
+      const eIp = this.escapeHtml(d.ip || '-');
+      const cpuClean = d.cpu && d.cpu !== '-' ? d.cpu.split('@')[0].trim() : '-';
+      const eCpu = this.escapeHtml(cpuClean);
+      const eRam = d.ram && d.ram !== '-' ? this.escapeHtml(d.ram) : '';
 
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" aria-label="Buka detail server ${eHost} (${eLoc})" title="Klik baris untuk melihat detail lengkap server ${eHost}" data-action="open-server-modal" data-host="${eHostAttr}" data-code="${eCodeAttr}" data-loc="${eLocAttr}">
           <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
             ${rowNo}
           </td>
           <td>
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${d.loc}</div>
+            <div class="row-primary-title" style="font-weight: 700; color: var(--text-main); font-size: 0.85rem;">${eLoc}</div>
           </td>
           <td>
-            <span class="version-code-tag">${d.code || '-'}</span>
+            <span class="version-code-tag">${eCode}</span>
           </td>
           <td>
             <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-primary); font-size: 0.85rem;">
-              ${d.host}
+              ${eHost}
             </div>
           </td>
           <td>
@@ -2226,18 +2814,19 @@ const App = {
             </div>
           </td>
           <td>
-            <span class="temp-val-text ${valClass}">${d.temp.toFixed(1)}°C</span>
+            <span class="temp-val-text ${valClass}">${safeTemp.toFixed(1)}°C</span>
           </td>
           <td>
-            <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">${d.ip || '-'}</span>
+            <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">${eIp}</span>
           </td>
           <td style="font-size: 0.74rem; color: var(--text-muted);">
-            <div>${d.cpu && d.cpu !== '-' ? d.cpu.split('@')[0].trim() : '-'}</div>
-            ${d.ram && d.ram !== '-' ? `<span class="badge-pill" style="font-size: 0.65rem; margin-top: 2px; display: inline-block;">RAM: ${d.ram}</span>` : ''}
+            <div>${eCpu}</div>
+            ${eRam ? `<span class="badge-pill" style="font-size: 0.65rem; margin-top: 2px; display: inline-block;">RAM: ${eRam}</span>` : ''}
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
@@ -2584,8 +3173,12 @@ const App = {
     const totalBarLoc = barLocData.reduce((a, b) => a + b, 0) || 1;
 
     // Prevent redundant chart destroy/re-animate if datasets & theme are identical
+    const reducedMotion = Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const animOpt = reducedMotion ? false : undefined;
+
     const renderSig = JSON.stringify({
       isDark: tc.isDark,
+      reducedMotion,
       statusCounts,
       prioCounts,
       catDonutLabels,
@@ -2627,6 +3220,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           responsive: true,
           maintainAspectRatio: false,
           cutout: '68%',
@@ -2657,6 +3251,10 @@ const App = {
           }
         }
       });
+      const capStatus = document.getElementById('captionChartDashStatus');
+      if (capStatus) {
+        capStatus.textContent = `Distribusi status tiket 1 bulan: Closed ${statusCounts.Closed.toLocaleString()}, Processing assigned ${statusCounts.ProcessingAssigned.toLocaleString()}, Processing planned ${statusCounts.ProcessingPlanned.toLocaleString()}, Baru & Pending ${statusCounts['Baru / Pending'].toLocaleString()}, Solved ${statusCounts.Solved.toLocaleString()}.`;
+      }
     }
 
     // 2. Chart Donut Priority (Bagan 2 - Tengah)
@@ -2683,6 +3281,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           responsive: true,
           maintainAspectRatio: false,
           cutout: '68%',
@@ -2713,6 +3312,10 @@ const App = {
           }
         }
       });
+      const capPrio = document.getElementById('captionChartDashPriority');
+      if (capPrio) {
+        capPrio.textContent = `Distribusi prioritas tiket 1 bulan: P0 Kritis ${prioCounts.P0.toLocaleString()}, P1 Tinggi ${prioCounts.P1.toLocaleString()}, P2 Sedang ${prioCounts.P2.toLocaleString()}, P3 Rendah ${prioCounts.P3.toLocaleString()}, P4 Sangat Rendah ${prioCounts.P4.toLocaleString()}.`;
+      }
     }
 
     // 3. Chart Donut Category (Bagan 3 - Paling Kanan untuk Kategori)
@@ -2742,6 +3345,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           responsive: true,
           maintainAspectRatio: false,
           cutout: '68%',
@@ -2772,6 +3376,10 @@ const App = {
           }
         }
       });
+      const capCatDonut = document.getElementById('captionChartDashCatDonut');
+      if (capCatDonut) {
+        capCatDonut.textContent = `Distribusi kategori masalah 1 bulan: ${catDonutLabels.map((l, i) => `${l} (${(catDonutData[i] || 0).toLocaleString()})`).join(', ')}.`;
+      }
     }
 
     // 3. Chart Daily Trend (Line / Area)
@@ -2805,6 +3413,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
@@ -2839,6 +3448,11 @@ const App = {
           }
         }
       });
+      const capTrend = document.getElementById('captionChartDashDailyTrend');
+      if (capTrend) {
+        const sumTrend = trendDataPoints.reduce((a, b) => a + b, 0);
+        capTrend.textContent = `Tren tiket harian dalam ${trendLabels.length} hari tercatat, total ${sumTrend.toLocaleString()} tiket masuk.`;
+      }
     }
 
     // 4. Chart Top 8 Categories (Horizontal Bar)
@@ -2859,6 +3473,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
@@ -2887,6 +3502,10 @@ const App = {
           }
         }
       });
+      const capCats = document.getElementById('captionChartDashCategories');
+      if (capCats) {
+        capCats.textContent = `Top 8 kategori tiket: ${barCatLabels.map((l, i) => `${l} (${(barCatData[i] || 0).toLocaleString()})`).join(', ')}.`;
+      }
     }
 
     // 5. Chart Top 8 Hotspot Locations (Horizontal Bar)
@@ -2907,6 +3526,7 @@ const App = {
           }]
         },
         options: {
+          animation: animOpt,
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
@@ -2935,6 +3555,10 @@ const App = {
           }
         }
       });
+      const capLocs = document.getElementById('captionChartDashLocations');
+      if (capLocs) {
+        capLocs.textContent = `Top 8 lokasi dengan tiket terbanyak: ${barLocLabels.map((l, i) => `${l} (${(barLocData[i] || 0).toLocaleString()})`).join(', ')}.`;
+      }
     }
 
     this.setChartOverlay('hidden');
@@ -2950,13 +3574,13 @@ const App = {
 
     if (!t1m || !t1m.length) {
       this._lastCritTableSig = 'empty';
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr>
           <td colspan="10" style="text-align: center; padding: 2rem; color: var(--text-muted);">
             Tidak ada tiket pada 30 hari terakhir.
           </td>
         </tr>
-      `;
+      `);
       return;
     }
 
@@ -2971,28 +3595,28 @@ const App = {
       const wa = priorityWeight[(a.priority || '').toUpperCase()] || 0;
       const wb = priorityWeight[(b.priority || '').toUpperCase()] || 0;
       if (wb !== wa) return wb - wa; // Higher priority first
-      return (b.open_date || '').localeCompare(a.open_date || '');
+      return String(b.open_date || '').localeCompare(String(a.open_date || ''));
     }).slice(0, 15);
 
     if (criticalList.length === 0) {
       this._lastCritTableSig = 'none';
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr>
           <td colspan="10" style="text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600;">
             ✅ Tidak ada tiket kendala kritis P0/P1 yang aktif dalam 30 hari terakhir. Semua terkendali!
           </td>
         </tr>
-      `;
+      `);
       return;
     }
 
     const critSig = criticalList.map(d => `${d.id}:${d.status}:${d.priority}:${d.last_update}`).join('|');
-    if (this._lastCritTableSig === critSig && tbody.innerHTML && !tbody.innerHTML.includes('table-loading-row')) {
+    if (this._lastCritTableSig === critSig && tbody.children.length > 0 && !tbody.querySelector('.table-loading-row')) {
       return;
     }
     this._lastCritTableSig = critSig;
 
-    tbody.innerHTML = criticalList.map((d, index) => {
+    const rowsHtml = criticalList.map((d, index) => {
       if (!d.product || d.product === 'Uncategorized') {
         const parsed = this.parseTicketCategory(d.cat_full, d.cat);
         d.product = parsed.product;
@@ -3028,19 +3652,34 @@ const App = {
         statusLabel = 'Pending';
       }
 
-      const p = (d.priority || 'P2').toLowerCase();
-      const prioClass = `ticket-prio-${p}`;
-      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${d.id}`;
+      const pRaw = d.priority || 'P2';
+      const pLower = pRaw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      const prioClass = `ticket-prio-${pLower}`;
+      const idEnc = encodeURIComponent(String(d.id ?? ''));
+      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${idEnc}`;
+
+      const eId = this.escapeHtml(d.id);
+      const eOpenDate = this.escapeHtml(d.open_date || '-');
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eSource = this.escapeHtml(d.source || '');
+      const eTitle = this.escapeHtml(d.title || '-');
+      const eDesc = this.escapeHtml(d.desc || '');
+      const eStatus = this.escapeHtml(statusLabel);
+      const ePrio = this.escapeHtml(pRaw);
+      const eTech = this.escapeHtml(d.tech || '-');
+      const eReq = this.escapeHtml(d.req || '');
+      const eCatFull = this.escapeHtml(d.cat_full || d.cat_issue || d.cat || '-');
+      const eCatShort = this.escapeHtml(d.cat_issue || d.cat || '-');
 
       return `
-        <tr class="ticket-clickable-row" data-ticket-id="${d.id}" title="Klik untuk membuka rincian kendala tiket #${d.id}">
+        <tr class="ticket-clickable-row" tabindex="0" role="button" aria-label="Buka rincian kendala tiket #${eId}" data-ticket-id="${eId}" title="Klik untuk membuka rincian kendala tiket #${eId}">
           <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
             ${index + 1}
           </td>
           <td>
-            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI" onclick="event.stopPropagation();">
-              #${d.id}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${eId} di GLPI">
+              #${eId}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                 <polyline points="15 3 21 3 21 9"></polyline>
                 <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -3048,75 +3687,109 @@ const App = {
             </a>
           </td>
           <td style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; font-family: var(--font-mono);">
-            ${d.open_date || '-'}
+            ${eOpenDate}
           </td>
           <td class="ticket-loc-cell">
-            <div class="ticket-loc-title" title="${this.escapeHtml(d.loc)}">${this.escapeHtml(d.loc)}</div>
-            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${this.escapeHtml(d.source)}</span>` : ''}
+            <div class="ticket-loc-title" title="${eLoc}">${eLoc}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${eSource}</span>` : ''}
           </td>
-          <td class="ticket-title-cell" data-ticket-id="${d.id}">
-            <div class="ticket-title-text" title="${this.escapeHtml(d.title)}">${this.escapeHtml(d.title)}</div>
-            ${d.desc ? `<div class="ticket-desc-snippet" title="${this.escapeHtml(d.desc)}">${this.escapeHtml(d.desc)}</div>` : ''}
+          <td class="ticket-title-cell" data-ticket-id="${eId}">
+            <div class="ticket-title-text" title="${eTitle}">${eTitle}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${eDesc}">${eDesc}</div>` : ''}
             <div class="ticket-open-hint">
               <span>👁️ Detail Kendala</span>
             </div>
           </td>
           <td>
             <span class="ticket-status-pill ${statusClass}">
-              <span>${statusIcon}</span>
-              <span>${statusLabel}</span>
+              <span aria-hidden="true">${statusIcon}</span>
+              <span>${eStatus}</span>
             </span>
           </td>
           <td style="text-align: center;">
-            <span class="ticket-prio-badge ${prioClass}">${d.priority}</span>
+            <span class="ticket-prio-badge ${prioClass}">${ePrio}</span>
           </td>
           <td style="font-size: 0.78rem; color: var(--text-main);">
-            <div>${d.tech || '-'}</div>
-            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
+            <div>${eTech}</div>
+            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${eReq}</div>` : ''}
           </td>
           <td style="font-size: 0.76rem;">
             ${this.renderProductPill(d.product)}
           </td>
           <td style="font-size: 0.74rem; color: var(--text-secondary);">
-            <span class="badge-category-tag" title="${this.escapeHtml(d.cat_full || d.cat_issue || d.cat || '-')}">
-              ${this.escapeHtml(d.cat_issue || d.cat || '-')}
+            <span class="badge-category-tag" title="${eCatFull}">
+              ${eCatShort}
             </span>
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
   },
 
   // =========================================================================
   // MODULE 6: TICKETING (GLPI 3 BULAN TERAKHIR)
   // =========================================================================
+  parseWibMs(dateStr) {
+    if (!dateStr) return NaN;
+    const raw = String(dateStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+      return Date.parse(raw.replace(' ', 'T') + '+07:00');
+    }
+    return Date.parse(raw.replace(' ', 'T'));
+  },
+
+  normalizeTicketItem(t) {
+    if (!t.product || t.product === 'Uncategorized') {
+      const parsed = this.parseTicketCategory(t.cat_full, t.cat);
+      t.product = parsed.product;
+      t.cat_issue = parsed.cat_issue;
+      t.sub_issue = parsed.sub_issue;
+    }
+    if (t.dur_solving === undefined) {
+      let dur = '0:00:00';
+      let durSec = 0;
+      if (t.open_date && t.resolve_date) {
+        const d1 = this.parseWibMs(t.open_date);
+        const d2 = this.parseWibMs(t.resolve_date);
+        const diff = Math.floor((d2 - d1) / 1000);
+        if (diff > 0) {
+          durSec = diff;
+          const h = Math.floor(diff / 3600);
+          const m = Math.floor((diff % 3600) / 60);
+          const s = diff % 60;
+          dur = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+      }
+      t.dur_solving = dur;
+      t.dur_seconds = durSec;
+    }
+  },
+
   normalizeTicketList(tickets) {
     if (!Array.isArray(tickets)) return;
     for (let i = 0; i < tickets.length; i++) {
-      const t = tickets[i];
-      if (!t.product || t.product === 'Uncategorized') {
-        const parsed = this.parseTicketCategory(t.cat_full, t.cat);
-        t.product = parsed.product;
-        t.cat_issue = parsed.cat_issue;
-        t.sub_issue = parsed.sub_issue;
+      this.normalizeTicketItem(tickets[i]);
+    }
+  },
+
+  async normalizeTicketListChunked(tickets) {
+    if (!Array.isArray(tickets)) return;
+    if (tickets.length <= 500) {
+      this.normalizeTicketList(tickets);
+      return;
+    }
+    const yieldMain = () => {
+      if (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function') {
+        return scheduler.yield();
       }
-      if (t.dur_solving === undefined) {
-        let dur = '0:00:00';
-        let durSec = 0;
-        if (t.open_date && t.resolve_date) {
-          const d1 = Date.parse(t.open_date.replace(' ', 'T'));
-          const d2 = Date.parse(t.resolve_date.replace(' ', 'T'));
-          const diff = Math.floor((d2 - d1) / 1000);
-          if (diff > 0) {
-            durSec = diff;
-            const h = Math.floor(diff / 3600);
-            const m = Math.floor((diff % 3600) / 60);
-            const s = diff % 60;
-            dur = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          }
-        }
-        t.dur_solving = dur;
-        t.dur_seconds = durSec;
+      return new Promise(resolve => setTimeout(resolve, 0));
+    };
+    const CHUNK = 1500;
+    for (let i = 0; i < tickets.length; i++) {
+      this.normalizeTicketItem(tickets[i]);
+      if (i > 0 && i % CHUNK === 0) {
+        await yieldMain();
       }
     }
   },
@@ -3168,10 +3841,11 @@ const App = {
     if (this.dataStatus.ticketsFull !== 'ready') this.setDataStatus('ticketsFull', 'loading');
     try {
       const url = forceRefresh ? './data/tickets.json?_t=' + Date.now() : './data/tickets.json';
-      const res = await fetch(url);
+      const fetchOpts = forceRefresh ? {} : { priority: 'low' };
+      const res = await fetch(url, fetchOpts);
       if (res.ok) {
         const data = await res.json();
-        if (data && data.tickets) this.normalizeTicketList(data.tickets);
+        if (data && data.tickets) await this.normalizeTicketListChunked(data.tickets);
         if (data && !data.stats_1m && this.ticketingData && this.ticketingData.stats_1m) {
           data.stats_1m = this.ticketingData.stats_1m;
         }
@@ -3221,16 +3895,16 @@ const App = {
       rangeSubLabel = '30 Hari Terakhir';
       topBarDateLabel = '30 Hari Terakhir';
     } else if (preset === 'this_month') {
-      const now = new Date();
+      const nowWib = this.getWibParts();
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const curMonth = monthNames[now.getMonth()];
+      const curMonth = monthNames[nowWib.month - 1];
       rangeTitleShort = `Bulan Ini - ${curMonth}`;
       rangeSubLabel = `1 ${curMonth} - Sekarang`;
       topBarDateLabel = `Bulan Ini (${curMonth})`;
     } else if (preset === 'last_month') {
-      const now = new Date();
+      const nowWib = this.getWibParts();
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const prevMonth = monthNames[(now.getMonth() - 1 + 12) % 12];
+      const prevMonth = monthNames[(nowWib.month - 2 + 12) % 12];
       rangeTitleShort = `Bulan Lalu - ${prevMonth}`;
       rangeSubLabel = `Bulan ${prevMonth}`;
       topBarDateLabel = `Bulan Lalu (${prevMonth})`;
@@ -3254,8 +3928,8 @@ const App = {
       topBarDateLabel = '3 Bulan Terakhir';
     }
 
-    // 2. Filter tickets strictly according to ALL active filters (Status, Product, Category, Priority, Date, Search)
-    const scopeTickets = customList || this.getFilteredTickets();
+    // 2. Filter tickets according to base scope (Date, Product, Category, Search) so sibling KPI cards retain their counts
+    const scopeTickets = customList || this.getFilteredTickets({ ignoreStatusFilter: true });
     const total = scopeTickets.length;
     const allTotal = (this.ticketingData && this.ticketingData.tickets) ? this.ticketingData.tickets.length : (m.total || 9039);
 
@@ -3448,9 +4122,26 @@ const App = {
     }
   },
 
-  setTicketStatusFilter(filterVal) {
-    this.ticketingState.filter = filterVal;
+  setTicketStatusFilter(filterVal, fromKpiCard = false) {
+    let nextFilter = filterVal || 'all';
+    if (fromKpiCard && nextFilter !== 'all' && this.ticketingState.filter === nextFilter) {
+      nextFilter = 'all';
+    }
+    this.ticketingState.filter = nextFilter;
     this.ticketingState.page = 1;
+
+    if (nextFilter === 'Critical') {
+      this.ticketingState.priority = 'all';
+      const prioSel = document.getElementById('ticketPriorityFilter');
+      if (prioSel) prioSel.value = 'all';
+    }
+
+    this.syncTicketFilterUI();
+    this.renderTicketingTable();
+  },
+
+  syncTicketFilterUI() {
+    const filterVal = this.ticketingState.filter || 'all';
 
     // Update pill buttons
     document.querySelectorAll('.filter-pill[data-ticket-filter]').forEach(b => {
@@ -3460,20 +4151,21 @@ const App = {
     // Update status select dropdown
     const statusSel = document.getElementById('ticketStatusFilter');
     if (statusSel) {
-      statusSel.value = (filterVal === 'Critical') ? 'all' : filterVal;
+      const validOpts = Array.from(statusSel.options).map(o => o.value);
+      statusSel.value = validOpts.includes(filterVal) ? filterVal : 'all';
     }
 
-    this.renderTicketingTable();
-  },
-
-  escapeHtml(str) {
-    if (str === null || str === undefined || str === '') return '-';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    // Update KPI cards active state
+    document.querySelectorAll('[data-ticket-kpi]').forEach(card => {
+      const kpi = card.dataset.ticketKpi;
+      const isActive =
+        (kpi === filterVal) ||
+        (kpi === 'Processing' && filterVal.toLowerCase().includes('process')) ||
+        (kpi === 'Resolved' && (filterVal === 'Closed' || filterVal === 'Solved' || filterVal === 'Resolved')) ||
+        (kpi === 'New' && (filterVal === 'New' || filterVal === 'Pending'));
+      card.classList.toggle('kpi-active-filter', isActive);
+      card.setAttribute('aria-pressed', String(isActive));
+    });
   },
 
   // Parse category hierarchy into Product, Kategori Issue, and Sub Issue
@@ -3536,10 +4228,11 @@ const App = {
     let html = `<option value="all">Semua Produk (${this.ticketingData.tickets.length.toLocaleString()})</option>`;
     sortedProds.forEach(([prodName, count]) => {
       const selected = (prodName === curVal) ? 'selected' : '';
-      html += `<option value="${prodName}" ${selected}>${prodName} (${count.toLocaleString()})</option>`;
+      const eProd = this.escapeHtml(prodName);
+      html += `<option value="${eProd}" ${selected}>${eProd} (${count.toLocaleString()})</option>`;
     });
 
-    select.innerHTML = html;
+    this.setHtml(select, html);
   },
 
   populateCategoryDropdown() {
@@ -3552,17 +4245,13 @@ const App = {
     // Requirement: "di bagian filter juga nanti pilih produk dulu baru ada dropdown ya"
     if (!selectedProd || selectedProd === 'all') {
       select.disabled = true;
-      select.style.opacity = '0.55';
-      select.style.cursor = 'not-allowed';
-      select.innerHTML = '<option value="all">-- Pilih Produk Dahulu --</option>';
+      this.setHtml(select, '<option value="all">-- Pilih Produk Dahulu --</option>');
       this.ticketingState.category = 'all';
       return;
     }
 
     // A specific product is selected! Enable and populate its specific category issues
     select.disabled = false;
-    select.style.opacity = '1';
-    select.style.cursor = 'default';
 
     const catCounts = {};
     const relevantTickets = this.ticketingData.tickets.filter(t =>
@@ -3576,16 +4265,17 @@ const App = {
 
     const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
 
-    let html = `<option value="all">Semua Kategori (${selectedProd})</option>`;
+    let html = `<option value="all">Semua Kategori (${this.escapeHtml(selectedProd)})</option>`;
     sortedCats.forEach(([catName, count]) => {
       const selected = (catName === curVal) ? 'selected' : '';
-      html += `<option value="${catName}" ${selected}>${catName} (${count.toLocaleString()})</option>`;
+      const eCat = this.escapeHtml(catName);
+      html += `<option value="${eCat}" ${selected}>${eCat} (${count.toLocaleString()})</option>`;
     });
 
-    select.innerHTML = html;
+    this.setHtml(select, html);
   },
 
-  getFilteredTickets() {
+  getFilteredTickets(opts = {}) {
     if (!this.ticketingData || !this.ticketingData.tickets) return [];
     let list = [...this.ticketingData.tickets];
 
@@ -3605,7 +4295,7 @@ const App = {
     }
 
     // 2. Status Pill / Dropdown Filter
-    if (this.ticketingState.filter !== 'all') {
+    if (!opts.ignoreStatusFilter && this.ticketingState.filter !== 'all') {
       const f = this.ticketingState.filter.toLowerCase();
       if (f.includes('planned')) {
         list = list.filter(t => (t.status_raw || '').toLowerCase().includes('planned') || (t.status || '').toLowerCase().includes('planned'));
@@ -3642,7 +4332,7 @@ const App = {
     }
 
     // 5. Priority Dropdown Filter
-    if (this.ticketingState.priority !== 'all') {
+    if (!opts.ignoreStatusFilter && this.ticketingState.priority !== 'all') {
       list = list.filter(t => t.priority === this.ticketingState.priority);
     }
 
@@ -3664,22 +4354,24 @@ const App = {
     if (!tbody) return;
     if (this.guardTable(tbody)) return;
 
+    this.syncTicketFilterUI();
+
     if (!this.ticketingData || !this.ticketingData.tickets) {
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr>
           <td colspan="11" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-            <div style="font-size: 1.2rem; margin-bottom: 6px;">⏳</div>
+            <div style="font-size: 1.2rem; margin-bottom: 6px;" aria-hidden="true">⏳</div>
             Memuat data tiket dari GLPI (parkee-ticket.nusa.technology)...
           </td>
         </tr>
-      `;
+      `);
       return;
     }
 
     let list = this.getFilteredTickets();
 
-    // Dynamically update Top KPI Cards based on active date range & scoped filters
-    this.renderTicketingKPIs(list);
+    // Dynamically update Top KPI Cards based on active date range & product/category/search scope
+    this.renderTicketingKPIs();
 
     // Update Result Count Label
     const resCountLabel = document.getElementById('ticketResultCountLabel');
@@ -3710,29 +4402,28 @@ const App = {
       if (col === 'product') {
         va = (a.product || 'Uncategorized').toLowerCase();
         vb = (b.product || 'Uncategorized').toLowerCase();
-        return va.localeCompare(vb) * dir;
+        return (this._collator ? this._collator.compare(va, vb) : va.localeCompare(vb)) * dir;
       }
       if (col === 'cat_issue' || col === 'category') {
         va = (a.cat_issue || 'Uncategorized').toLowerCase();
         vb = (b.cat_issue || 'Uncategorized').toLowerCase();
-        return va.localeCompare(vb) * dir;
+        return (this._collator ? this._collator.compare(va, vb) : va.localeCompare(vb)) * dir;
       }
 
       va = (va || '').toString().toLowerCase();
       vb = (vb || '').toString().toLowerCase();
-      return va.localeCompare(vb) * dir;
+      return (this._collator ? this._collator.compare(va, vb) : va.localeCompare(vb)) * dir;
     });
 
-    // Update Sorting arrows in table headers
+    // Update Sorting arrows & aria-sort in table headers (preserve <button class="th-sort-btn">)
     document.querySelectorAll('#ticketTable th.sortable[data-ticket-sort]').forEach(th => {
       const c = th.dataset.ticketSort;
-      let label = th.textContent.replace(/[⇅▲▼]/g, '').trim();
-      if (c === this.ticketingState.sortCol) {
-        th.textContent = `${label} ${this.ticketingState.sortDir === 'asc' ? '▲' : '▼'}`;
-        th.style.color = 'var(--accent-primary)';
-      } else {
-        th.textContent = `${label} ⇅`;
-        th.style.color = '';
+      const isSorted = c === this.ticketingState.sortCol;
+      th.setAttribute('aria-sort', isSorted ? (this.ticketingState.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+      th.style.color = isSorted ? 'var(--accent-primary)' : '';
+      const icon = th.querySelector('.sort-icon');
+      if (icon) {
+        icon.textContent = isSorted ? (this.ticketingState.sortDir === 'asc' ? '▲' : '▼') : '⇅';
       }
     });
 
@@ -3765,17 +4456,17 @@ const App = {
     if (nextBtn) nextBtn.disabled = this.ticketingState.page >= totalPages;
 
     if (paginated.length === 0) {
-      tbody.innerHTML = `
+      this.setHtml(tbody, `
         <tr>
-          <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
+          <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.85rem;">
             Tidak ada tiket kendala yang cocok dengan kriteria pencarian / filter saat ini.
           </td>
         </tr>
-      `;
+      `);
       return;
     }
 
-    tbody.innerHTML = paginated.map((d, index) => {
+    const rowsHtml = paginated.map((d, index) => {
       const rowNo = start + index + 1;
 
       // Status pill
@@ -3808,20 +4499,37 @@ const App = {
       }
 
       // Priority badge
-      const p = (d.priority || 'P2').toLowerCase();
-      const prioClass = `ticket-prio-${p}`;
+      const pRaw = d.priority || 'P2';
+      const pLower = pRaw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      const prioClass = `ticket-prio-${pLower}`;
 
-      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${d.id}`;
+      const idEnc = encodeURIComponent(String(d.id ?? ''));
+      const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${idEnc}`;
+
+      const eId = this.escapeHtml(d.id);
+      const eOpenDate = this.escapeHtml(d.open_date || '-');
+      const eResolveDate = this.escapeHtml(d.resolve_date || '-');
+      const eDur = this.escapeHtml(d.dur_solving || '0:00:00');
+      const eLoc = this.escapeHtml(d.loc || '-');
+      const eSource = this.escapeHtml(d.source || '');
+      const eTitle = this.escapeHtml(d.title || '-');
+      const eDesc = this.escapeHtml(d.desc || '');
+      const eStatus = this.escapeHtml(statusLabel);
+      const ePrio = this.escapeHtml(pRaw);
+      const eTech = this.escapeHtml(d.tech || '-');
+      const eReq = this.escapeHtml(d.req || '');
+      const eCatFull = this.escapeHtml(d.cat_full || d.cat_issue || '-');
+      const eCatShort = this.escapeHtml(d.cat_issue || 'Uncategorized');
 
       return `
-        <tr class="ticket-clickable-row" data-ticket-id="${d.id}" title="Klik untuk melihat rincian kendala tiket #${d.id}">
+        <tr class="ticket-clickable-row" tabindex="0" role="button" aria-label="Lihat rincian kendala tiket #${eId}" data-ticket-id="${eId}" title="Klik untuk melihat rincian kendala tiket #${eId}">
           <td style="text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
             ${rowNo}
           </td>
           <td>
-            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${d.id} di GLPI" onclick="event.stopPropagation();">
-              #${d.id}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <a href="${glpiUrl}" target="_blank" rel="noopener noreferrer" class="ticket-id-badge" title="Buka tiket #${eId} di GLPI">
+              #${eId}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                 <polyline points="15 3 21 3 21 9"></polyline>
                 <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -3829,48 +4537,49 @@ const App = {
             </a>
           </td>
           <td style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; font-family: var(--font-mono);">
-            ${d.open_date || '-'}
+            ${eOpenDate}
           </td>
           <td style="text-align: center; white-space: nowrap;">
-            <span class="badge-duration ${d.dur_seconds > 0 ? 'badge-duration-solved' : 'badge-duration-empty'}" title="Durasi Solving: Resolution Date (${d.resolve_date || '-'}) dikurangi Opening Date (${d.open_date || '-'})">
-              ⏱️ ${d.dur_solving || '0:00:00'}
+            <span class="badge-duration ${d.dur_seconds > 0 ? 'badge-duration-solved' : 'badge-duration-empty'}" title="Durasi Solving: Resolution Date (${eResolveDate}) dikurangi Opening Date (${eOpenDate})">
+              ⏱️ ${eDur}
             </span>
           </td>
           <td class="ticket-loc-cell">
-            <div class="ticket-loc-title" title="${this.escapeHtml(d.loc)}">${this.escapeHtml(d.loc)}</div>
-            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${this.escapeHtml(d.source)}</span>` : ''}
+            <div class="ticket-loc-title" title="${eLoc}">${eLoc}</div>
+            ${d.source && d.source !== '-' ? `<span class="version-code-tag" style="font-size: 0.65rem;">${eSource}</span>` : ''}
           </td>
-          <td class="ticket-title-cell" data-ticket-id="${d.id}">
-            <div class="ticket-title-text" title="${this.escapeHtml(d.title)}">${this.escapeHtml(d.title)}</div>
-            ${d.desc ? `<div class="ticket-desc-snippet" title="${this.escapeHtml(d.desc)}">${this.escapeHtml(d.desc)}</div>` : ''}
+          <td class="ticket-title-cell" data-ticket-id="${eId}">
+            <div class="ticket-title-text" title="${eTitle}">${eTitle}</div>
+            ${d.desc ? `<div class="ticket-desc-snippet" title="${eDesc}">${eDesc}</div>` : ''}
             <div class="ticket-open-hint">
               <span>👁️ Detail Kendala</span>
             </div>
           </td>
           <td>
             <span class="ticket-status-pill ${statusClass}">
-              <span>${statusIcon}</span>
-              <span>${statusLabel}</span>
+              <span aria-hidden="true">${statusIcon}</span>
+              <span>${eStatus}</span>
             </span>
           </td>
           <td style="text-align: center;">
-            <span class="ticket-prio-badge ${prioClass}">${d.priority}</span>
+            <span class="ticket-prio-badge ${prioClass}">${ePrio}</span>
           </td>
           <td style="font-size: 0.78rem; color: var(--text-main);">
-            <div>${d.tech || '-'}</div>
-            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${d.req}</div>` : ''}
+            <div>${eTech}</div>
+            ${d.req && d.req !== '-' ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Pelapor: ${eReq}</div>` : ''}
           </td>
           <td style="font-size: 0.76rem;">
             ${this.renderProductPill(d.product)}
           </td>
           <td style="font-size: 0.76rem;">
-            <span class="badge-category-tag" title="${this.escapeHtml(d.cat_full || d.cat_issue || '-')}">
-              ${this.escapeHtml(d.cat_issue || 'Uncategorized')}
+            <span class="badge-category-tag" title="${eCatFull}">
+              ${eCatShort}
             </span>
           </td>
         </tr>
       `;
     }).join('');
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
@@ -3913,19 +4622,21 @@ const App = {
     const statusPill = document.getElementById('modalTicketStatusPill');
     if (statusPill) {
       statusPill.className = `ticket-status-pill ${statusClass}`;
-      statusPill.innerHTML = `<span>${statusIcon}</span> <span>${ticket.status_raw || ticket.status || '-'}</span>`;
+      const eStLabel = this.escapeHtml(ticket.status_raw || ticket.status || '-');
+      this.setHtml(statusPill, `<span aria-hidden="true">${statusIcon}</span> <span>${eStLabel}</span>`);
     }
 
     // Priority badge
-    const p = (ticket.priority || 'P2').toLowerCase();
+    const pRaw = ticket.priority || 'P2';
+    const pLower = pRaw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const prioBadge = document.getElementById('modalTicketPrioBadge');
     if (prioBadge) {
-      prioBadge.className = `ticket-prio-badge ticket-prio-${p}`;
-      prioBadge.textContent = ticket.priority || 'P2';
+      prioBadge.className = `ticket-prio-badge ticket-prio-${pLower}`;
+      prioBadge.textContent = pRaw;
     }
 
     // GLPI Link
-    const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${ticket.id}`;
+    const glpiUrl = `https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${encodeURIComponent(String(ticket.id ?? ''))}`;
     const glpiLink = document.getElementById('modalTicketGlpiLink');
     if (glpiLink) glpiLink.href = glpiUrl;
 
@@ -3938,14 +4649,10 @@ const App = {
     // Body content
     const bodyEl = document.getElementById('modalTicketBody');
     if (bodyEl) {
-      const esc = (s) => (s === null || s === undefined || s === '' ? '-' : String(s))
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
+      const esc = (s) => (s === null || s === undefined || s === '') ? '-' : this.escapeHtml(s);
       const descContent = ticket.desc ? esc(ticket.desc) : esc(ticket.title);
 
-      bodyEl.innerHTML = `
+      this.setHtml(bodyEl, `
         <div class="ticket-detail-grid">
           <div class="ticket-detail-field">
             <span class="ticket-detail-label">📍 Lokasi Unit / Merchant</span>
@@ -3999,19 +4706,19 @@ const App = {
 
         <div class="ticket-detail-desc-card">
           <span class="ticket-detail-label" style="font-size: 0.72rem; color: var(--text-secondary);">
-            📋 Rincian Kendala & Deskripsi Lengkap:
+            📋 Rincian Kendala &amp; Deskripsi Lengkap:
           </span>
           <div class="ticket-detail-desc-box">${descContent}</div>
         </div>
-      `;
+      `);
     }
 
-    modal.classList.add('open');
+    this.openNativeModal(modal);
   },
 
   closeTicketDetailModal() {
     const modal = document.getElementById('ticketDetailModal');
-    if (modal) modal.classList.remove('open');
+    this.closeNativeModal(modal);
     this._activeModalTicket = null;
   },
 
@@ -4164,7 +4871,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.serverState.filter = btn.dataset.serverFilter;
+        const nextFilter = btn.dataset.serverFilter;
+        this.serverState.filter = nextFilter;
+        if (nextFilter === 'overheat') {
+          this.serverState.tempRange = 'all';
+          if (serverTempFilter) serverTempFilter.value = 'all';
+        } else if (nextFilter === 'low_ssd') {
+          this.serverState.healthRange = 'all';
+          if (serverHealthFilter) serverHealthFilter.value = 'all';
+        } else if (nextFilter === 'full_storage') {
+          this.serverState.usageRange = 'all';
+          if (serverUsageFilter) serverUsageFilter.value = 'all';
+        }
         this.serverState.page = 1;
         this.renderServersTable();
       });
@@ -4239,6 +4957,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (serverTempFilter) {
       serverTempFilter.addEventListener('change', (e) => {
         this.serverState.tempRange = e.target.value;
+        if (e.target.value !== 'all' && this.serverState.filter === 'overheat') {
+          this.serverState.filter = 'all';
+          document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => {
+            b.classList.toggle('active', b.dataset.serverFilter === 'all');
+          });
+        }
         this.serverState.page = 1;
         this.renderServersTable();
       });
@@ -4248,6 +4972,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (serverHealthFilter) {
       serverHealthFilter.addEventListener('change', (e) => {
         this.serverState.healthRange = e.target.value;
+        if (e.target.value !== 'all' && this.serverState.filter === 'low_ssd') {
+          this.serverState.filter = 'all';
+          document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => {
+            b.classList.toggle('active', b.dataset.serverFilter === 'all');
+          });
+        }
         this.serverState.page = 1;
         this.renderServersTable();
       });
@@ -4257,6 +4987,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (serverUsageFilter) {
       serverUsageFilter.addEventListener('change', (e) => {
         this.serverState.usageRange = e.target.value;
+        if (e.target.value !== 'all' && this.serverState.filter === 'full_storage') {
+          this.serverState.filter = 'all';
+          document.querySelectorAll('.filter-pill[data-server-filter]').forEach(b => {
+            b.classList.toggle('active', b.dataset.serverFilter === 'all');
+          });
+        }
         this.serverState.page = 1;
         this.renderServersTable();
       });
@@ -4273,6 +5009,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         this.serverState.ram = 'all';
         this.serverState.ssdType = 'all';
         this.serverState.ssdBrand = 'all';
+        this.serverState.ssdSize = 'all';
         this.serverState.tempRange = 'all';
         this.serverState.healthRange = 'all';
         this.serverState.usageRange = 'all';
@@ -4337,27 +5074,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.allClientsState.filter = btn.dataset.clientFilter;
-        // Sync dropdown if reader pill is selected
-        if (btn.dataset.clientFilter === 'reader') {
+        // Sync dropdown if reader or temp pill is selected
+        if (btn.dataset.clientFilter === 'reader' || btn.dataset.clientFilter === 'no_reader') {
           this.allClientsState.readerStatus = 'all';
           if (clientReaderFilter) clientReaderFilter.value = 'all';
-        } else if (btn.dataset.clientFilter === 'no_reader') {
-          this.allClientsState.readerStatus = 'all';
-          if (clientReaderFilter) clientReaderFilter.value = 'all';
+        } else if (btn.dataset.clientFilter === 'warm' || btn.dataset.clientFilter === 'hot') {
+          this.allClientsState.tempRange = 'all';
+          if (clientTempFilter) clientTempFilter.value = 'all';
         }
         this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
       });
     });
-
-    const clientRoleFilter = document.getElementById('clientRoleFilter');
-    if (clientRoleFilter) {
-      clientRoleFilter.addEventListener('change', (e) => {
-        this.allClientsState.role = e.target.value;
-        this.allClientsState.page = 1;
-        this.renderAllClientsNationwideTable();
-      });
-    }
 
     const clientReaderFilter = document.getElementById('clientReaderFilter');
     if (clientReaderFilter) {
@@ -4396,6 +5124,12 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (clientTempFilter) {
       clientTempFilter.addEventListener('change', (e) => {
         this.allClientsState.tempRange = e.target.value;
+        if (e.target.value !== 'all' && (this.allClientsState.filter === 'warm' || this.allClientsState.filter === 'hot')) {
+          this.allClientsState.filter = 'all';
+          document.querySelectorAll('.filter-pill[data-client-filter]').forEach(b => {
+            b.classList.toggle('active', b.dataset.clientFilter === 'all');
+          });
+        }
         this.allClientsState.page = 1;
         this.renderAllClientsNationwideTable();
       });
@@ -4415,7 +5149,6 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       allClientsResetBtn.addEventListener('click', () => {
         this.allClientsState.search = '';
         this.allClientsState.filter = 'all';
-        this.allClientsState.role = 'all';
         this.allClientsState.readerStatus = 'all';
         this.allClientsState.readerVer = 'all';
         this.allClientsState.cpu = 'all';
@@ -4423,7 +5156,6 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         this.allClientsState.page = 1;
 
         if (allClientsSearch) allClientsSearch.value = '';
-        if (clientRoleFilter) clientRoleFilter.value = 'all';
         if (clientReaderFilter) clientReaderFilter.value = 'all';
         if (clientReaderVerFilter) clientReaderVerFilter.value = 'all';
         if (clientCpuFilter) clientCpuFilter.value = 'all';
@@ -4515,63 +5247,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const exportClients = document.getElementById('exportAllClientsBtn');
     if (exportClients) {
       exportClients.addEventListener('click', () => {
-        const clients = this.fleet.filter(d => !d.is_server);
-        this.exportCsv(clients, 'parkee_all_clients.csv');
-      });
-    }
-
-    // Sisi Kanan: Location Accordions
-    const pickerSearch = document.getElementById('pickerSearchInput');
-    if (pickerSearch) {
-      pickerSearch.addEventListener('input', this.debounce((e) => {
-        this.pickerState.search = e.target.value;
-        this.renderClientLocationAccordions();
-      }, 180));
-    }
-
-    document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.pickerState.tier = btn.dataset.pickerTier;
-        this.renderClientLocationAccordions();
-      });
-    });
-
-    const pickerReaderFilter = document.getElementById('pickerReaderFilter');
-    if (pickerReaderFilter) {
-      pickerReaderFilter.addEventListener('change', (e) => {
-        this.pickerState.reader = e.target.value;
-        this.renderClientLocationAccordions();
-      });
-    }
-
-    const pickerConditionFilter = document.getElementById('pickerConditionFilter');
-    if (pickerConditionFilter) {
-      pickerConditionFilter.addEventListener('change', (e) => {
-        this.pickerState.condition = e.target.value;
-        this.renderClientLocationAccordions();
-      });
-    }
-
-    const pickerResetBtn = document.getElementById('pickerResetFiltersBtn');
-    if (pickerResetBtn) {
-      pickerResetBtn.addEventListener('click', () => {
-        this.pickerState.search = '';
-        this.pickerState.tier = 'all';
-        this.pickerState.reader = 'all';
-        this.pickerState.condition = 'all';
-
-        if (pickerSearch) pickerSearch.value = '';
-        if (pickerReaderFilter) pickerReaderFilter.value = 'all';
-        if (pickerConditionFilter) pickerConditionFilter.value = 'all';
-
-        document.querySelectorAll('.filter-pill[data-picker-tier]').forEach(b => {
-          b.classList.toggle('active', b.dataset.pickerTier === 'all');
-        });
-
-        this.renderClientLocationAccordions();
-        this.showToast('Filter Dropdown Lokasi berhasil direset', 'info');
+        const filteredClients = this.getFilteredClients();
+        this.exportCsv(filteredClients, `parkee_all_clients_${filteredClients.length}.csv`);
       });
     }
 
@@ -4598,11 +5275,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
     document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-pill[data-storage-filter]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.storageState.filter = btn.dataset.storageFilter;
-        this.storageState.page = 1;
-        this.renderStorageTable();
+        this.setStorageQuickFilter(btn.dataset.storageFilter, false);
+      });
+    });
+
+    document.querySelectorAll('[data-storage-kpi]').forEach(card => {
+      card.addEventListener('click', () => {
+        this.setStorageQuickFilter(card.dataset.storageKpi, true);
       });
     });
 
@@ -4610,6 +5289,9 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (storageTypeFilter) {
       storageTypeFilter.addEventListener('change', (e) => {
         this.storageState.type = e.target.value;
+        if (e.target.value !== 'all' && (this.storageState.filter === 'nvme' || this.storageState.filter === 'sata')) {
+          this.storageState.filter = 'all';
+        }
         this.storageState.page = 1;
         this.renderStorageTable();
       });
@@ -4637,6 +5319,9 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (storageHealthFilter) {
       storageHealthFilter.addEventListener('change', (e) => {
         this.storageState.healthRange = e.target.value;
+        if (e.target.value !== 'all' && this.storageState.filter === 'critical_health') {
+          this.storageState.filter = 'all';
+        }
         this.storageState.page = 1;
         this.renderStorageTable();
       });
@@ -4646,6 +5331,9 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (storageUsageFilter) {
       storageUsageFilter.addEventListener('change', (e) => {
         this.storageState.usageRange = e.target.value;
+        if (e.target.value !== 'all' && this.storageState.filter === 'critical_usage') {
+          this.storageState.filter = 'all';
+        }
         this.storageState.page = 1;
         this.renderStorageTable();
       });
@@ -4708,20 +5396,29 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
-    // CSV Exports
+    // CSV Exports (respecting active filters)
     const exportLocs = document.getElementById('exportLocsCsvBtn');
     if (exportLocs) {
-      exportLocs.addEventListener('click', () => this.exportCsv(this.locations, 'parkee_location_information.csv'));
+      exportLocs.addEventListener('click', () => {
+        const list = this.getFilteredLocations();
+        this.exportCsv(list, `parkee_location_information_${list.length}.csv`);
+      });
     }
 
     const exportServers = document.getElementById('exportServersCsvBtn');
     if (exportServers) {
-      exportServers.addEventListener('click', () => this.exportCsv(this.servers, 'parkee_server_specifications.csv'));
+      exportServers.addEventListener('click', () => {
+        const list = this.getFilteredServers();
+        this.exportCsv(list, `parkee_server_specifications_${list.length}.csv`);
+      });
     }
 
     const exportStorage = document.getElementById('exportStorageCsvBtn');
     if (exportStorage) {
-      exportStorage.addEventListener('click', () => this.exportCsv(this.servers, 'parkee_server_storage.csv'));
+      exportStorage.addEventListener('click', () => {
+        const list = this.getFilteredStorageServers();
+        this.exportCsv(list, `parkee_server_storage_${list.length}.csv`);
+      });
     }
 
     // -----------------------------------------------------------------------
@@ -4738,11 +5435,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
     document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-pill[data-temp-filter]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.temperatureState.filter = btn.dataset.tempFilter;
-        this.temperatureState.page = 1;
-        this.renderTemperatureTable();
+        this.setTemperatureFilter(btn.dataset.tempFilter, false);
+      });
+    });
+
+    document.querySelectorAll('[data-temp-kpi]').forEach(card => {
+      card.addEventListener('click', () => {
+        this.setTemperatureFilter(card.dataset.tempKpi, true);
       });
     });
 
@@ -4791,9 +5490,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const exportTemp = document.getElementById('exportTempBtn');
     if (exportTemp) {
       exportTemp.addEventListener('click', () => {
-        if (this.temperatureData && this.temperatureData.servers) {
-          this.exportCsv(this.temperatureData.servers, 'parkee_temperature_servers.csv');
-        }
+        const list = this.getFilteredTemperatureServers();
+        this.exportCsv(list, `parkee_temperature_servers_${list.length}.csv`);
       });
     }
 
@@ -4836,37 +5534,51 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const cardKpiTotal = document.getElementById('cardKpiTotal');
     if (cardKpiTotal) {
       cardKpiTotal.addEventListener('click', () => {
-        this.setTicketStatusFilter('all');
+        this.setTicketStatusFilter('all', true);
       });
     }
 
     const cardKpiResolved = document.getElementById('cardKpiResolved');
     if (cardKpiResolved) {
       cardKpiResolved.addEventListener('click', () => {
-        this.setTicketStatusFilter('Resolved');
+        this.setTicketStatusFilter('Resolved', true);
       });
     }
 
     const cardKpiProcessing = document.getElementById('cardKpiProcessing');
     if (cardKpiProcessing) {
       cardKpiProcessing.addEventListener('click', () => {
-        this.setTicketStatusFilter('Processing');
+        this.setTicketStatusFilter('Processing', true);
       });
     }
 
     const cardKpiNewPending = document.getElementById('cardKpiNewPending');
     if (cardKpiNewPending) {
       cardKpiNewPending.addEventListener('click', () => {
-        this.setTicketStatusFilter('New');
+        this.setTicketStatusFilter('New', true);
       });
     }
 
     const cardKpiHighPrio = document.getElementById('cardKpiHighPrio');
     if (cardKpiHighPrio) {
       cardKpiHighPrio.addEventListener('click', () => {
-        this.setTicketStatusFilter('Critical');
+        this.setTicketStatusFilter('Critical', true);
       });
     }
+
+    // Dashboard Top KPI Cards -> Jump to Ticketing View with matching filter (Last 30 Days)
+    document.querySelectorAll('[data-dash-kpi]').forEach(card => {
+      card.addEventListener('click', () => {
+        const filterVal = card.dataset.dashKpi || 'all';
+        if (ticketDatePreset && ticketDatePreset.value !== '30days') {
+          ticketDatePreset.value = '30days';
+          ticketDatePreset.dispatchEvent(new Event('change'));
+        }
+        this.setTicketStatusFilter(filterVal, false);
+        const ticketNav = document.querySelector('.sidebar-nav-btn[data-view="ticketing"]');
+        if (ticketNav) ticketNav.click();
+      });
+    });
 
     // Search Input Event
     if (ticketSearch) {
@@ -4915,45 +5627,49 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (ticketPrioFilter) {
       ticketPrioFilter.addEventListener('change', (e) => {
         this.ticketingState.priority = e.target.value;
+        if (e.target.value !== 'all' && this.ticketingState.filter === 'Critical') {
+          this.ticketingState.filter = 'all';
+        }
         this.ticketingState.page = 1;
         this.renderTicketingTable();
       });
     }
 
-    // Rentang Tanggal (Date Range) Events
-    const formatDateLocal = (d) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
+    // Rentang Tanggal (Date Range) Events — computed cleanly in Asia/Jakarta (WIB)
+    const formatUtcDateStr = (utcDate) => {
+      const year = utcDate.getUTCFullYear();
+      const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(utcDate.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
 
     if (ticketDatePreset) {
       ticketDatePreset.addEventListener('change', (e) => {
         const val = e.target.value;
-        const now = new Date();
+        const wibNow = this.getWibParts(new Date());
+        const wibTodayUtc = new Date(Date.UTC(wibNow.year, wibNow.month - 1, wibNow.day));
         let start = '';
         let end = '';
 
         if (val === 'today') {
-          start = formatDateLocal(now);
+          start = formatUtcDateStr(wibTodayUtc);
           end = start;
         } else if (val === '7days') {
-          const d = new Date();
-          d.setDate(d.getDate() - 7);
-          start = formatDateLocal(d);
-          end = formatDateLocal(now);
+          const d = new Date(wibTodayUtc.getTime());
+          d.setUTCDate(d.getUTCDate() - 7);
+          start = formatUtcDateStr(d);
+          end = formatUtcDateStr(wibTodayUtc);
         } else if (val === '30days') {
-          const d = new Date();
-          d.setDate(d.getDate() - 30);
-          start = formatDateLocal(d);
-          end = formatDateLocal(now);
+          const d = new Date(wibTodayUtc.getTime());
+          d.setUTCDate(d.getUTCDate() - 30);
+          start = formatUtcDateStr(d);
+          end = formatUtcDateStr(wibTodayUtc);
         } else if (val === 'this_month') {
-          start = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
-          end = formatDateLocal(now);
+          start = formatUtcDateStr(new Date(Date.UTC(wibNow.year, wibNow.month - 1, 1)));
+          end = formatUtcDateStr(wibTodayUtc);
         } else if (val === 'last_month') {
-          start = formatDateLocal(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-          end = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 0));
+          start = formatUtcDateStr(new Date(Date.UTC(wibNow.year, wibNow.month - 2, 1)));
+          end = formatUtcDateStr(new Date(Date.UTC(wibNow.year, wibNow.month - 1, 0)));
         } else if (val === 'all') {
           start = '';
           end = '';
@@ -4984,15 +5700,16 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       this.ticketingState.page = 1;
       this.renderTicketingTable();
     };
+    const debouncedDateChange = this.debounce(handleCustomDateChange, 180);
 
     if (ticketStartDate) {
       ticketStartDate.addEventListener('change', handleCustomDateChange);
-      ticketStartDate.addEventListener('input', handleCustomDateChange);
+      ticketStartDate.addEventListener('input', debouncedDateChange);
     }
 
     if (ticketEndDate) {
       ticketEndDate.addEventListener('change', handleCustomDateChange);
-      ticketEndDate.addEventListener('input', handleCustomDateChange);
+      ticketEndDate.addEventListener('input', debouncedDateChange);
     }
 
     const ticketResetBtn = document.getElementById('ticketResetFiltersBtn');
@@ -5088,25 +5805,80 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
     }
 
-    const ticketTbody = document.getElementById('ticketTableBody');
-    if (ticketTbody) {
-      ticketTbody.addEventListener('click', (e) => {
-        if (e.target.closest('a')) return;
+    const bindTicketRowEvents = (tbody) => {
+      if (!tbody) return;
+      tbody.addEventListener('click', (e) => {
+        if (e.target.closest('a, button')) return;
         const row = e.target.closest('[data-ticket-id]');
         if (row && row.dataset.ticketId) {
           this.openTicketDetailModal(row.dataset.ticketId);
         }
       });
-    }
-
-    // Dashboard Critical Table delegation
-    const dashCritTbody = document.getElementById('dashCriticalTableBody');
-    if (dashCritTbody) {
-      dashCritTbody.addEventListener('click', (e) => {
-        if (e.target.closest('a')) return;
-        const row = e.target.closest('[data-ticket-id]');
+      tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('a, button')) return;
+        const row = e.target.closest('.ticket-clickable-row[data-ticket-id]');
         if (row && row.dataset.ticketId) {
+          e.preventDefault();
           this.openTicketDetailModal(row.dataset.ticketId);
+        }
+      });
+    };
+
+    bindTicketRowEvents(document.getElementById('ticketTableBody'));
+    bindTicketRowEvents(document.getElementById('dashCriticalTableBody'));
+
+    if (!this._actionDelegationBound) {
+      this._actionDelegationBound = true;
+      document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('[data-action]');
+        if (!trigger) return;
+        const action = trigger.dataset.action;
+        if (action === 'retry-load' && trigger.dataset.retryKey) {
+          this.retryLoad(trigger.dataset.retryKey);
+        } else if (action === 'reload-page') {
+          window.location.reload();
+        } else if (action === 'jump-client-spec' && trigger.dataset.loc) {
+          this.jumpToClientSpec(trigger.dataset.loc);
+        } else if (action === 'modal-jump-clients' && trigger.dataset.loc) {
+          this.closeNativeModal(document.getElementById('deviceDetailModal'));
+          this.jumpToClientSpec(trigger.dataset.loc);
+        } else if (action === 'modal-jump-server' && trigger.dataset.loc) {
+          this.closeNativeModal(document.getElementById('deviceDetailModal'));
+          this.jumpToServerSpec(trigger.dataset.loc);
+        } else if (action === 'copy-device-modal') {
+          this.copyDeviceModalSummary();
+        } else if (action === 'close-device-modal') {
+          this.closeNativeModal(document.getElementById('deviceDetailModal'));
+        } else if (action === 'open-location-modal') {
+          this.openLocationDetailModal(trigger.dataset.loc, trigger.dataset.code);
+        } else if (action === 'open-server-modal') {
+          this.openServerDetailModal(trigger.dataset.host, trigger.dataset.code, trigger.dataset.loc);
+        } else if (action === 'open-client-modal') {
+          this.openClientDetailModal(trigger.dataset.host, trigger.dataset.loc, trigger.dataset.ip);
+        } else if (action === 'open-backup-modal') {
+          this.openBackupDetailModal(trigger.dataset.code, trigger.dataset.loc);
+        } else if (action === 'copy-text' && trigger.dataset.copyText !== undefined) {
+          e.stopPropagation();
+          this.copyToClipboard(trigger.dataset.copyText);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('a, button, input, select, textarea')) return;
+        const row = e.target.closest('.clickable-row[data-action]');
+        if (!row) return;
+        e.preventDefault();
+        const action = row.dataset.action;
+        if (action === 'open-location-modal') {
+          this.openLocationDetailModal(row.dataset.loc, row.dataset.code);
+        } else if (action === 'open-server-modal') {
+          this.openServerDetailModal(row.dataset.host, row.dataset.code, row.dataset.loc);
+        } else if (action === 'open-client-modal') {
+          this.openClientDetailModal(row.dataset.host, row.dataset.loc, row.dataset.ip);
+        } else if (action === 'open-backup-modal') {
+          this.openBackupDetailModal(row.dataset.code, row.dataset.loc);
         }
       });
     }
@@ -5167,7 +5939,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
       const strA = String(va).trim();
       const strB = String(vb).trim();
-      return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+      return this._collator.compare(strA, strB) * dir;
     });
   },
 
@@ -5176,16 +5948,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (!container) return;
     container.querySelectorAll(`th[${attrName}]`).forEach(th => {
       const col = th.getAttribute(attrName);
-      if (!th.dataset.originalLabel) {
-        th.dataset.originalLabel = th.textContent.replace(/[⇅▲▼]/g, '').trim();
-      }
-      const label = th.dataset.originalLabel;
-      if (col === currentSortCol) {
-        th.classList.add('sort-active');
-        th.innerHTML = `${label} <span class="sort-icon">${currentSortDir === 'asc' ? '▲' : '▼'}</span>`;
-      } else {
-        th.classList.remove('sort-active');
-        th.innerHTML = `${label} <span class="sort-icon" style="opacity: 0.35;">⇅</span>`;
+      const isActive = col === currentSortCol;
+      th.classList.toggle('sort-active', isActive);
+      th.setAttribute('aria-sort', isActive ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+      const iconEl = th.querySelector('.sort-icon');
+      if (iconEl) {
+        iconEl.textContent = isActive ? (currentSortDir === 'asc' ? '▲' : '▼') : '⇅';
+        iconEl.style.opacity = isActive ? '1' : '0.35';
       }
     });
   },
@@ -5194,19 +5963,27 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
   // MODAL & UTILS
   // =========================================================================
   initModal() {
-    // 1. Device Modal
+    const restoreFocus = () => {
+      if (this._lastFocusedEl && typeof this._lastFocusedEl.focus === 'function' && document.contains(this._lastFocusedEl)) {
+        this._lastFocusedEl.focus({ preventScroll: true });
+      }
+      this._lastFocusedEl = null;
+    };
+
+    // 1. Device Modal (<dialog closedby="any">)
     const modal = document.getElementById('deviceDetailModal');
     const closeBtn = document.getElementById('modalCloseBtn');
     if (closeBtn && modal) {
-      closeBtn.addEventListener('click', () => modal.classList.remove('open'));
+      closeBtn.addEventListener('click', () => this.closeNativeModal(modal));
     }
     if (modal) {
       modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('open');
+        if (e.target === modal) this.closeNativeModal(modal);
       });
+      modal.addEventListener('close', restoreFocus);
     }
 
-    // 2. Ticket Detail Modal
+    // 2. Ticket Detail Modal (<dialog closedby="any">)
     const ticketModal = document.getElementById('ticketDetailModal');
     const ticketCloseBtn = document.getElementById('modalTicketCloseBtn');
     const ticketCloseBtnBottom = document.getElementById('modalTicketCloseBtnBottom');
@@ -5225,18 +6002,8 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       ticketModal.addEventListener('click', (e) => {
         if (e.target === ticketModal) this.closeTicketDetailModal();
       });
+      ticketModal.addEventListener('close', restoreFocus);
     }
-
-    // Global ESC key listener to close open modals
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (ticketModal && ticketModal.classList.contains('open')) {
-          this.closeTicketDetailModal();
-        } else if (modal && modal.classList.contains('open')) {
-          modal.classList.remove('open');
-        }
-      }
-    });
   },
 
   formatCpu(raw) {
@@ -5311,6 +6078,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     return s.split('(')[0].trim() || '-';
   },
 
+  formatFullOs(raw) {
+    if (!raw || raw === '-' || raw.toLowerCase() === 'other' || raw.toLowerCase() === 'other os') return '-';
+    let s = String(raw).replace(/\s+/g, ' ').trim();
+    if (s.startsWith('-')) return '-';
+    return s || '-';
+  },
+
   formatFullVersion(raw) {
     if (!raw || raw === '-' || raw.toLowerCase() === 'none' || raw.toLowerCase() === 'unset') return '-';
     const s = String(raw).trim();
@@ -5350,7 +6124,9 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span>${msg}</span>`;
+    const span = document.createElement('span');
+    span.textContent = msg == null ? '' : String(msg);
+    toast.appendChild(span);
     container.appendChild(toast);
     setTimeout(() => toast.classList.add('show'), 10);
     setTimeout(() => {
@@ -5364,58 +6140,66 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       this.showToast('Tidak ada data untuk diekspor', 'warn');
       return;
     }
+    const safeRows = data.map(item => {
+      if (!item || typeof item !== 'object') return this.sanitizeCsvValue(item);
+      const out = {};
+      for (const key of Object.keys(item)) {
+        const val = item[key];
+        const normalized = (val !== null && typeof val === 'object') ? JSON.stringify(val) : val;
+        out[key] = this.sanitizeCsvValue(normalized);
+      }
+      return out;
+    });
+
     let csvStr = '';
     if (typeof Papa !== 'undefined' && typeof Papa.unparse === 'function') {
       try {
-        csvStr = Papa.unparse(data);
+        csvStr = Papa.unparse(safeRows);
       } catch (err) {
         console.warn('Papa.unparse failed, using native fallback', err);
-        csvStr = this.nativeUnparse(data);
+        csvStr = this.nativeUnparse(safeRows);
       }
     } else {
-      csvStr = this.nativeUnparse(data);
+      csvStr = this.nativeUnparse(safeRows);
     }
 
     const blob = new Blob(['\uFEFF' + csvStr], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    link.href = url;
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     this.showToast(`Berhasil mengekspor ${filename}`, 'success');
   },
 
   nativeUnparse(data) {
     if (!Array.isArray(data) || data.length === 0) return '';
     const headers = Object.keys(data[0]);
-    const escapeCell = (val) => {
+    const serializeCell = (val) => {
       if (val === null || val === undefined) return '';
-      let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
-      if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
-        str = '"' + str.replace(/"/g, '""') + '"';
-      }
-      return str;
+      const raw = typeof val === 'object' ? JSON.stringify(val) : val;
+      return this.escapeCsvCell(raw);
     };
-    const headerRow = headers.map(escapeCell).join(',');
-    const rows = data.map(item => headers.map(h => escapeCell(item[h])).join(','));
+    const headerRow = headers.map(h => this.escapeCsvCell(h)).join(',');
+    const rows = data.map(item => headers.map(h => serializeCell(item ? item[h] : '')).join(','));
     return [headerRow, ...rows].join('\r\n');
   },
 
   // =========================================================================
-  // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB)
+  // AUTO-REFRESH SCHEDULER (SETIAP JAM 05:00 WIB / Asia/Jakarta)
   // =========================================================================
   setupDailyRefreshScheduler() {
-    this._lastAutoRefreshDay = new Date().toDateString();
+    this._lastAutoRefreshDay = this.getWibParts(new Date()).ymd;
     const updateCountdown = () => {
       const now = new Date();
-      let target = new Date();
-      target.setHours(5, 0, 0, 0);
+      const wib = this.getWibParts(now);
 
-      // Trigger real background data refresh once per day after 05:05 WIB
-      const todayStr = now.toDateString();
-      if (now.getHours() === 5 && now.getMinutes() >= 5 && this._lastAutoRefreshDay !== todayStr) {
-        this._lastAutoRefreshDay = todayStr;
+      // Trigger real background data refresh once per WIB day after 05:05 WIB
+      if (wib.hour === 5 && wib.minute >= 5 && this._lastAutoRefreshDay !== wib.ymd) {
+        this._lastAutoRefreshDay = wib.ymd;
         Promise.all([
           this.fetchLocations(),
           this.fetchServers(),
@@ -5429,11 +6213,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         }).catch(() => {});
       }
 
-      if (now >= target) {
-        target.setDate(target.getDate() + 1);
+      // Compute next 05:00 WIB in UTC epoch ms (05:00 WIB == UTC 22:00 prev day)
+      let targetMs = Date.UTC(wib.year, wib.month - 1, wib.day, 5, 0, 0) - 7 * 3600 * 1000;
+      if (now.getTime() >= targetMs) {
+        targetMs += 24 * 3600 * 1000;
       }
 
-      const diffMs = target.getTime() - now.getTime();
+      const diffMs = Math.max(0, targetMs - now.getTime());
       const hours = Math.floor(diffMs / (1000 * 60 * 60));
       const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -5463,13 +6249,40 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
   initFullscreen() {
     const fsBtn = document.getElementById('globalFullscreenBtn');
-    if (fsBtn) {
-      fsBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
+    const toggleFullscreen = () => {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
           document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
         }
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+
+    const syncFsState = () => {
+      if (!fsBtn) return;
+      const isFs = Boolean(document.fullscreenElement);
+      fsBtn.setAttribute('aria-pressed', String(isFs));
+      const label = isFs ? 'Keluar Layar Penuh (F)' : 'Mode Layar Penuh (F)';
+      fsBtn.setAttribute('title', label);
+      fsBtn.setAttribute('aria-label', label);
+    };
+
+    if (fsBtn) {
+      fsBtn.addEventListener('click', toggleFullscreen);
+      syncFsState();
+    }
+
+    if (!this._fsListenersBound) {
+      this._fsListenersBound = true;
+      document.addEventListener('fullscreenchange', syncFsState);
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'f' && e.key !== 'F') return;
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+        if (this.isTextInputFocused()) return;
+        if (document.querySelector('.app-container[inert], dialog[open]')) return;
+        e.preventDefault();
+        toggleFullscreen();
       });
     }
   },
@@ -5635,23 +6448,30 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       activeTarget.scrollLeft += delta;
     }, { passive: false });
 
-    // ARROW BUTTONS: CLICK (Smooth Step) + PRESS & HOLD (Continuous Glide)
+    // ARROW BUTTONS: CLICK (Smooth Step / Keyboard) + PRESS & HOLD (Continuous Glide)
     const setupArrowButton = (btn, direction) => {
       if (!btn) return;
       let startTime = 0;
+      let didHold = false;
+      let pointerHandled = false;
 
       const stopHold = () => {
         if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
         if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
       };
 
+      const stepBehavior = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
       btn.addEventListener('pointerdown', (e) => {
         if (!activeTarget || cachedMaxScroll <= 0) return;
         e.preventDefault();
         startTime = Date.now();
+        didHold = false;
+        pointerHandled = true;
         stopHold();
 
         holdTimer = setTimeout(() => {
+          didHold = true;
           holdInterval = setInterval(() => {
             if (!activeTarget) return stopHold();
             activeTarget.scrollLeft += direction * 24;
@@ -5662,8 +6482,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       btn.addEventListener('pointerup', () => {
         const elapsed = Date.now() - startTime;
         stopHold();
-        if (elapsed < 220 && activeTarget) {
-          activeTarget.scrollBy({ left: direction * 320, behavior: 'smooth' });
+        if (!didHold && elapsed < 220 && activeTarget) {
+          activeTarget.scrollBy({ left: direction * 320, behavior: stepBehavior() });
+        }
+      });
+
+      btn.addEventListener('click', () => {
+        if (pointerHandled) {
+          pointerHandled = false;
+          return;
+        }
+        if (activeTarget && cachedMaxScroll > 0) {
+          activeTarget.scrollBy({ left: direction * 320, behavior: stepBehavior() });
         }
       });
 
@@ -5673,6 +6503,27 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
     setupArrowButton(leftBtn, -1);
     setupArrowButton(rightBtn, 1);
+
+    // Keyboard navigation on scrollbar thumb (WCAG ARIA scrollbar pattern)
+    thumb.addEventListener('keydown', (e) => {
+      if (!activeTarget || cachedMaxScroll <= 0) return;
+      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        activeTarget.scrollBy({ left: 160, behavior });
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        activeTarget.scrollBy({ left: -160, behavior });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        activeTarget.scrollTo({ left: 0, behavior });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        activeTarget.scrollTo({ left: cachedMaxScroll, behavior });
+      }
+    });
+
+    floatBar.inert = true;
 
     // CORE VISIBILITY & POSITIONING LOGIC
     const checkFloatingScrollbar = () => {
@@ -5705,6 +6556,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
           activeTarget = null;
         }
         floatBar.classList.remove('visible');
+        floatBar.inert = true;
         return;
       }
 
@@ -5734,11 +6586,13 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       const hasOverflow = updateMetrics();
       if (!hasOverflow) {
         floatBar.classList.remove('visible');
+        floatBar.inert = true;
         return;
       }
 
       updateThumbUI(activeTarget.scrollLeft);
       floatBar.classList.add('visible');
+      floatBar.inert = false;
     };
 
     // Throttled scroll and resize listeners using requestAnimationFrame
@@ -5783,7 +6637,96 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     }
   },
 
+  setBackupKpiFilter(kpiVal) {
+    const val = kpiVal || 'all';
+    if (val === 'all') {
+      this.backupState.status = 'all';
+      this.backupState.replication = 'all';
+      this.backupState.autoPromote = 'all';
+      this.backupState.p2p = 'all';
+    } else if (val === 'streaming') {
+      const isAlready = this.backupState.replication === 'Streaming' &&
+        this.backupState.autoPromote === 'all' &&
+        this.backupState.p2p === 'all';
+      this.backupState.replication = isAlready ? 'all' : 'Streaming';
+      this.backupState.autoPromote = 'all';
+      this.backupState.p2p = 'all';
+    } else if (val === 'autopromote') {
+      const isAlready = this.backupState.autoPromote === 'Yes' &&
+        this.backupState.replication === 'all' &&
+        this.backupState.p2p === 'all';
+      this.backupState.autoPromote = isAlready ? 'all' : 'Yes';
+      this.backupState.replication = 'all';
+      this.backupState.p2p = 'all';
+    } else if (val === 'p2p') {
+      const isAlready = this.backupState.p2p === 'Connected' &&
+        this.backupState.replication === 'all' &&
+        this.backupState.autoPromote === 'all';
+      this.backupState.p2p = isAlready ? 'all' : 'Connected';
+      this.backupState.replication = 'all';
+      this.backupState.autoPromote = 'all';
+    }
+    this.backupState.page = 1;
+    this.syncBackupKpiUI();
+    this.renderBackupTable();
+  },
+
+  syncBackupKpiUI() {
+    document.querySelectorAll('.filter-pill[data-backup-status-pill]').forEach(b => {
+      b.classList.toggle('active', b.dataset.backupStatusPill === this.backupState.status);
+    });
+    document.querySelectorAll('.filter-pill[data-backup-repl-pill]').forEach(b => {
+      b.classList.toggle('active', b.dataset.backupReplPill === this.backupState.replication);
+    });
+    const autoPromoteFilter = document.getElementById('backupAutoPromoteFilter');
+    if (autoPromoteFilter) autoPromoteFilter.value = this.backupState.autoPromote;
+    const p2pFilter = document.getElementById('backupP2PFilter');
+    if (p2pFilter) p2pFilter.value = this.backupState.p2p;
+
+    let activeKpi = '';
+    if (
+      this.backupState.status === 'all' &&
+      this.backupState.replication === 'all' &&
+      this.backupState.autoPromote === 'all' &&
+      this.backupState.p2p === 'all' &&
+      this.backupState.teleport === 'all' &&
+      this.backupState.cable === 'all'
+    ) {
+      activeKpi = 'all';
+    } else if (
+      this.backupState.replication === 'Streaming' &&
+      this.backupState.autoPromote === 'all' &&
+      this.backupState.p2p === 'all'
+    ) {
+      activeKpi = 'streaming';
+    } else if (
+      this.backupState.autoPromote === 'Yes' &&
+      this.backupState.replication === 'all' &&
+      this.backupState.p2p === 'all'
+    ) {
+      activeKpi = 'autopromote';
+    } else if (
+      this.backupState.p2p === 'Connected' &&
+      this.backupState.replication === 'all' &&
+      this.backupState.autoPromote === 'all'
+    ) {
+      activeKpi = 'p2p';
+    }
+
+    document.querySelectorAll('[data-backup-kpi]').forEach(card => {
+      const isAct = card.dataset.backupKpi === activeKpi;
+      card.classList.toggle('kpi-active-filter', isAct);
+      card.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+    });
+  },
+
   initBackupEventHandlers() {
+    document.querySelectorAll('[data-backup-kpi]').forEach(card => {
+      card.addEventListener('click', () => {
+        this.setBackupKpiFilter(card.dataset.backupKpi);
+      });
+    });
+
     const searchInput = document.getElementById('backupSearchInput');
     if (searchInput) {
       searchInput.addEventListener('input', this.debounce((e) => {
@@ -5941,9 +6884,11 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     const guardBody = document.getElementById('backupTableBody');
     if (guardBody && this.guardTable(guardBody)) return;
 
+    this.syncBackupKpiUI();
+
     if (!this.serverBackup || !this.serverBackup.length) {
       if (guardBody) {
-        guardBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Belum ada data server backup.</td></tr>';
+        this.setHtml(guardBody, '<tr><td colspan="12" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">Belum ada data server backup.</td></tr>');
       }
       return;
     }
@@ -6039,7 +6984,7 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
         return (numA - numB) * dir;
       }
 
-      return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+      return this._collator.compare(String(va), String(vb)) * dir;
     });
 
     // Update sort indicators
@@ -6084,17 +7029,18 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (!tbody) return;
 
     if (!paginated.length) {
-      tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
-        <div style="font-size: 1.5rem; margin-bottom: 6px;">🔍</div>
+      this.setHtml(tbody, `<tr><td colspan="12" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        <div style="font-size: 1.5rem; margin-bottom: 6px;" aria-hidden="true">🔍</div>
         Tidak ada data server backup yang cocok dengan pencarian / filter Anda.
-      </td></tr>`;
+      </td></tr>`);
       return;
     }
 
     const rowsHtml = paginated.map(item => {
       // 1. Status Badge
       const st = (item.status || '').trim();
-      let statusBadge = `<div style="text-align: center;"><span class="backup-badge-inactive">${st || '-'}</span></div>`;
+      const eSt = this.escapeHtml(st || '-');
+      let statusBadge = `<div style="text-align: center;"><span class="backup-badge-inactive">${eSt}</span></div>`;
       if (st.toLowerCase() === 'aktif') {
         statusBadge = `<div style="text-align: center;"><span class="backup-badge-active">● Aktif</span></div>`;
       } else if (st.toLowerCase() === 'tidak aktif') {
@@ -6142,19 +7088,20 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
       // 7. Replag Badge
       const lagVal = (item.replag || '').trim();
+      const eLagVal = this.escapeHtml(lagVal);
       let replagBadge = `<div style="text-align: center; color: var(--text-muted); font-size: 0.74rem;">-</div>`;
       if (lagVal && lagVal !== '-') {
         const numLag = parseInt(lagVal.replace(/[^0-9]/g, ''), 10);
         if (!isNaN(numLag)) {
           if (numLag <= 10) {
-            replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok" title="Replikasi Normal (${numLag}s)">${lagVal}</span></div>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok" title="Replikasi Normal (${numLag}s)">${eLagVal}</span></div>`;
           } else if (numLag <= 60) {
-            replagBadge = `<div style="text-align: center;"><span class="badge-replag-warn" title="Lag Replikasi Waspada (${numLag}s)">${lagVal}</span></div>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-warn" title="Lag Replikasi Waspada (${numLag}s)">${eLagVal}</span></div>`;
           } else {
-            replagBadge = `<div style="text-align: center;"><span class="badge-replag-crit" title="Lag Replikasi Kritis (${numLag}s)">${lagVal}</span></div>`;
+            replagBadge = `<div style="text-align: center;"><span class="badge-replag-crit" title="Lag Replikasi Kritis (${numLag}s)">${eLagVal}</span></div>`;
           }
         } else {
-          replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok">${lagVal}</span></div>`;
+          replagBadge = `<div style="text-align: center;"><span class="badge-replag-ok">${eLagVal}</span></div>`;
         }
       }
 
@@ -6165,69 +7112,137 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
 
       let connAlertBadge = '';
       if (connNote) {
-        connAlertBadge = `<div style="margin-bottom: 4px;"><span class="backup-conn-warn-pill">⚠️ ${connNote}</span></div>`;
+        connAlertBadge = `<div style="margin-bottom: 4px;"><span class="backup-conn-warn-pill">⚠️ ${this.escapeHtml(connNote)}</span></div>`;
       }
 
       const displayNote = noteVal || colSNote || '-';
-      const escapedNote = (displayNote + (connNote ? ` (${connNote})` : '')).replace(/"/g, '&quot;');
+      const eFullNoteTitle = this.escapeHtml(displayNote + (connNote ? ` (${connNote})` : ''));
       const shortNote = displayNote.length > 110 ? `${displayNote.slice(0, 110)}...` : displayNote;
+      const eShortNote = this.escapeHtml(shortNote);
+      const eLoc = this.escapeHtml(item.loc || '-');
+      const eCode = this.escapeHtml(item.code || '-');
+      const eIpLocal = item.ip_local ? this.escapeHtml(item.ip_local) : '';
+      const eIpP2p = item.ip_p2p ? this.escapeHtml(item.ip_p2p) : '';
 
       return `
-        <tr>
+        <tr class="clickable-row" tabindex="0" role="button" data-action="open-backup-modal" data-code="${eCode}" data-loc="${eLoc}" title="Klik baris untuk melihat detail lengkap server backup ${eLoc}">
           <td>
-            <div class="backup-loc-name">${item.loc || '-'}</div>
+            <div class="backup-loc-name row-primary-title">${eLoc}</div>
           </td>
           <td>
-            <div style="text-align: center;"><span class="backup-code-pill">${item.code || '-'}</span></div>
+            <div style="text-align: center;"><span class="backup-code-pill">${eCode}</span></div>
           </td>
           <td>${statusBadge}</td>
           <td>${p2pBadge}</td>
           <td>${cableBadge}</td>
           <td>${teleBadge}</td>
           <td>
-            ${item.ip_local ? `<span class="backup-ip-mono">${item.ip_local}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+            ${eIpLocal ? `<span class="backup-ip-mono">${eIpLocal}</span>` : '<span style="color:var(--text-muted);">-</span>'}
           </td>
           <td>
-            ${item.ip_p2p ? `<span class="backup-ip-mono" style="color: var(--accent-secondary); font-weight: 700;">${item.ip_p2p}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+            ${eIpP2p ? `<span class="backup-ip-mono" style="color: var(--accent-secondary); font-weight: 700;">${eIpP2p}</span>` : '<span style="color:var(--text-muted);">-</span>'}
           </td>
           <td>${replBadge}</td>
           <td>${autoBadge}</td>
           <td>${replagBadge}</td>
           <td>
             ${connAlertBadge}
-            <div class="backup-notes-text" title="${escapedNote}">
-              ${shortNote}
+            <div class="backup-notes-text" title="${eFullNoteTitle}">
+              ${eShortNote}
             </div>
           </td>
         </tr>
       `;
     }).join('');
 
-    tbody.innerHTML = rowsHtml;
+    this.setHtml(tbody, rowsHtml);
     if (this.updateFloatingScrollbar) this.updateFloatingScrollbar();
   },
 
   // =========================================================================
-  // TWEAKS PANEL CONTROLLER (SKILL STANDARD)
+  // THEME CONTROLLER (System / Light / Dark + OS listener + Cross-tab sync)
   // =========================================================================
+  resolveTheme(pref) {
+    if (pref === 'dark') return 'dark';
+    if (pref === 'light') return 'light';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  },
+
   initTweaks() {
-    const savedTheme = localStorage.getItem('parkee_theme') || 'light';
-    this.applyTheme(savedTheme);
+    let savedTheme = 'system';
+    try {
+      savedTheme = localStorage.getItem('parkee_theme') || 'system';
+    } catch (_) {}
+    this.applyTheme(savedTheme, false);
 
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {
       themeToggleBtn.addEventListener('click', () => {
-        const curTheme = document.documentElement.getAttribute('data-theme') || 'light';
-        this.applyTheme(curTheme === 'dark' ? 'light' : 'dark');
+        const pref = document.documentElement.dataset.themePref || 'system';
+        const rendered = this.resolveTheme(pref);
+        const target = rendered === 'dark' ? 'light' : 'dark';
+        const osDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const osTheme = osDark ? 'dark' : 'light';
+        const nextPref = target === osTheme ? 'system' : target;
+        this.applyTheme(nextPref, true);
+      });
+    }
+
+    if (!this._themeListenersBound) {
+      this._themeListenersBound = true;
+      if (window.matchMedia) {
+        const mqDark = window.matchMedia('(prefers-color-scheme: dark)');
+        const onOsChange = () => {
+          if ((document.documentElement.dataset.themePref || 'system') === 'system') {
+            this.applyTheme('system', false);
+          }
+        };
+        if (typeof mqDark.addEventListener === 'function') {
+          mqDark.addEventListener('change', onOsChange);
+        } else if (typeof mqDark.addListener === 'function') {
+          mqDark.addListener(onOsChange);
+        }
+      }
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'parkee_theme') {
+          this.applyTheme(e.newValue || 'system', false);
+        }
       });
     }
   },
 
-  applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('parkee_theme', theme);
+  applyTheme(theme, persist = true) {
+    const pref = (theme === 'dark' || theme === 'light') ? theme : 'system';
+    const resolved = this.resolveTheme(pref);
+    const metaScheme = document.querySelector('meta[name="color-scheme"]');
+    if (metaScheme) {
+      metaScheme.setAttribute('content', pref === 'system' ? 'light dark' : pref);
+    }
+    document.documentElement.dataset.themePref = pref;
+    document.documentElement.setAttribute('data-theme', resolved);
+
+    if (persist) {
+      try {
+        if (pref === 'system') {
+          localStorage.removeItem('parkee_theme');
+        } else {
+          localStorage.setItem('parkee_theme', pref);
+        }
+      } catch (_) {}
+    }
+
     const iconSpan = document.getElementById('themeIconSpan');
-    if (iconSpan) iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    if (iconSpan) {
+      iconSpan.textContent = pref === 'system' ? '🌓' : (resolved === 'dark' ? '☀️' : '🌙');
+    }
+    if (toggleBtn) {
+      const modeDesc = pref === 'system'
+        ? `Otomatis (${resolved === 'dark' ? 'Gelap' : 'Terang'})`
+        : (resolved === 'dark' ? 'Mode Gelap' : 'Mode Terang');
+      toggleBtn.setAttribute('title', `Tema: ${modeDesc} — klik untuk ganti`);
+      toggleBtn.setAttribute('aria-label', `Tema tampilan saat ini: ${modeDesc}. Klik untuk mengganti.`);
+    }
 
     if (this.activeView === 'dashboard') {
       this.renderDashboardCharts(this.getOneMonthTickets());

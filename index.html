@@ -3,43 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="color-scheme" content="light dark">
+  <meta name="text-scale" content="scale">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self' https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'; require-trusted-types-for 'script'; trusted-types parkee-html;">
   <title>Support Apps — Server & Client Infrastructure Telemetry</title>
   <meta name="description" content="Support Apps: Platform audit dan pemantauan menyeluruh armada server, pos admin, klien gerbang, Reader PARKEE, serta manajemen storage server lokasi PARKEE seluruh Indonesia.">
-  
+
+  <!-- FOUC-free Theme Initialization -->
+  <script src="js/theme-init.js?v=2.14.0"></script>
+
   <!-- Official PARKEE Favicons -->
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <link rel="shortcut icon" href="favicon.ico">
-  
-  <!-- Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.12.6">
 
-  <!-- Chart.js (for summary widgets) & PapaParse -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
+  <!-- Google Fonts (non-blocking stylesheet instead of CSS @import) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+  <!-- Design System Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css?v=2.14.0">
+
+  <!-- Chart.js & PapaParse (SRI-verified) + Deferred Local Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" integrity="sha384-e6cc9LaIG7xZ3XD5B+jtr1NhTWPQGQdRCh6xiZ+ZFUtWCpg4ycv3Sh+SkZoopvUY" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" integrity="sha384-D/t0ZMqQW31H3az8ktEiNb39wyKnS82iFY52QPACM+IjKW3jDUhyIgh2PApRqJZs" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+  <script src="js/summary-data.js?v=2.14.0" defer></script>
+  <script src="js/app.js?v=2.14.0" defer></script>
 </head>
 <body>
+  <a href="#mainContent" class="skip-link">Lewati ke konten utama</a>
 
   <!-- =========================================================================
        PASSWORD LOCK SCREEN (SECURITY GATE)
        ========================================================================= -->
-  <div id="appLockScreen" class="app-lock-screen">
+  <div id="appLockScreen" class="app-lock-screen" role="dialog" aria-modal="true" aria-labelledby="lockScreenTitle">
     <div class="lock-card">
       <div class="lock-brand">
         <div class="lock-badge-icon">
-          <img src="assets/parkee-pin.png" alt="PARKEE Logo" class="lock-logo-img">
+          <img src="assets/parkee-pin.png" alt="PARKEE Logo" class="lock-logo-img" width="56" height="56" fetchpriority="high" decoding="async">
         </div>
         <div class="lock-brand-text">
-          <h1 class="lock-title">PARKEE Support Apps</h1>
-          <p class="lock-subtitle">Infrastructure & Telemetry Dashboard</p>
+          <h2 id="lockScreenTitle" class="lock-title">PARKEE Support Apps</h2>
+          <p class="lock-subtitle">Infrastructure &amp; Telemetry Dashboard</p>
         </div>
       </div>
 
       <div class="lock-form">
-        <p class="lock-instruction">Masukkan PIN / Password untuk mengakses dashboard:</p>
-        
-        <form id="lockForm" onsubmit="return false;">
+        <form id="lockForm">
+          <label for="lockPasswordInput" class="lock-instruction">Masukkan PIN / Password untuk mengakses dashboard:</label>
           <div class="lock-input-group">
             <input 
               type="password" 
@@ -48,20 +62,19 @@
               placeholder="Masukkan PIN / Password" 
               autocomplete="current-password"
               maxlength="32"
-              autofocus
               required
             >
-            <button type="button" id="lockTogglePasswordBtn" class="lock-eye-btn" title="Lihat / Sembunyikan Password">
-              <span id="lockEyeIcon">👁️</span>
+            <button type="button" id="lockTogglePasswordBtn" class="lock-eye-btn" title="Lihat / Sembunyikan Password" aria-label="Tampilkan atau sembunyikan password" aria-pressed="false">
+              <span id="lockEyeIcon" aria-hidden="true">👁️</span>
             </button>
           </div>
 
-          <div id="lockErrorMsg" class="lock-error-msg" style="display: none;">
+          <div id="lockErrorMsg" class="lock-error-msg" role="alert" style="display: none;">
             ⚠️ PIN / Password salah. Silakan coba lagi.
           </div>
 
           <div class="lock-options">
-            <label class="lock-remember-label">
+            <label class="lock-remember-label" for="lockRememberMe">
               <input type="checkbox" id="lockRememberMe" checked>
               <span>Ingat sesi di perangkat ini (30 Hari)</span>
             </label>
@@ -69,7 +82,7 @@
 
           <button type="submit" id="lockSubmitBtn" class="lock-submit-btn">
             <span>Buka Dashboard</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
               <path d="M5 12h14"></path>
               <path d="M12 5l7 7-7 7"></path>
             </svg>
@@ -79,7 +92,7 @@
 
       <div class="lock-footer">
         <div class="lock-security-badge">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
           </svg>
           <span>Dilindungi SHA-256 Client-Side Gate • Akses Terbatas Tim IT</span>
@@ -93,14 +106,14 @@
     <!-- =========================================================================
          LEFT SIDEBAR NAVIGATION
          ========================================================================= -->
-    <aside class="app-sidebar" id="appSidebar">
+    <aside class="app-sidebar" id="appSidebar" aria-label="Navigasi Sidebar">
       <div class="sidebar-top">
         
         <!-- Brand Header: Support Apps -->
         <div class="sidebar-brand">
           <div class="brand-left">
             <div class="brand-badge">
-              <img src="assets/parkee-pin.png" alt="PARKEE Logo" class="brand-logo-img">
+              <img src="assets/parkee-pin.png" alt="PARKEE Logo" class="brand-logo-img" width="32" height="32" decoding="async">
             </div>
             <div class="brand-meta">
               <div class="brand-name">
@@ -109,8 +122,8 @@
               <span class="brand-tagline">Infrastructure Engineering</span>
             </div>
           </div>
-          <button id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="Sembunyikan Sidebar (Ctrl+B)" aria-label="Sembunyikan Sidebar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="Sembunyikan Sidebar (Ctrl+B)" aria-label="Sembunyikan Sidebar" aria-expanded="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="9" y1="3" x2="9" y2="21"></line>
               <path d="M14 9l-3 3 3 3"></path>
@@ -118,14 +131,14 @@
           </button>
         </div>
 
-        <!-- Navigation Menu: 4 Core Modules -->
-        <nav class="sidebar-nav">
+        <!-- Navigation Menu: Core Modules -->
+        <nav class="sidebar-nav" aria-label="Menu Utama">
           <span class="nav-label">Menu Utama</span>
 
           <!-- 0. Dashboard (Halaman Utama) -->
-          <button class="sidebar-nav-btn active" data-view="dashboard" title="Dashboard Utama Monitoring & Analitik Tiket Kendala (1 Bulan Terakhir)">
+          <button type="button" class="sidebar-nav-btn active" data-view="dashboard" aria-current="page" title="Dashboard Utama Monitoring & Analitik Tiket Kendala (1 Bulan Terakhir)">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
                 <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
                 <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
@@ -133,25 +146,25 @@
               </svg>
               <span>Dashboard</span>
             </div>
-            <span class="badge-pill" id="badgeDashboardTickets" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">30 Hari</span>
+            <span class="badge-pill badge-pill-success" id="badgeDashboardTickets">30 Hari</span>
           </button>
 
           <!-- 1. Location Information -->
-          <button class="sidebar-nav-btn" data-view="locations" title="Informasi Lokasi & Manifest Versi Software">
+          <button type="button" class="sidebar-nav-btn" data-view="locations" title="Informasi Lokasi & Manifest Versi Software">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
               <span>Location Information</span>
             </div>
-            <span class="badge-pill" id="badgeTotalLocs">961</span>
+            <span class="badge-pill" id="badgeTotalLocs">--</span>
           </button>
 
           <!-- 2. Server Specification -->
-          <button class="sidebar-nav-btn" data-view="servers" title="Spesifikasi & Telemetri Lengkap Server Sentral">
+          <button type="button" class="sidebar-nav-btn" data-view="servers" title="Spesifikasi & Telemetri Lengkap Server Sentral">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
                 <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
                 <line x1="6" y1="6" x2="6.01" y2="6"></line>
@@ -159,61 +172,61 @@
               </svg>
               <span>Server Specification</span>
             </div>
-            <span class="badge-pill" id="badgeTotalServers">964</span>
+            <span class="badge-pill" id="badgeTotalServers">--</span>
           </button>
 
           <!-- 3. Client Specification -->
-          <button class="sidebar-nav-btn" data-view="clients" title="Spesifikasi Klien & Reader PARKEE Lapangan Per Lokasi">
+          <button type="button" class="sidebar-nav-btn" data-view="clients" title="Spesifikasi Klien & Reader PARKEE Lapangan Per Lokasi">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
               </svg>
               <span>Client Specification</span>
             </div>
-            <span class="badge-pill" id="badgeTotalClients">6,554</span>
+            <span class="badge-pill" id="badgeTotalClients">--</span>
           </button>
 
           <!-- 4. Storage (Server Only) -->
-          <button class="sidebar-nav-btn" data-view="storage" title="Audit Kapasitas & Kesehatan SSD Khusus Server">
+          <button type="button" class="sidebar-nav-btn" data-view="storage" title="Audit Kapasitas & Kesehatan SSD Khusus Server">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
                 <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
               </svg>
               <span>Storage (Server Only)</span>
             </div>
-            <span class="badge-pill" style="background: var(--accent-primary-light); color: var(--accent-primary);">SSD</span>
+            <span class="badge-pill badge-pill-primary">SSD</span>
           </button>
 
           <!-- 5. Temperature Server -->
-          <button class="sidebar-nav-btn" data-view="temperature" title="Live Telemetry Suhu Server Seluruh Lokasi (Grafana)">
+          <button type="button" class="sidebar-nav-btn" data-view="temperature" title="Live Telemetry Suhu Server Seluruh Lokasi (Grafana)">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
               </svg>
               <span>Temperature Server (Realtime)</span>
             </div>
-            <span class="badge-pill" id="badgeOverheatTemp" style="background: var(--color-danger-light); color: var(--color-danger); font-weight: 700;">🔥 --</span>
+            <span class="badge-pill badge-pill-danger" id="badgeOverheatTemp">🔥 --</span>
           </button>
 
           <!-- 6. Ticketing (GLPI) -->
-          <button class="sidebar-nav-btn" data-view="ticketing" title="Monitoring Tiket Kendala Parkee (GLPI 3 Bulan Terakhir)">
+          <button type="button" class="sidebar-nav-btn" data-view="ticketing" title="Monitoring Tiket Kendala Parkee (GLPI 3 Bulan Terakhir)">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 0 0-2 2v3a2 2 0 1 1 0 4v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 1 1 0-4V7a2 2 0 0 0-2-2H5z"></path>
               </svg>
               <span>Ticketing</span>
             </div>
-            <span class="badge-pill" id="badgeTotalTickets" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 700;">--</span>
+            <span class="badge-pill badge-pill-indigo" id="badgeTotalTickets">--</span>
           </button>
 
           <!-- 7. Server Backup -->
-          <button class="sidebar-nav-btn" data-view="backup" title="Monitoring Server Backup, Standby Replikasi & Auto Promote (High Availability)">
+          <button type="button" class="sidebar-nav-btn" data-view="backup" title="Monitoring Server Backup, Standby Replikasi & Auto Promote (High Availability)">
             <div class="nav-btn-left">
-              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
                 <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
                 <line x1="6" y1="6" x2="6.01" y2="6"></line>
@@ -222,7 +235,7 @@
               </svg>
               <span>Server Backup</span>
             </div>
-            <span class="badge-pill" id="badgeServerBackup" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">42</span>
+            <span class="badge-pill badge-pill-success" id="badgeServerBackup">--</span>
           </button>
         </nav>
 
@@ -252,8 +265,8 @@
             <strong id="sidebarHealthStatusText">Operasional Normal</strong>
           </div>
         </div>
-        <button id="sidebarLockBtn" class="sidebar-lock-btn" title="Kunci Dashboard (Keluar)" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" aria-label="Kunci Dashboard">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button type="button" id="sidebarLockBtn" class="sidebar-lock-btn" title="Kunci Dashboard (Keluar)" aria-label="Kunci Dashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
@@ -272,8 +285,8 @@
       <!-- Top Bar Header -->
       <header class="app-topbar top-bar">
         <div class="top-bar-left">
-          <button id="sidebarToggleBtn" class="sidebar-toggle-btn" title="Sembunyikan / Tampilkan Sidebar (Ctrl+B)" aria-label="Toggle Menu Sidebar">
-            <svg class="sidebar-toggle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" title="Sembunyikan / Tampilkan Sidebar (Ctrl+B)" aria-label="Toggle Menu Sidebar" aria-expanded="true">
+            <svg class="sidebar-toggle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="9" y1="3" x2="9" y2="21"></line>
               <line x1="14" y1="9" x2="18" y2="9"></line>
@@ -297,21 +310,21 @@
             <span id="lastSyncStatusLabel">Update: Terjadwal 05:00 WIB</span>
           </div>
 
-          <!-- Theme Toggle Button -->
-          <button id="themeToggleBtn" class="icon-btn" title="Ganti Mode Gelap / Terang">
-            <span id="themeIconSpan">🌙</span>
+          <!-- Theme Toggle Button (System / Light / Dark cycle) -->
+          <button type="button" id="themeToggleBtn" class="icon-btn" title="Ganti Tema (Otomatis / Terang / Gelap)" aria-label="Ganti Tema Tampilan">
+            <span id="themeIconSpan" aria-hidden="true">🌙</span>
           </button>
 
           <!-- Fullscreen Button -->
-          <button id="globalFullscreenBtn" class="icon-btn" title="Layar Penuh (F)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" id="globalFullscreenBtn" class="icon-btn" title="Layar Penuh (F)" aria-label="Mode Layar Penuh" aria-pressed="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
             </svg>
           </button>
 
           <!-- Lock / Logout Button -->
-          <button id="lockDashboardBtn" class="icon-btn" title="Kunci Dashboard (Keluar)" aria-label="Kunci Dashboard">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" id="lockDashboardBtn" class="icon-btn" title="Kunci Dashboard (Keluar)" aria-label="Kunci Dashboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
@@ -320,7 +333,7 @@
       </header>
 
       <!-- Main Content Views Container -->
-      <div class="view-wrapper">
+      <main id="mainContent" class="view-wrapper" tabindex="-1">
 
         <!-- =========================================================================
              VIEW 0: DASHBOARD (HALAMAN UTAMA - TICKETING 1 BULAN TERAKHIR)
@@ -334,67 +347,67 @@
           <div class="kpi-deck-row kpi-deck-5col">
             
             <!-- 1. Total Tiket (1 Bulan) -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" data-dash-kpi="all" title="Klik untuk membuka Semua Tiket (30 Hari Terakhir) di menu Ticketing">
+              <span class="kpi-header">
                 <span class="kpi-title">Total Tiket (1 Bulan)</span>
-                <span class="kpi-icon">🎫</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🎫</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="dashKpiTotal">--</span>
                 <span class="kpi-sub" id="dashKpiRangeLabel">30 Hari Terakhir</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- 2. Tiket Selesai -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" data-dash-kpi="Resolved" title="Klik untuk memfilter Tiket Selesai (30 Hari Terakhir) di menu Ticketing">
+              <span class="kpi-header">
                 <span class="kpi-title">Tiket Selesai</span>
-                <span class="kpi-icon">✅</span>
-              </div>
-              <div class="kpi-value-wrap">
-                <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span class="kpi-icon" aria-hidden="true">✅</span>
+              </span>
+              <span class="kpi-value-wrap">
+                <span style="display: flex; align-items: baseline; gap: 8px;">
                   <span class="kpi-value" id="dashKpiResolved" style="color: var(--color-success);">--</span>
                   <span id="dashKpiResolvedPct" style="font-size: 0.95rem; font-weight: 700; color: var(--color-success);">--%</span>
-                </div>
-                <span class="kpi-sub" id="dashKpiResolvedSub">Selesai (Closed & Solved)</span>
-              </div>
-            </div>
+                </span>
+                <span class="kpi-sub" id="dashKpiResolvedSub">Selesai (Closed &amp; Solved)</span>
+              </span>
+            </button>
 
             <!-- 3. Dalam Pengerjaan -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" data-dash-kpi="Processing" title="Klik untuk memfilter Tiket Dalam Pengerjaan (30 Hari Terakhir) di menu Ticketing">
+              <span class="kpi-header">
                 <span class="kpi-title">Dalam Pengerjaan</span>
-                <span class="kpi-icon">⚙️</span>
-              </div>
-              <div class="kpi-value-wrap">
-                <span class="kpi-value" id="dashKpiProcessing" style="color: #3b82f6;">--</span>
+                <span class="kpi-icon" aria-hidden="true">⚙️</span>
+              </span>
+              <span class="kpi-value-wrap">
+                <span class="kpi-value" id="dashKpiProcessing" style="color: var(--accent-primary);">--</span>
                 <span class="kpi-sub">Assigned / Planned</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- 4. Baru & Pending -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
-                <span class="kpi-title">Baru & Pending</span>
-                <span class="kpi-icon">⏳</span>
-              </div>
-              <div class="kpi-value-wrap">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" data-dash-kpi="New" title="Klik untuk memfilter Tiket Baru &amp; Pending (30 Hari Terakhir) di menu Ticketing">
+              <span class="kpi-header">
+                <span class="kpi-title">Baru &amp; Pending</span>
+                <span class="kpi-icon" aria-hidden="true">⏳</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="dashKpiNewPending" style="color: var(--color-warning);">--</span>
                 <span class="kpi-sub">Membutuhkan Respon</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- 5. Prioritas P0 & P1 -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
-                <span class="kpi-title">Prioritas P0 & P1</span>
-                <span class="kpi-icon">🚨</span>
-              </div>
-              <div class="kpi-value-wrap">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" data-dash-kpi="Critical" title="Klik untuk memfilter Tiket Prioritas P0 &amp; P1 Kritis (30 Hari Terakhir) di menu Ticketing">
+              <span class="kpi-header">
+                <span class="kpi-title">Prioritas P0 &amp; P1</span>
+                <span class="kpi-icon" aria-hidden="true">🚨</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="dashKpiHighPrio" style="color: var(--color-danger);">--</span>
-                <span class="kpi-sub">Critical & High Priority</span>
-              </div>
-            </div>
+                <span class="kpi-sub">Critical &amp; High Priority</span>
+              </span>
+            </button>
 
           </div>
 
@@ -407,7 +420,7 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-success" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="m9 12 2 2 4-4"></path>
                       </svg>
@@ -415,10 +428,13 @@
                     </span>
                     <span class="chart-subtitle">Proporsi Closed, Processing, Solved, New</span>
                   </div>
-                  <span class="badge-pill" id="dashStatusSolveRate" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;">--% Selesai</span>
+                  <span class="badge-pill badge-pill-success" id="dashStatusSolveRate">--% Selesai</span>
                 </div>
                 <div class="chart-body" style="height: 290px; position: relative;">
-                  <canvas id="chartDashStatus"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashStatus" role="img" aria-label="Grafik donat rasio status tiket 1 bulan terakhir"></canvas>
+                    <figcaption id="captionChartDashStatus" class="sr-only">Memuat ringkasan rasio status tiket 1 bulan terakhir.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -429,17 +445,20 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-danger" stroke-width="2" aria-hidden="true">
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                       </svg>
                       Sebaran Prioritas (P0 - P4)
                     </span>
                     <span class="chart-subtitle">Tingkat urgensi kendala: P0 s/d P4</span>
                   </div>
-                  <span class="badge-pill" id="dashHighPrioBadge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;">-- P0/P1 Kritis</span>
+                  <span class="badge-pill badge-pill-danger" id="dashHighPrioBadge">-- P0/P1 Kritis</span>
                 </div>
                 <div class="chart-body" style="height: 290px; position: relative;">
-                  <canvas id="chartDashPriority"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashPriority" role="img" aria-label="Grafik donat sebaran prioritas tiket P0 hingga P4"></canvas>
+                    <figcaption id="captionChartDashPriority" class="sr-only">Memuat ringkasan sebaran prioritas tiket P0 sampai P4.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -450,7 +469,7 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-purple" stroke-width="2" aria-hidden="true">
                         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
                         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
                       </svg>
@@ -458,10 +477,13 @@
                     </span>
                     <span class="chart-subtitle">Distribusi jenis kendala & root cause tiket</span>
                   </div>
-                  <span class="badge-pill" id="dashTopCatBadge" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6; font-weight: 700;">Top Kategori</span>
+                  <span class="badge-pill badge-pill-purple" id="dashTopCatBadge">Top Kategori</span>
                 </div>
                 <div class="chart-body" style="height: 290px; position: relative;">
-                  <canvas id="chartDashCatDonut"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashCatDonut" role="img" aria-label="Grafik donat sebaran kategori kendala tiket"></canvas>
+                    <figcaption id="captionChartDashCatDonut" class="sr-only">Memuat ringkasan distribusi kategori kendala tiket.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -475,7 +497,7 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-info" stroke-width="2" aria-hidden="true">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                       </svg>
                       Tren Volume Tiket Masuk Harian (30 Hari Terakhir)
@@ -483,11 +505,14 @@
                     <span class="chart-subtitle">Grafik fluktuasi jumlah tiket per hari dengan analisis rata-rata beban operasional</span>
                   </div>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="badge-pill" id="dashAvgDailyBadge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; font-weight: 700;">Rata-rata: ~-- tiket/hari</span>
+                    <span class="badge-pill badge-pill-info" id="dashAvgDailyBadge">Rata-rata: ~-- tiket/hari</span>
                   </div>
                 </div>
                 <div class="chart-body" style="height: 260px; position: relative;">
-                  <canvas id="chartDashDailyTrend"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashDailyTrend" role="img" aria-label="Grafik garis tren volume tiket masuk harian 30 hari terakhir"></canvas>
+                    <figcaption id="captionChartDashDailyTrend" class="sr-only">Memuat tren volume tiket harian 30 hari terakhir.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -502,7 +527,7 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-purple" stroke-width="2" aria-hidden="true">
                         <line x1="18" y1="20" x2="18" y2="10"></line>
                         <line x1="12" y1="20" x2="12" y2="4"></line>
                         <line x1="6" y1="20" x2="6" y2="14"></line>
@@ -513,7 +538,10 @@
                   </div>
                 </div>
                 <div class="chart-body" style="height: 310px; position: relative;">
-                  <canvas id="chartDashCategories"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashCategories" role="img" aria-label="Grafik batang 8 kategori kendala terbanyak 1 bulan terakhir"></canvas>
+                    <figcaption id="captionChartDashCategories" class="sr-only">Memuat daftar 8 kategori kendala terbanyak 1 bulan terakhir.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -524,7 +552,7 @@
                 <div class="chart-card-header">
                   <div class="chart-title-wrap">
                     <span class="chart-title">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="chart-title-icon-orange" stroke-width="2" aria-hidden="true">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                         <circle cx="12" cy="10" r="3"></circle>
                       </svg>
@@ -534,7 +562,10 @@
                   </div>
                 </div>
                 <div class="chart-body" style="height: 310px; position: relative;">
-                  <canvas id="chartDashLocations"></canvas>
+                  <figure class="chart-figure">
+                    <canvas id="chartDashLocations" role="img" aria-label="Grafik batang 8 lokasi hotspot tiket terbanyak 1 bulan terakhir"></canvas>
+                    <figcaption id="captionChartDashLocations" class="sr-only">Memuat daftar 8 lokasi hotspot tiket 1 bulan terakhir.</figcaption>
+                  </figure>
                 </div>
               </div>
             </div>
@@ -546,14 +577,14 @@
             <div class="table-toolbar">
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                  <span>🚨</span> Tiket Kritis & Membutuhkan Tindakan (1 Bulan Terakhir)
+                  <span aria-hidden="true">🚨</span> Tiket Kritis & Membutuhkan Tindakan (1 Bulan Terakhir)
                 </span>
-                <span class="badge-pill" id="dashCriticalCountBadge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;">-- Tiket Kritis</span>
+                <span class="badge-pill badge-pill-danger" id="dashCriticalCountBadge">-- Tiket Kritis</span>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <button class="btn btn-outline" id="dashGoToTicketingBtn" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                <button type="button" class="btn btn-outline" id="dashGoToTicketingBtn" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
                   <span>Buka Semua Tiket di Menu Ticketing</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <polyline points="9 18 15 12 9 6"></polyline>
                   </svg>
                 </button>
@@ -562,18 +593,19 @@
 
             <div class="table-responsive" style="margin-top: 0.5rem;">
               <table class="fleet-table">
+                <caption class="sr-only">Daftar Tiket Kritis dan Prioritas Tinggi 1 Bulan Terakhir</caption>
                 <thead>
                   <tr>
-                    <th style="width: 45px; text-align: center;">No</th>
-                    <th style="width: 105px;">ID Tiket</th>
-                    <th style="width: 140px;">Tanggal Buka</th>
-                    <th style="min-width: 180px;">Lokasi Unit</th>
-                    <th style="min-width: 280px;">Judul Kendala & Rincian</th>
-                    <th style="width: 120px;">Status</th>
-                    <th style="width: 85px; text-align: center;">Prioritas</th>
-                    <th style="min-width: 130px;">Teknisi</th>
-                    <th style="min-width: 125px;">Produk</th>
-                    <th style="min-width: 155px;">Kategori Issue</th>
+                    <th scope="col" style="width: 45px; text-align: center;">No</th>
+                    <th scope="col" style="width: 105px;">ID Tiket</th>
+                    <th scope="col" style="width: 140px;">Tanggal Buka</th>
+                    <th scope="col" style="min-width: 180px;">Lokasi Unit</th>
+                    <th scope="col" style="min-width: 280px;">Judul Kendala & Rincian</th>
+                    <th scope="col" style="width: 120px;">Status</th>
+                    <th scope="col" style="width: 85px; text-align: center;">Prioritas</th>
+                    <th scope="col" style="min-width: 130px;">Teknisi</th>
+                    <th scope="col" style="min-width: 125px;">Produk</th>
+                    <th scope="col" style="min-width: 155px;">Kategori Issue</th>
                   </tr>
                 </thead>
                 <tbody id="dashCriticalTableBody">
@@ -593,22 +625,22 @@
             
             <div class="table-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="locSearchInput" class="search-input" placeholder="Cari nama lokasi, kode unik, IP ZT, versi Agent, Fisherman, Watersheep, WBO...">
+                <input type="text" id="locSearchInput" class="search-input" aria-label="Cari informasi lokasi parkir" placeholder="Cari nama lokasi, unique code, IP ZT, versi Agent, Fisherman, Watersheep, WBO...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-                <span>Tampilkan:</span>
-                <select id="locPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                <label for="locPageSizeSelect">Tampilkan:</label>
+                <select id="locPageSizeSelect" class="toolbar-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25" selected>25 Baris</option>
                   <option value="50">50 Baris</option>
                   <option value="100">100 Baris</option>
                 </select>
-                <button id="exportLocsCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                <button type="button" id="exportLocsCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
                   Ekspor CSV
                 </button>
               </div>
@@ -619,21 +651,21 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Tier:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-loc-tier="all">Semua Tier</button>
-                  <button class="filter-pill" data-loc-tier="diamond">Diamond</button>
-                  <button class="filter-pill" data-loc-tier="gold">Gold</button>
-                  <button class="filter-pill" data-loc-tier="silver">Silver</button>
-                  <button class="filter-pill" data-loc-tier="standard">Standard</button>
+                  <button type="button" class="filter-pill active" data-loc-tier="all">Semua Tier</button>
+                  <button type="button" class="filter-pill" data-loc-tier="diamond">Diamond</button>
+                  <button type="button" class="filter-pill" data-loc-tier="gold">Gold</button>
+                  <button type="button" class="filter-pill" data-loc-tier="silver">Silver</button>
+                  <button type="button" class="filter-pill" data-loc-tier="standard">Standard</button>
                 </div>
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="locResultCountLabel">
-                  Menampilkan 961 Lokasi
+                  Menampilkan -- Lokasi
                 </div>
               </div>
 
               <!-- Specific Filter Dropdowns Bar -->
               <div class="filter-bar-grid">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Reader PARKEE:</span>
+                  <label for="locReaderFilter" class="filter-group-label">Reader PARKEE:</label>
                   <select id="locReaderFilter" class="filter-select">
                     <option value="all">Semua Lokasi</option>
                     <option value="yes">✓ Ada Reader PARKEE</option>
@@ -642,7 +674,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Suhu Operasional:</span>
+                  <label for="locTempFilter" class="filter-group-label">Suhu Operasional:</label>
                   <select id="locTempFilter" class="filter-select">
                     <option value="all">Semua Suhu</option>
                     <option value="cool">Aman (&lt;70°C)</option>
@@ -651,7 +683,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Status Storage:</span>
+                  <label for="locStorageFilter" class="filter-group-label">Status Storage:</label>
                   <select id="locStorageFilter" class="filter-select">
                     <option value="all">Semua Storage</option>
                     <option value="low_health">⚠️ Ada SSD Kritis (&lt;70%)</option>
@@ -659,26 +691,26 @@
                   </select>
                 </div>
 
-                <button class="btn-reset-filters" id="locResetFiltersBtn">↺ Reset Filter</button>
+                <button type="button" class="btn-reset-filters" id="locResetFiltersBtn">↺ Reset Filter</button>
               </div>
             </div>
 
             <!-- 10-Column Locations Table -->
             <div class="table-responsive" style="margin-top: 0.65rem;">
               <table class="fleet-table">
+                <caption class="sr-only">Tabel Informasi Lokasi dan Versi Perangkat Lunak PARKEE</caption>
                 <thead>
                   <tr>
-                    <th class="sortable" data-loc-sort="loc">Nama Lokasi ⇅</th>
-                    <th class="sortable" data-loc-sort="code">Kode Unik Lokasi ⇅</th>
-                    <th class="sortable" data-loc-sort="tier">Tier ⇅</th>
-                    <th class="sortable" data-loc-sort="zt">IP ZT Lokasi ⇅</th>
-                    <th class="sortable" data-loc-sort="last_sync">Last Sync ⇅</th>
-                    <th class="sortable" data-loc-sort="agent">Agent Version ⇅</th>
-                    <th class="sortable" data-loc-sort="fisherman">Fisherman Version ⇅</th>
-                    <th class="sortable" data-loc-sort="watersheep">Watersheep Version ⇅</th>
-                    <th class="sortable" data-loc-sort="wbo">WBO Version ⇅</th>
-                    <th class="sortable" data-loc-sort="os">OS Version ⇅</th>
-                    <th>Aksi</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="loc"><button type="button" class="th-sort-btn"><span class="th-label">Nama Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="code"><button type="button" class="th-sort-btn"><span class="th-label">Unique Code</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="tier"><button type="button" class="th-sort-btn"><span class="th-label">Tier</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="zt"><button type="button" class="th-sort-btn"><span class="th-label">IP ZT</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="last_sync"><button type="button" class="th-sort-btn"><span class="th-label">Last Sync</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="agent"><button type="button" class="th-sort-btn"><span class="th-label">Agent Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="fisherman"><button type="button" class="th-sort-btn"><span class="th-label">Fisherman Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="watersheep"><button type="button" class="th-sort-btn"><span class="th-label">Watersheep Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="wbo"><button type="button" class="th-sort-btn"><span class="th-label">WBO Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-loc-sort="os"><button type="button" class="th-sort-btn"><span class="th-label">OS Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="locationsTableBody">
@@ -691,9 +723,9 @@
             <div class="table-pagination">
               <span id="locTableCountLabel">Memuat data lokasi...</span>
               <div class="pagination-btn-group">
-                <button id="locPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="locPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="locCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="locNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="locNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -708,22 +740,22 @@
             
             <div class="table-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="serverSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname server, CPU, motherboard, RAM, atau IP...">
+                <input type="text" id="serverSearchInput" class="search-input" aria-label="Cari spesifikasi server" placeholder="Cari nama lokasi, unique code, hostname, CPU, motherboard, RAM, atau IP...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-                <span>Tampilkan:</span>
-                <select id="serverPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                <label for="serverPageSizeSelect">Tampilkan:</label>
+                <select id="serverPageSizeSelect" class="toolbar-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25" selected>25 Baris</option>
                   <option value="50">50 Baris</option>
                   <option value="100">100 Baris</option>
                 </select>
-                <button id="exportServersCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                <button type="button" id="exportServersCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
                   Ekspor CSV
                 </button>
               </div>
@@ -734,29 +766,30 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Status Server:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-server-filter="all">Semua Server (964)</button>
-                  <button class="filter-pill hazard" data-server-filter="overheat">🔥 Overheat (≥80°C)</button>
-                  <button class="filter-pill hazard" data-server-filter="low_ssd">⚠️ Low SSD Health (&lt;70%)</button>
-                  <button class="filter-pill hazard" data-server-filter="full_storage">🚨 Storage Kritis (≥85%)</button>
+                  <button type="button" class="filter-pill active" data-server-filter="all">Semua Server (--)</button>
+                  <button type="button" class="filter-pill hazard" data-server-filter="overheat">🔥 Overheat (≥80°C)</button>
+                  <button type="button" class="filter-pill hazard" data-server-filter="low_ssd">⚠️ Low SSD Health (&lt;70%)</button>
+                  <button type="button" class="filter-pill hazard" data-server-filter="full_storage">🚨 Storage Kritis (≥85%)</button>
                 </div>
 
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-left: 12px;">Tier:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-server-tier="all">Semua Tier</button>
-                  <button class="filter-pill" data-server-tier="diamond">Diamond</button>
-                  <button class="filter-pill" data-server-tier="gold">Gold</button>
-                  <button class="filter-pill" data-server-tier="silver">Silver</button>
+                  <button type="button" class="filter-pill active" data-server-tier="all">Semua Tier</button>
+                  <button type="button" class="filter-pill" data-server-tier="diamond">Diamond</button>
+                  <button type="button" class="filter-pill" data-server-tier="gold">Gold</button>
+                  <button type="button" class="filter-pill" data-server-tier="silver">Silver</button>
+                  <button type="button" class="filter-pill" data-server-tier="standard">Standard</button>
                 </div>
 
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="serverResultCountLabel">
-                  Menampilkan 964 Server
+                  Menampilkan -- Server
                 </div>
               </div>
 
               <!-- Specific Hardware Filter Dropdowns Bar -->
               <div class="filter-bar-grid">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Processor:</span>
+                  <label for="serverCpuFilter" class="filter-group-label">Processor:</label>
                   <select id="serverCpuFilter" class="filter-select">
                     <option value="all">Semua CPU</option>
                     <option value="i3">Intel Core i3</option>
@@ -768,7 +801,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Motherboard:</span>
+                  <label for="serverMbFilter" class="filter-group-label">Motherboard:</label>
                   <select id="serverMbFilter" class="filter-select">
                     <option value="all">Semua MB</option>
                     <option value="asus">ASUS</option>
@@ -781,7 +814,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">RAM:</span>
+                  <label for="serverRamFilter" class="filter-group-label">RAM:</label>
                   <select id="serverRamFilter" class="filter-select">
                     <option value="all">Semua RAM</option>
                     <option value="4g">≤ 4GB</option>
@@ -792,7 +825,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Tipe SSD:</span>
+                  <label for="serverSsdTypeFilter" class="filter-group-label">Tipe SSD:</label>
                   <select id="serverSsdTypeFilter" class="filter-select">
                     <option value="all">Semua Tipe</option>
                     <option value="nvme">NVMe</option>
@@ -801,7 +834,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Merk SSD:</span>
+                  <label for="serverSsdBrandFilter" class="filter-group-label">Merk SSD:</label>
                   <select id="serverSsdBrandFilter" class="filter-select">
                     <option value="all">Semua Merk</option>
                     <option value="v-gen">V-Gen</option>
@@ -814,7 +847,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Ukuran SSD:</span>
+                  <label for="serverSsdSizeFilter" class="filter-group-label">Ukuran SSD:</label>
                   <select id="serverSsdSizeFilter" class="filter-select">
                     <option value="all">Semua Ukuran</option>
                     <option value="128">~128 GB</option>
@@ -826,7 +859,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Suhu:</span>
+                  <label for="serverTempFilter" class="filter-group-label">Suhu:</label>
                   <select id="serverTempFilter" class="filter-select">
                     <option value="all">Semua Suhu</option>
                     <option value="cool">&lt; 50°C (Dingin)</option>
@@ -838,7 +871,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Health SSD:</span>
+                  <label for="serverHealthFilter" class="filter-group-label">Health SSD:</label>
                   <select id="serverHealthFilter" class="filter-select">
                     <option value="all">Semua Health</option>
                     <option value="pristine">≥ 95% (Prima)</option>
@@ -849,7 +882,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Usage:</span>
+                  <label for="serverUsageFilter" class="filter-group-label">Usage:</label>
                   <select id="serverUsageFilter" class="filter-select">
                     <option value="all">Semua Usage</option>
                     <option value="plenty">&lt; 50% (Lapang)</option>
@@ -859,29 +892,29 @@
                   </select>
                 </div>
 
-                <button class="btn-reset-filters" id="serverResetFiltersBtn">↺ Reset Filter</button>
+                <button type="button" class="btn-reset-filters" id="serverResetFiltersBtn">↺ Reset Filter</button>
               </div>
             </div>
 
             <!-- Detailed Server Table -->
             <div class="table-responsive" style="margin-top: 0.65rem;">
               <table class="fleet-table">
+                <caption class="sr-only">Tabel Spesifikasi Perangkat Keras Server PARKEE</caption>
                 <thead>
                   <tr>
-                    <th class="sortable" data-srv-sort="loc">Lokasi & Kode ⇅</th>
-                    <th class="sortable" data-srv-sort="tier">Tier ⇅</th>
-                    <th class="sortable" data-srv-sort="host">Hostname Server ⇅</th>
-                    <th class="sortable" data-srv-sort="ip">IP Local / ZT ⇅</th>
-                    <th class="sortable" data-srv-sort="cpu">Processor (CPU) ⇅</th>
-                    <th class="sortable" data-srv-sort="ram">RAM ⇅</th>
-                    <th class="sortable" data-srv-sort="mb">Motherboard ⇅</th>
-                    <th class="sortable" data-srv-sort="ssd_brand">Merk SSD ⇅</th>
-                    <th class="sortable" data-srv-sort="ssd_size">Ukuran SSD ⇅</th>
-                    <th class="sortable" data-srv-sort="temp">Suhu (°C) ⇅</th>
-                    <th class="sortable" data-srv-sort="ssd_health">Health SSD ⇅</th>
-                    <th class="sortable" data-srv-sort="ssd_usage">Disk Usage ⇅</th>
-                    <th class="sortable" data-srv-sort="os">OS Version ⇅</th>
-                    <th>Detail</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="loc"><button type="button" class="th-sort-btn"><span class="th-label">Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="tier"><button type="button" class="th-sort-btn"><span class="th-label">Tier</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="host"><button type="button" class="th-sort-btn"><span class="th-label">Hostname</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ip"><button type="button" class="th-sort-btn"><span class="th-label">IP Local / ZT</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="cpu"><button type="button" class="th-sort-btn"><span class="th-label">Processor (CPU)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ram"><button type="button" class="th-sort-btn"><span class="th-label">RAM</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="mb"><button type="button" class="th-sort-btn"><span class="th-label">Motherboard</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ssd_brand"><button type="button" class="th-sort-btn"><span class="th-label">Merk SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ssd_size"><button type="button" class="th-sort-btn"><span class="th-label">Ukuran SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="temp"><button type="button" class="th-sort-btn"><span class="th-label">Suhu (°C)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ssd_health"><button type="button" class="th-sort-btn"><span class="th-label">Health SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="ssd_usage"><button type="button" class="th-sort-btn"><span class="th-label">Disk Usage</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-srv-sort="os"><button type="button" class="th-sort-btn"><span class="th-label">OS Version</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="serversTableBody">
@@ -894,9 +927,9 @@
             <div class="table-pagination">
               <span id="serverTableCountLabel">Memuat data server...</span>
               <div class="pagination-btn-group">
-                <button id="serverPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="serverPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="serverCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="serverNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="serverNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -904,32 +937,29 @@
         </section>
 
         <!-- =========================================================================
-             VIEW 3: Client Specification (Master-Detail Lokasi & Reader Lapangan)
-             ========================================================================= -->
-        <!-- =========================================================================
-             VIEW 3: Client Specification (50:50 Layout: All Clients & Location Dropdown)
+             VIEW 3: Client Specification (All Clients & Reader Lapangan)
              ========================================================================= -->
         <section id="view-clients" class="view-section">
           <div class="glass-panel table-card">
             
             <div class="table-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="allClientsSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname klien, versi agent, SN reader, IP, CPU...">
+                <input type="text" id="allClientsSearchInput" class="search-input" aria-label="Cari spesifikasi klien dan reader" placeholder="Cari nama lokasi, unique code, hostname, versi agent, SN reader, IP, CPU...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-                <span>Tampilkan:</span>
-                <select id="allClientsPageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                <label for="allClientsPageSizeSelect">Tampilkan:</label>
+                <select id="allClientsPageSizeSelect" class="toolbar-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25">25 Baris</option>
                   <option value="50" selected>50 Baris</option>
                   <option value="100">100 Baris</option>
                 </select>
-                <button id="exportAllClientsBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                <button type="button" id="exportAllClientsBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
                   ⬇ Ekspor CSV
                 </button>
               </div>
@@ -940,33 +970,22 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Cepat:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-client-filter="all">Semua Klien (6,573)</button>
-                  <button class="filter-pill" data-client-filter="reader">✓ Pakai Reader PARKEE</button>
-                  <button class="filter-pill" data-client-filter="no_reader">✕ Belum Pakai</button>
-                  <button class="filter-pill" data-client-filter="warm">Suhu ≥ 70°C</button>
-                  <button class="filter-pill" data-client-filter="hot">🔥 Panas ≥ 80°C</button>
+                  <button type="button" class="filter-pill active" data-client-filter="all">Semua Klien (--)</button>
+                  <button type="button" class="filter-pill" data-client-filter="reader">✓ Pakai Reader PARKEE</button>
+                  <button type="button" class="filter-pill" data-client-filter="no_reader">✕ Belum Pakai</button>
+                  <button type="button" class="filter-pill" data-client-filter="warm">Suhu ≥ 70°C</button>
+                  <button type="button" class="filter-pill" data-client-filter="hot">🔥 Panas ≥ 80°C</button>
                 </div>
 
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="allClientsCountBadge">
-                  Menampilkan 6,573 Unit Klien
+                  Menampilkan -- Unit Klien
                 </div>
               </div>
 
               <!-- Specific Hardware Filter Dropdowns Bar -->
               <div class="filter-bar-grid">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Role:</span>
-                  <select id="clientRoleFilter" class="filter-select">
-                    <option value="all">Semua Role</option>
-                    <option value="gate">Gate / Kiosk</option>
-                    <option value="cashier">Cashier</option>
-                    <option value="admin">Admin BO</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div class="filter-group-item">
-                  <span class="filter-group-label">Reader PARKEE:</span>
+                  <label for="clientReaderFilter" class="filter-group-label">Reader PARKEE:</label>
                   <select id="clientReaderFilter" class="filter-select">
                     <option value="all">Semua Status</option>
                     <option value="connected">✓ Sudah Pakai</option>
@@ -975,7 +994,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Firmware:</span>
+                  <label for="clientReaderVerFilter" class="filter-group-label">Firmware:</label>
                   <select id="clientReaderVerFilter" class="filter-select">
                     <option value="all">Semua FW</option>
                     <option value="v1.00.21">v1.00.21</option>
@@ -989,7 +1008,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Processor:</span>
+                  <label for="clientCpuFilter" class="filter-group-label">Processor:</label>
                   <select id="clientCpuFilter" class="filter-select">
                     <option value="all">Semua CPU</option>
                     <option value="i3">Intel Core i3</option>
@@ -999,7 +1018,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Suhu:</span>
+                  <label for="clientTempFilter" class="filter-group-label">Suhu:</label>
                   <select id="clientTempFilter" class="filter-select">
                     <option value="all">Semua Suhu</option>
                     <option value="normal">&lt; 60°C</option>
@@ -1008,27 +1027,27 @@
                   </select>
                 </div>
 
-                <button class="btn-reset-filters" id="allClientsResetFiltersBtn">↺ Reset Filter</button>
+                <button type="button" class="btn-reset-filters" id="allClientsResetFiltersBtn">↺ Reset Filter</button>
               </div>
             </div>
 
             <!-- Full-width Responsive Client Table -->
             <div class="table-responsive">
               <table class="fleet-table" id="allClientsTable">
+                <caption class="sr-only">Tabel Spesifikasi Perangkat Klien dan Reader Lapangan PARKEE</caption>
                 <thead>
                   <tr>
-                    <th class="sortable" data-cl-sort="loc">Lokasi ⇅</th>
-                    <th class="sortable" data-cl-sort="host">Hostname & Role ⇅</th>
-                    <th class="sortable" data-cl-sort="agent">Versi Agent ⇅</th>
-                    <th class="sortable" data-cl-sort="reader_ver">Reader PARKEE ⇅</th>
-                    <th class="sortable" data-cl-sort="ip">IP Local / ZT ⇅</th>
-                    <th class="sortable" data-cl-sort="cpu">Processor (CPU) ⇅</th>
-                    <th class="sortable" data-cl-sort="ram">RAM ⇅</th>
-                    <th class="sortable" data-cl-sort="mb">Motherboard ⇅</th>
-                    <th class="sortable" data-cl-sort="ssd_size">Storage SSD ⇅</th>
-                    <th class="sortable" data-cl-sort="temp">Suhu ⇅</th>
-                    <th class="sortable" data-cl-sort="os">OS ⇅</th>
-                    
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="loc"><button type="button" class="th-sort-btn"><span class="th-label">Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="host"><button type="button" class="th-sort-btn"><span class="th-label">Hostname</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="agent"><button type="button" class="th-sort-btn"><span class="th-label">Versi Agent</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="reader_ver"><button type="button" class="th-sort-btn"><span class="th-label">Reader PARKEE</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="ip"><button type="button" class="th-sort-btn"><span class="th-label">IP Local / ZT</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="cpu"><button type="button" class="th-sort-btn"><span class="th-label">Processor (CPU)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="ram"><button type="button" class="th-sort-btn"><span class="th-label">RAM</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="mb"><button type="button" class="th-sort-btn"><span class="th-label">Motherboard</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="ssd_size"><button type="button" class="th-sort-btn"><span class="th-label">Storage SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="temp"><button type="button" class="th-sort-btn"><span class="th-label">Suhu</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-cl-sort="os"><button type="button" class="th-sort-btn"><span class="th-label">OS</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="allClientsTableBody">
@@ -1041,9 +1060,9 @@
             <div class="table-pagination">
               <span id="allClientsCountLabel">Memuat klien...</span>
               <div class="pagination-btn-group">
-                <button id="allClientsPrevBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="allClientsPrevBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="allClientsPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="allClientsNextBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="allClientsNextBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -1057,11 +1076,11 @@
           <!-- Server Storage Hero KPIs -->
           <div class="kpi-deck-row">
             <!-- Total Drives -->
-            <div class="glass-panel kpi-card kpi-primary">
+            <button type="button" class="glass-panel kpi-card kpi-primary ticket-kpi-interactive kpi-active-filter" data-storage-kpi="all" aria-pressed="true" title="Klik untuk menampilkan Semua Server Storage">
               <div class="kpi-top">
                 <span class="kpi-tag">TOTAL DRIVE SERVER</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
                     <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
                     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
@@ -1069,41 +1088,41 @@
                 </div>
               </div>
               <div>
-                <div id="storageKpiTotalDrives" class="kpi-value">1,982</div>
-                <div class="kpi-label">SSD & NVMe Server Terpasang</div>
+                <div id="storageKpiTotalDrives" class="kpi-value">--</div>
+                <div class="kpi-label">SSD &amp; NVMe Server Terpasang</div>
               </div>
               <div class="kpi-meta">
-                <span>Khusus Server Sentral & Pos Admin</span>
+                <span>Khusus Server Sentral &amp; Pos Admin</span>
               </div>
-            </div>
+            </button>
 
             <!-- NVMe vs SATA -->
-            <div class="glass-panel kpi-card kpi-cyan">
+            <button type="button" class="glass-panel kpi-card kpi-cyan ticket-kpi-interactive" data-storage-kpi="nvme" aria-pressed="false" title="Klik untuk memfilter Storage NVMe / SATA">
               <div class="kpi-top">
                 <span class="kpi-tag">TEKNOLOGI PENYIMPANAN</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                   </svg>
                 </div>
               </div>
               <div>
                 <div id="storageKpiNvmeRatio" class="kpi-value" style="font-size: 1.85rem; color: var(--accent-secondary);">
-                  1,328 NVMe
+                  -- NVMe
                 </div>
-                <div class="kpi-label">vs 614 SATA Server</div>
+                <div class="kpi-label" id="storageKpiSataLabel">vs -- SATA Server</div>
               </div>
               <div class="kpi-meta">
-                <span>67% Server Telah Menggunakan NVMe</span>
+                <span id="storageKpiNvmePctMeta">Perbandingan NVMe &amp; SATA Server</span>
               </div>
-            </div>
+            </button>
 
             <!-- High Storage Usage Alert -->
-            <div class="glass-panel kpi-card kpi-hazard">
+            <button type="button" class="glass-panel kpi-card kpi-hazard ticket-kpi-interactive" data-storage-kpi="critical_usage" aria-pressed="false" title="Klik untuk memfilter Server Storage Kritis (≥85%)">
               <div class="kpi-top">
                 <span class="kpi-tag">STORAGE KRITIS (≥85%)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                     <line x1="12" y1="9" x2="12" y2="13"></line>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
@@ -1111,33 +1130,33 @@
                 </div>
               </div>
               <div>
-                <div id="storageKpiFullCount" class="kpi-value" style="color: var(--color-danger);">39</div>
+                <div id="storageKpiFullCount" class="kpi-value" style="color: var(--color-danger);">--</div>
                 <div class="kpi-label">Server Mendekati Kapasitas Penuh</div>
               </div>
               <div class="kpi-meta">
-                <span>Perlu log vacuum & docker system prune</span>
+                <span>Perlu log vacuum &amp; docker system prune</span>
               </div>
-            </div>
+            </button>
 
             <!-- Low SSD Health -->
-            <div class="glass-panel kpi-card kpi-amber">
+            <button type="button" class="glass-panel kpi-card kpi-amber ticket-kpi-interactive" data-storage-kpi="critical_health" aria-pressed="false" title="Klik untuk memfilter SSD Server Health Rendah (&lt;70%)">
               <div class="kpi-top">
                 <span class="kpi-tag">WEAR HEALTH DEGRADED (&lt;70%)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M22 12H2"></path>
                     <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
                   </svg>
                 </div>
               </div>
               <div>
-                <div id="storageKpiLowHealthCount" class="kpi-value" style="color: var(--color-warning);">19</div>
+                <div id="storageKpiLowHealthCount" class="kpi-value" style="color: var(--color-warning);">--</div>
                 <div class="kpi-label">SSD Server Mengalami Keausan</div>
               </div>
               <div class="kpi-meta">
                 <span>Siapkan SSD clone pengganti sebelum I/O freeze</span>
               </div>
-            </div>
+            </button>
           </div>
 
           <!-- Storage Table Card -->
@@ -1145,22 +1164,22 @@
             
             <div class="table-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="storageSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname server, merk SSD, atau tipe NVMe/SATA...">
+                <input type="text" id="storageSearchInput" class="search-input" aria-label="Cari storage server" placeholder="Cari nama lokasi, unique code, hostname, merk SSD, atau tipe NVMe/SATA...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-                <span>Tampilkan:</span>
-                <select id="storagePageSizeSelect" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-light); font-weight: 600; background: var(--surface-card); color: var(--text-main);">
+                <label for="storagePageSizeSelect">Tampilkan:</label>
+                <select id="storagePageSizeSelect" class="toolbar-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25" selected>25 Baris</option>
                   <option value="50">50 Baris</option>
                   <option value="100">100 Baris</option>
                 </select>
-                <button id="exportStorageCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
+                <button type="button" id="exportStorageCsvBtn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
                   Ekspor CSV
                 </button>
               </div>
@@ -1171,21 +1190,21 @@
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Filter Storage:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-storage-filter="all">Semua Server Storage (964)</button>
-                  <button class="filter-pill hazard" data-storage-filter="critical_usage">🚨 Kritis Usage (≥85%)</button>
-                  <button class="filter-pill hazard" data-storage-filter="critical_health">⚠️ Health Rendah (&lt;70%)</button>
-                  <button class="filter-pill" data-storage-filter="nvme">🚀 NVMe Saja</button>
-                  <button class="filter-pill" data-storage-filter="sata">💾 SATA Saja</button>
+                  <button type="button" class="filter-pill active" data-storage-filter="all">Semua Server Storage (--)</button>
+                  <button type="button" class="filter-pill hazard" data-storage-filter="critical_usage">🚨 Kritis Usage (≥85%)</button>
+                  <button type="button" class="filter-pill hazard" data-storage-filter="critical_health">⚠️ Health Rendah (&lt;70%)</button>
+                  <button type="button" class="filter-pill" data-storage-filter="nvme">🚀 NVMe Saja</button>
+                  <button type="button" class="filter-pill" data-storage-filter="sata">💾 SATA Saja</button>
                 </div>
                 <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="storageResultCountLabel">
-                  Menampilkan 964 Server
+                  Menampilkan -- Server
                 </div>
               </div>
 
               <!-- Specific Storage Filters Bar -->
               <div class="filter-bar-grid">
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Tipe SSD:</span>
+                  <label for="storageTypeFilter" class="filter-group-label">Tipe SSD:</label>
                   <select id="storageTypeFilter" class="filter-select">
                     <option value="all">Semua Tipe</option>
                     <option value="nvme">NVMe</option>
@@ -1194,7 +1213,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Merk SSD:</span>
+                  <label for="storageBrandFilter" class="filter-group-label">Merk SSD:</label>
                   <select id="storageBrandFilter" class="filter-select">
                     <option value="all">Semua Merk</option>
                     <option value="v-gen">V-Gen</option>
@@ -1208,7 +1227,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Kapasitas:</span>
+                  <label for="storageCapFilter" class="filter-group-label">Kapasitas:</label>
                   <select id="storageCapFilter" class="filter-select">
                     <option value="all">Semua Ukuran</option>
                     <option value="128g">≤ 128GB</option>
@@ -1219,7 +1238,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Health SSD:</span>
+                  <label for="storageHealthFilter" class="filter-group-label">Health SSD:</label>
                   <select id="storageHealthFilter" class="filter-select">
                     <option value="all">Semua Health</option>
                     <option value="pristine">≥ 95% (Prima)</option>
@@ -1230,7 +1249,7 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Disk Usage:</span>
+                  <label for="storageUsageFilter" class="filter-group-label">Disk Usage:</label>
                   <select id="storageUsageFilter" class="filter-select">
                     <option value="all">Semua Usage</option>
                     <option value="plenty">&lt; 50% (Lapang)</option>
@@ -1241,35 +1260,37 @@
                 </div>
 
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Tier:</span>
+                  <label for="storageTierFilter" class="filter-group-label">Tier:</label>
                   <select id="storageTierFilter" class="filter-select">
                     <option value="all">Semua Tier</option>
                     <option value="diamond">Diamond</option>
                     <option value="gold">Gold</option>
                     <option value="silver">Silver</option>
+                    <option value="standard">Standard</option>
                   </select>
                 </div>
 
-                <button class="btn-reset-filters" id="storageResetFiltersBtn">↺ Reset Filter</button>
+                <button type="button" class="btn-reset-filters" id="storageResetFiltersBtn">↺ Reset Filter</button>
               </div>
             </div>
 
             <!-- Server Storage Audit Table -->
             <div class="table-responsive" style="margin-top: 0.65rem;">
               <table class="fleet-table">
+                <caption class="sr-only">Tabel Audit Storage dan Health SSD Server PARKEE</caption>
                 <thead>
                   <tr>
-                    <th class="sortable" data-st-sort="loc">Lokasi & Kode ⇅</th>
-                    <th class="sortable" data-st-sort="tier">Tier ⇅</th>
-                    <th class="sortable" data-st-sort="host">Hostname Server ⇅</th>
-                    <th class="sortable" data-st-sort="ssd_brand">Merk SSD ⇅</th>
-                    <th class="sortable" data-st-sort="ssd_type">Tipe SSD ⇅</th>
-                    <th class="sortable" data-st-sort="ssd_size">Ukuran Disk ⇅</th>
-                    <th class="sortable" data-st-sort="ssd_health">Health SSD (%) ⇅</th>
-                    <th class="sortable" data-st-sort="ssd_usage">Disk Usage (%) ⇅</th>
-                    <th class="sortable" data-st-sort="temp">Suhu Server ⇅</th>
-                    <th class="sortable" data-st-sort="sync">Last Sync ⇅</th>
-                    <th>Rekomendasi Tindakan</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="loc"><button type="button" class="th-sort-btn"><span class="th-label">Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="tier"><button type="button" class="th-sort-btn"><span class="th-label">Tier</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="host"><button type="button" class="th-sort-btn"><span class="th-label">Hostname</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="ssd_brand"><button type="button" class="th-sort-btn"><span class="th-label">Merk SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="ssd_type"><button type="button" class="th-sort-btn"><span class="th-label">Tipe SSD</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="ssd_size"><button type="button" class="th-sort-btn"><span class="th-label">Ukuran Disk</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="ssd_health"><button type="button" class="th-sort-btn"><span class="th-label">Health SSD (%)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="ssd_usage"><button type="button" class="th-sort-btn"><span class="th-label">Disk Usage (%)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="temp"><button type="button" class="th-sort-btn"><span class="th-label">Suhu Server</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-st-sort="sync"><button type="button" class="th-sort-btn"><span class="th-label">Last Sync</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col">Rekomendasi Tindakan</th>
                   </tr>
                 </thead>
                 <tbody id="storageTableBody">
@@ -1282,9 +1303,9 @@
             <div class="table-pagination">
               <span id="storageTableCountLabel">Memuat data storage...</span>
               <div class="pagination-btn-group">
-                <button id="storagePrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="storagePrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="storageCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="storageNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="storageNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -1298,64 +1319,64 @@
           <!-- Server Temperature Hero KPIs -->
           <div class="kpi-deck-row kpi-deck-5col">
             <!-- Total Monitored Servers -->
-            <div class="glass-panel kpi-card kpi-primary">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-primary ticket-kpi-interactive kpi-active-filter" id="cardTempAll" data-temp-kpi="all" aria-pressed="true" title="Klik untuk menampilkan Semua Server Terpantau">
+              <span class="kpi-header">
                 <span class="kpi-title">Armada Terpantau</span>
-                <span class="kpi-icon">🖥️</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🖥️</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="tempTotalMonitored">--</span>
                 <span class="kpi-sub">Node Exporter Prometheus</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Overheat Alert -->
-            <div class="glass-panel kpi-card kpi-danger">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-danger ticket-kpi-interactive" id="cardTempOverheat" data-temp-kpi="overheat" aria-pressed="false" title="Klik untuk memfilter Server Overheat (≥80°C)">
+              <span class="kpi-header">
                 <span class="kpi-title">Overheat (≥80°C)</span>
-                <span class="kpi-icon">🔥</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🔥</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="tempCountOverheat" style="color: var(--color-danger);">--</span>
                 <span class="kpi-sub" style="color: var(--color-danger); font-weight: 700;">Butuh Perhatian Segera</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Warm / Warning -->
-            <div class="glass-panel kpi-card kpi-warning">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-warning ticket-kpi-interactive" id="cardTempWarm" data-temp-kpi="warm" aria-pressed="false" title="Klik untuk memfilter Server Waspada (70-79°C)">
+              <span class="kpi-header">
                 <span class="kpi-title">Waspada (70-79°C)</span>
-                <span class="kpi-icon">⚠️</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">⚠️</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="tempCountWarm" style="color: var(--color-warning);">--</span>
                 <span class="kpi-sub" style="color: var(--color-warning);">Beban Tinggi / Fan Lemah</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Normal -->
-            <div class="glass-panel kpi-card kpi-success">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-success ticket-kpi-interactive" id="cardTempNormal" data-temp-kpi="normal" aria-pressed="false" title="Klik untuk memfilter Server Suhu Normal (&lt;70°C)">
+              <span class="kpi-header">
                 <span class="kpi-title">Suhu Normal (&lt;70°C)</span>
-                <span class="kpi-icon">🟢</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🟢</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="tempCountNormal" style="color: var(--color-success);">--</span>
                 <span class="kpi-sub" style="color: var(--color-success);">Kondisi Optimal</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Average Temperature -->
-            <div class="glass-panel kpi-card">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive" id="cardTempAvg" data-temp-kpi="avg" aria-pressed="false" title="Klik untuk menampilkan Semua Server (Diurutkan dari Suhu Tertinggi)">
+              <span class="kpi-header">
                 <span class="kpi-title">Rata-Rata Suhu</span>
-                <span class="kpi-icon">🌡️</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🌡️</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="tempAvgCelsius">--°C</span>
                 <span class="kpi-sub">Rata-Rata Nasional</span>
-              </div>
-            </div>
+              </span>
+            </button>
           </div>
 
           <!-- Main Temperature Table Card -->
@@ -1363,18 +1384,18 @@
             <!-- Toolbar -->
             <div class="table-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="tempSearchInput" class="search-input" placeholder="Cari nama lokasi, kode, hostname, atau IP ZeroTier...">
+                <input type="text" id="tempSearchInput" class="search-input" aria-label="Cari suhu server" placeholder="Cari nama lokasi, kode, hostname, atau IP ZeroTier...">
               </div>
 
               <div class="filter-pills-group">
-                <button class="filter-pill active" data-temp-filter="all">Semua Server</button>
-                <button class="filter-pill" data-temp-filter="overheat" style="color: var(--color-danger); font-weight: 600;">🔥 Overheat (≥80°C)</button>
-                <button class="filter-pill" data-temp-filter="warm" style="color: var(--color-warning); font-weight: 600;">⚠️ Waspada (70-79°C)</button>
-                <button class="filter-pill" data-temp-filter="normal" style="color: var(--color-success); font-weight: 600;">🟢 Normal (&lt;70°C)</button>
+                <button type="button" class="filter-pill active" data-temp-filter="all">Semua Server</button>
+                <button type="button" class="filter-pill filter-pill-danger" data-temp-filter="overheat">🔥 Overheat (≥80°C)</button>
+                <button type="button" class="filter-pill filter-pill-warning" data-temp-filter="warm">⚠️ Waspada (70-79°C)</button>
+                <button type="button" class="filter-pill filter-pill-success" data-temp-filter="normal">🟢 Normal (&lt;70°C)</button>
               </div>
 
               <div class="toolbar-actions">
@@ -1382,10 +1403,10 @@
                   <span>Sumber: <strong>Grafana Prometheus</strong></span>
                   <span id="tempLastSyncLabel" class="version-code-tag">Memuat...</span>
                 </div>
-                <button class="btn btn-outline" id="tempRefreshBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+                <button type="button" class="btn btn-outline" id="tempRefreshBtn" style="padding: 4px 10px; font-size: 0.72rem;">
                   ↻ Refresh
                 </button>
-                <button class="btn btn-outline" id="exportTempBtn" style="padding: 4px 10px; font-size: 0.72rem;">
+                <button type="button" class="btn btn-outline" id="exportTempBtn" style="padding: 4px 10px; font-size: 0.72rem;">
                   ⬇ Ekspor CSV
                 </button>
               </div>
@@ -1394,17 +1415,18 @@
             <!-- Table Container -->
             <div class="table-responsive table-container" style="margin-top: 0.65rem;">
               <table class="fleet-table" id="tempTable">
+                <caption class="sr-only">Tabel Pemantauan Suhu Server Real-time dari Prometheus</caption>
                 <thead>
                   <tr>
-                    <th style="width: 45px; text-align: center;">No</th>
-                    <th class="sortable" data-temp-sort="loc">Lokasi ⇅</th>
-                    <th class="sortable" data-temp-sort="code">Kode ⇅</th>
-                    <th class="sortable" data-temp-sort="host">Hostname / Device ⇅</th>
-                    <th class="sortable" data-temp-sort="status">Kondisi Status ⇅</th>
-                    <th class="sortable" data-temp-sort="temp" style="min-width: 170px;">Grafik Visual Suhu ⇅</th>
-                    <th class="sortable" data-temp-sort="temp">Suhu (°C) ⇅</th>
-                    <th class="sortable" data-temp-sort="ip">IP ZeroTier ⇅</th>
-                    <th>Spek Hardware</th>
+                    <th scope="col" style="width: 45px; text-align: center;">No</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="loc"><button type="button" class="th-sort-btn"><span class="th-label">Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="code"><button type="button" class="th-sort-btn"><span class="th-label">Unique Code</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="host"><button type="button" class="th-sort-btn"><span class="th-label">Hostname</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="status"><button type="button" class="th-sort-btn"><span class="th-label">Kondisi Status</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="temp" style="min-width: 170px;"><button type="button" class="th-sort-btn"><span class="th-label">Grafik Visual Suhu</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="temp"><button type="button" class="th-sort-btn"><span class="th-label">Suhu (°C)</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-temp-sort="ip"><button type="button" class="th-sort-btn"><span class="th-label">IP ZeroTier</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col">Spek Hardware</th>
                   </tr>
                 </thead>
                 <tbody id="tempTableBody">
@@ -1417,9 +1439,9 @@
             <div class="table-pagination">
               <span id="tempTableCountLabel">Memuat data suhu...</span>
               <div class="pagination-btn-group">
-                <button id="tempPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="tempPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="tempCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="tempNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="tempNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -1433,64 +1455,64 @@
           <!-- KPI Deck Row -->
           <div class="kpi-deck-row kpi-deck-5col">
             <!-- Total Tickets 3 Bulan -->
-            <div class="glass-panel kpi-card ticket-kpi-interactive" id="cardKpiTotal" title="Klik untuk menampilkan Semua Tiket">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card ticket-kpi-interactive kpi-active-filter" id="cardKpiTotal" data-ticket-kpi="all" aria-pressed="true" title="Klik untuk menampilkan Semua Tiket">
+              <span class="kpi-header">
                 <span class="kpi-title" id="ticketKpiTotalTitle">Total Tiket (3 Bulan)</span>
-                <span class="kpi-icon">🎫</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">🎫</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiTotal">--</span>
                 <span class="kpi-sub" id="ticketKpiRangeLabel">90 Hari Terakhir</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Tiket Selesai (Closed & Solved) -->
-            <div class="glass-panel kpi-card ticket-kpi-interactive" id="cardKpiResolved" title="Klik untuk memfilter Tiket Selesai (Closed)">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-success ticket-kpi-interactive" id="cardKpiResolved" data-ticket-kpi="Resolved" aria-pressed="false" title="Klik untuk memfilter Tiket Selesai (Closed &amp; Solved)">
+              <span class="kpi-header">
                 <span class="kpi-title" id="ticketKpiResolvedTitle">Tiket Selesai</span>
-                <span class="kpi-icon">✅</span>
-              </div>
-              <div class="kpi-value-wrap">
+                <span class="kpi-icon" aria-hidden="true">✅</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiResolved" style="color: var(--color-success);">--</span>
-                <span class="kpi-sub" id="ticketKpiResolvedPct">Closed & Solved</span>
-              </div>
-            </div>
+                <span class="kpi-sub" id="ticketKpiResolvedPct">Closed &amp; Solved</span>
+              </span>
+            </button>
 
             <!-- Dalam Pengerjaan (Processing) -->
-            <div class="glass-panel kpi-card ticket-kpi-interactive" id="cardKpiProcessing" title="Klik untuk memfilter Dalam Pengerjaan (Processing)">
-              <div class="kpi-header">
+            <button type="button" class="glass-panel kpi-card kpi-primary ticket-kpi-interactive" id="cardKpiProcessing" data-ticket-kpi="Processing" aria-pressed="false" title="Klik untuk memfilter Dalam Pengerjaan (Processing)">
+              <span class="kpi-header">
                 <span class="kpi-title">Dalam Pengerjaan</span>
-                <span class="kpi-icon">⚙️</span>
-              </div>
-              <div class="kpi-value-wrap">
-                <span class="kpi-value" id="ticketKpiProcessing" style="color: #3b82f6;">--</span>
+                <span class="kpi-icon" aria-hidden="true">⚙️</span>
+              </span>
+              <span class="kpi-value-wrap">
+                <span class="kpi-value" id="ticketKpiProcessing" style="color: var(--accent-primary);">--</span>
                 <span class="kpi-sub" id="ticketKpiProcessingSub">Assigned / Planned</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Tiket Baru & Menunggu -->
-            <div class="glass-panel kpi-card ticket-kpi-interactive" id="cardKpiNewPending" title="Klik untuk memfilter Tiket Baru & Pending">
-              <div class="kpi-header">
-                <span class="kpi-title">Baru & Pending</span>
-                <span class="kpi-icon">⏳</span>
-              </div>
-              <div class="kpi-value-wrap">
+            <button type="button" class="glass-panel kpi-card kpi-warning ticket-kpi-interactive" id="cardKpiNewPending" data-ticket-kpi="New" aria-pressed="false" title="Klik untuk memfilter Tiket Baru &amp; Pending">
+              <span class="kpi-header">
+                <span class="kpi-title">Baru &amp; Pending</span>
+                <span class="kpi-icon" aria-hidden="true">⏳</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiNewPending" style="color: var(--color-warning);">--</span>
                 <span class="kpi-sub" id="ticketKpiNewPendingSub">Membutuhkan Respon</span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             <!-- Prioritas Tinggi / Kritis (P0 & P1) -->
-            <div class="glass-panel kpi-card ticket-kpi-interactive" id="cardKpiHighPrio" title="Klik untuk memfilter Prioritas P0/P1 Kritis">
-              <div class="kpi-header">
-                <span class="kpi-title">Prioritas P0 & P1</span>
-                <span class="kpi-icon">🚨</span>
-              </div>
-              <div class="kpi-value-wrap">
+            <button type="button" class="glass-panel kpi-card kpi-danger ticket-kpi-interactive" id="cardKpiHighPrio" data-ticket-kpi="Critical" aria-pressed="false" title="Klik untuk memfilter Prioritas P0/P1 Kritis">
+              <span class="kpi-header">
+                <span class="kpi-title">Prioritas P0 &amp; P1</span>
+                <span class="kpi-icon" aria-hidden="true">🚨</span>
+              </span>
+              <span class="kpi-value-wrap">
                 <span class="kpi-value" id="ticketKpiHighPrio" style="color: var(--color-danger);">--</span>
-                <span class="kpi-sub" id="ticketKpiHighPrioSub">Critical & High Priority</span>
-              </div>
-            </div>
+                <span class="kpi-sub" id="ticketKpiHighPrioSub">Critical &amp; High Priority</span>
+              </span>
+            </button>
           </div>
 
           <!-- Main Ticketing Table Card -->
@@ -1498,11 +1520,11 @@
             <!-- Top Controls Row (Search & Actions) -->
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
               <div class="search-input-wrap" style="flex: 1; max-width: 440px; min-width: 240px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="ticketSearchInput" class="search-input" placeholder="Cari ID tiket, judul kendala, lokasi, teknisi, kategori...">
+                <input type="text" id="ticketSearchInput" class="search-input" aria-label="Cari tiket kendala GLPI" placeholder="Cari ID tiket, judul kendala, lokasi, teknisi, kategori...">
               </div>
 
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -1512,7 +1534,7 @@
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Tampilkan:</span>
+                  <label for="ticketPageSizeSelect" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Tampilkan:</label>
                   <select id="ticketPageSizeSelect" class="filter-select" style="max-width: 120px; font-size: 0.75rem;">
                     <option value="25" selected>25 Baris</option>
                     <option value="50">50 Baris</option>
@@ -1521,10 +1543,10 @@
                   </select>
                 </div>
 
-                <button class="btn btn-outline" id="ticketRefreshBtn" style="padding: 4px 10px; font-size: 0.74rem;">
+                <button type="button" class="btn btn-outline" id="ticketRefreshBtn" style="padding: 4px 10px; font-size: 0.74rem;">
                   ↻ Refresh
                 </button>
-                <button class="btn btn-outline" id="exportTicketsBtn" style="padding: 4px 10px; font-size: 0.74rem;">
+                <button type="button" class="btn btn-outline" id="exportTicketsBtn" style="padding: 4px 10px; font-size: 0.74rem;">
                   ⬇ Ekspor CSV
                 </button>
               </div>
@@ -1536,18 +1558,18 @@
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Status:</span>
                   <div class="filter-pills-group">
-                    <button class="filter-pill active" data-ticket-filter="all">Semua Tiket</button>
-                    <button class="filter-pill" data-ticket-filter="Processing (assigned)" style="color: #3b82f6; font-weight: 600;">⚙️ Processing (assigned)</button>
-                    <button class="filter-pill" data-ticket-filter="Processing (planned)" style="color: #f59e0b; font-weight: 600;">📅 Processing (planned)</button>
-                    <button class="filter-pill" data-ticket-filter="New" style="color: var(--color-warning); font-weight: 600;">⚡ Baru / Pending</button>
-                    <button class="filter-pill" data-ticket-filter="Closed" style="color: #64748b; font-weight: 600;">🔒 Closed</button>
-                    <button class="filter-pill" data-ticket-filter="Solved" style="color: #10b981; font-weight: 600;">✔️ Solved</button>
-                    <button class="filter-pill hazard" data-ticket-filter="Critical">🚨 P0/P1 Kritis</button>
+                    <button type="button" class="filter-pill active" data-ticket-filter="all">Semua Tiket</button>
+                    <button type="button" class="filter-pill filter-pill-info" data-ticket-filter="Processing (assigned)">⚙️ Processing (assigned)</button>
+                    <button type="button" class="filter-pill filter-pill-amber" data-ticket-filter="Processing (planned)">📅 Processing (planned)</button>
+                    <button type="button" class="filter-pill filter-pill-warning" data-ticket-filter="New">⚡ Baru / Pending</button>
+                    <button type="button" class="filter-pill filter-pill-slate" data-ticket-filter="Closed">🔒 Closed</button>
+                    <button type="button" class="filter-pill filter-pill-success" data-ticket-filter="Solved">✔️ Solved</button>
+                    <button type="button" class="filter-pill hazard" data-ticket-filter="Critical">🚨 P0/P1 Kritis</button>
                   </div>
                 </div>
 
                 <div id="ticketResultCountLabel" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
-                  Menampilkan 9.082 Tiket
+                  Menampilkan -- Tiket
                 </div>
               </div>
 
@@ -1555,7 +1577,7 @@
               <div class="filter-bar-grid" style="margin-top: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                 <!-- Filter Status Dropdown -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Status:</span>
+                  <label for="ticketStatusFilter" class="filter-group-label">Status:</label>
                   <select id="ticketStatusFilter" class="filter-select" style="max-width: 215px;">
                     <option value="all">Semua Status</option>
                     <option value="Processing (planned)">📅 Processing (planned)</option>
@@ -1571,7 +1593,7 @@
 
                 <!-- Filter Produk -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Produk:</span>
+                  <label for="ticketProductFilter" class="filter-group-label">Produk:</label>
                   <select id="ticketProductFilter" class="filter-select" style="max-width: 195px;">
                     <option value="all">Semua Produk</option>
                   </select>
@@ -1579,15 +1601,15 @@
 
                 <!-- Filter Kategori Issue (Cascading / Dependent: Pilih Produk Dahulu) -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Kategori Issue:</span>
-                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 235px; opacity: 0.55; cursor: not-allowed;" disabled title="Pilih Produk terlebih dahulu">
+                  <label for="ticketCategoryFilter" class="filter-group-label">Kategori Issue:</label>
+                  <select id="ticketCategoryFilter" class="filter-select" style="max-width: 235px;" disabled title="Pilih Produk terlebih dahulu">
                     <option value="all">-- Pilih Produk Dahulu --</option>
                   </select>
                 </div>
 
                 <!-- Filter Prioritas -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Prioritas:</span>
+                  <label for="ticketPriorityFilter" class="filter-group-label">Prioritas:</label>
                   <select id="ticketPriorityFilter" class="filter-select" style="max-width: 190px;">
                     <option value="all">Semua Prioritas</option>
                     <option value="P0">P0 - Kritis (Critical)</option>
@@ -1600,7 +1622,7 @@
 
                 <!-- Filter Rentang Tanggal (Date Range) -->
                 <div class="filter-group-item" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  <span class="filter-group-label">Tanggal:</span>
+                  <label for="ticketDatePreset" class="filter-group-label">Tanggal:</label>
                   <select id="ticketDatePreset" class="filter-select" style="max-width: 135px;" title="Pilihan Cepat Waktu">
                     <option value="all">Semua Waktu</option>
                     <option value="today">Hari Ini</option>
@@ -1610,12 +1632,12 @@
                     <option value="last_month">Bulan Lalu</option>
                     <option value="custom">Kustom...</option>
                   </select>
-                  <input type="date" id="ticketStartDate" class="filter-date-input" title="Tanggal Mulai">
+                  <input type="date" id="ticketStartDate" class="filter-date-input" aria-label="Tanggal mulai filter tiket" title="Tanggal Mulai">
                   <span style="color: var(--text-muted); font-size: 0.75rem; font-weight: 600;">s/d</span>
-                  <input type="date" id="ticketEndDate" class="filter-date-input" title="Tanggal Akhir">
+                  <input type="date" id="ticketEndDate" class="filter-date-input" aria-label="Tanggal akhir filter tiket" title="Tanggal Akhir">
                 </div>
 
-                <button class="btn-reset-filters" id="ticketResetFiltersBtn">
+                <button type="button" class="btn-reset-filters" id="ticketResetFiltersBtn">
                   ↺ Reset Filter
                 </button>
               </div>
@@ -1624,19 +1646,20 @@
             <!-- Table Container -->
             <div class="table-responsive" style="margin-top: 0.85rem;">
               <table class="fleet-table" id="ticketTable">
+                <caption class="sr-only">Daftar Tiket Kendala GLPI 3 Bulan Terakhir</caption>
                 <thead>
                   <tr>
-                    <th style="width: 40px; text-align: center;">No</th>
-                    <th class="sortable" data-ticket-sort="id" style="width: 95px;">ID Tiket ⇅</th>
-                    <th class="sortable" data-ticket-sort="open_date" style="width: 130px;">Tanggal Buka ⇅</th>
-                    <th class="sortable" data-ticket-sort="dur_seconds" style="width: 115px; text-align: center;">Durasi Solving ⇅</th>
-                    <th class="sortable" data-ticket-sort="loc" style="min-width: 170px;">Lokasi Unit ⇅</th>
-                    <th class="sortable" data-ticket-sort="title" style="min-width: 250px;">Judul Kendala & Rincian ⇅</th>
-                    <th class="sortable" data-ticket-sort="status" style="width: 135px;">Status Tiket ⇅</th>
-                    <th class="sortable" data-ticket-sort="priority" style="width: 80px; text-align: center;">Prioritas ⇅</th>
-                    <th class="sortable" data-ticket-sort="tech" style="min-width: 130px;">Teknisi ⇅</th>
-                    <th class="sortable" data-ticket-sort="product" style="min-width: 130px;">Produk ⇅</th>
-                    <th class="sortable" data-ticket-sort="cat_issue" style="min-width: 160px;">Kategori Issue ⇅</th>
+                    <th scope="col" style="width: 40px; text-align: center;">No</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="id" style="width: 95px;"><button type="button" class="th-sort-btn"><span class="th-label">ID Tiket</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="open_date" style="width: 130px;"><button type="button" class="th-sort-btn"><span class="th-label">Tanggal Buka</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="dur_seconds" style="width: 115px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Durasi Solving</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="loc" style="min-width: 170px;"><button type="button" class="th-sort-btn"><span class="th-label">Lokasi Unit</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="title" style="min-width: 250px;"><button type="button" class="th-sort-btn"><span class="th-label">Judul Kendala &amp; Rincian</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="status" style="width: 135px;"><button type="button" class="th-sort-btn"><span class="th-label">Status Tiket</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="priority" style="width: 80px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Prioritas</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="tech" style="min-width: 130px;"><button type="button" class="th-sort-btn"><span class="th-label">Teknisi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="product" style="min-width: 130px;"><button type="button" class="th-sort-btn"><span class="th-label">Produk</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-ticket-sort="cat_issue" style="min-width: 160px;"><button type="button" class="th-sort-btn"><span class="th-label">Kategori Issue</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="ticketTableBody">
@@ -1649,9 +1672,9 @@
             <div class="table-pagination">
               <span id="ticketTableCountLabel">Memuat data tiket...</span>
               <div class="pagination-btn-group">
-                <button id="ticketPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="ticketPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="ticketCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="ticketNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="ticketNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
@@ -1665,11 +1688,11 @@
           <!-- Backup Hero KPIs Deck -->
           <div class="kpi-deck-row">
             <!-- Total Backup Servers -->
-            <div class="glass-panel kpi-card kpi-primary">
+            <button type="button" class="glass-panel kpi-card kpi-primary ticket-kpi-interactive kpi-active-filter" data-backup-kpi="all" aria-pressed="true" title="Klik untuk menampilkan Semua Server Backup">
               <div class="kpi-top">
                 <span class="kpi-tag">TOTAL SERVER BACKUP</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
                     <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
                     <line x1="6" y1="6" x2="6.01" y2="6"></line>
@@ -1678,20 +1701,20 @@
                 </div>
               </div>
               <div>
-                <div id="backupKpiTotal" class="kpi-value">42</div>
+                <div id="backupKpiTotal" class="kpi-value">--</div>
                 <div class="kpi-label">Armada Server Cadangan Terdaftar</div>
               </div>
               <div class="kpi-meta">
                 <span>Sumber Data: Google Spreadsheet HA Fleet</span>
               </div>
-            </div>
+            </button>
 
             <!-- Streaming Replication -->
-            <div class="glass-panel kpi-card kpi-success">
+            <button type="button" class="glass-panel kpi-card kpi-success ticket-kpi-interactive" data-backup-kpi="streaming" aria-pressed="false" title="Klik untuk memfilter Server Backup dengan Replikasi Streaming">
               <div class="kpi-top">
                 <span class="kpi-tag">REPLIKASI STREAMING</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <polyline points="23 4 23 10 17 10"></polyline>
                     <polyline points="1 20 1 14 7 14"></polyline>
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -1699,40 +1722,40 @@
                 </div>
               </div>
               <div>
-                <div id="backupKpiStreaming" class="kpi-value" style="color: var(--color-success);">26</div>
-                <div class="kpi-label">Standby Sinkron & Aktif (repmgr)</div>
+                <div id="backupKpiStreaming" class="kpi-value" style="color: var(--color-success);">--</div>
+                <div class="kpi-label">Standby Sinkron &amp; Aktif (repmgr)</div>
               </div>
               <div class="kpi-meta">
                 <span>Sinkronisasi Data Realtime Antar Server</span>
               </div>
-            </div>
+            </button>
 
             <!-- Auto Promote (Pawdog) -->
-            <div class="glass-panel kpi-card kpi-cyan">
+            <button type="button" class="glass-panel kpi-card kpi-cyan ticket-kpi-interactive" data-backup-kpi="autopromote" aria-pressed="false" title="Klik untuk memfilter Server Backup dengan Auto Promote (Pawdog Aktif)">
               <div class="kpi-top">
                 <span class="kpi-tag">AUTO PROMOTE (PAWDOG)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     <path d="M9 12l2 2 4-4"></path>
                   </svg>
                 </div>
               </div>
               <div>
-                <div id="backupKpiAutoPromote" class="kpi-value" style="color: var(--accent-secondary);">15</div>
+                <div id="backupKpiAutoPromote" class="kpi-value" style="color: var(--accent-secondary);">--</div>
                 <div class="kpi-label">Service Pawdog Siap Failover Otomatis</div>
               </div>
               <div class="kpi-meta">
                 <span>Otomasi Failover Saat Server Utama Down</span>
               </div>
-            </div>
+            </button>
 
             <!-- P2P Connected -->
-            <div class="glass-panel kpi-card kpi-accent">
+            <button type="button" class="glass-panel kpi-card kpi-accent ticket-kpi-interactive" data-backup-kpi="p2p" aria-pressed="false" title="Klik untuk memfilter Server Backup dengan Koneksi P2P Connected">
               <div class="kpi-top">
                 <span class="kpi-tag">PEER-TO-PEER (P2P)</span>
-                <div class="kpi-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="kpi-icon-wrap" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="18" cy="5" r="3"></circle>
                     <circle cx="6" cy="12" r="3"></circle>
                     <circle cx="18" cy="19" r="3"></circle>
@@ -1742,13 +1765,13 @@
                 </div>
               </div>
               <div>
-                <div id="backupKpiP2P" class="kpi-value">25</div>
+                <div id="backupKpiP2P" class="kpi-value">--</div>
                 <div class="kpi-label">Koneksi P2P / Local LAN Terhubung</div>
               </div>
               <div class="kpi-meta">
-                <span>Dedicated Link Antara Server Utama & Cadangan</span>
+                <span>Dedicated Link Antara Server Utama &amp; Cadangan</span>
               </div>
-            </div>
+            </button>
           </div>
 
           <!-- Main Table Container -->
@@ -1756,29 +1779,29 @@
             <!-- Header Toolbar -->
             <div class="table-toolbar backup-toolbar">
               <div class="search-input-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="backupSearchInput" class="search-input" placeholder="Cari nama lokasi, unique code, IP, atau keterangan server backup...">
+                <input type="text" id="backupSearchInput" class="search-input" aria-label="Cari server backup" placeholder="Cari nama lokasi, unique code, IP, atau keterangan server backup...">
               </div>
 
               <div class="backup-toolbar-actions">
-                <span class="backup-toolbar-label">Tampilkan:</span>
+                <label for="backupPageSizeSelect" class="backup-toolbar-label">Tampilkan:</label>
                 <select id="backupPageSizeSelect" class="backup-page-select">
                   <option value="15">15 Baris</option>
                   <option value="25">25 Baris</option>
-                  <option value="50" selected>Semua Baris (42)</option>
+                  <option value="50" selected>Semua Baris</option>
                 </select>
                 <a href="https://docs.google.com/spreadsheets/d/1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="btn btn-outline backup-action-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
                   <span>Buka Google Sheet</span>
                 </a>
-                <button id="backupRefreshBtn" class="btn btn-primary backup-action-btn">
+                <button type="button" id="backupRefreshBtn" class="btn btn-primary backup-action-btn">
                   ↻ Refresh Data
                 </button>
               </div>
@@ -1789,21 +1812,21 @@
               <div class="backup-pill-row">
                 <span class="backup-pill-label">Filter Status:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-backup-status-pill="all">Semua Status</button>
-                  <button class="filter-pill" data-backup-status-pill="Aktif">Aktif</button>
-                  <button class="filter-pill" data-backup-status-pill="Tidak Aktif">Tidak Aktif</button>
-                  <button class="filter-pill" data-backup-status-pill="Belum ada aset">Belum Ada Aset</button>
+                  <button type="button" class="filter-pill active" data-backup-status-pill="all">Semua Status</button>
+                  <button type="button" class="filter-pill" data-backup-status-pill="Aktif">Aktif</button>
+                  <button type="button" class="filter-pill" data-backup-status-pill="Tidak Aktif">Tidak Aktif</button>
+                  <button type="button" class="filter-pill" data-backup-status-pill="Belum ada aset">Belum Ada Aset</button>
                 </div>
 
                 <span class="backup-pill-label backup-pill-label-gap">Replikasi:</span>
                 <div class="filter-pills-group">
-                  <button class="filter-pill active" data-backup-repl-pill="all">Semua</button>
-                  <button class="filter-pill" data-backup-repl-pill="Streaming">Streaming</button>
-                  <button class="filter-pill" data-backup-repl-pill="Not Streaming">Not Streaming</button>
+                  <button type="button" class="filter-pill active" data-backup-repl-pill="all">Semua</button>
+                  <button type="button" class="filter-pill" data-backup-repl-pill="Streaming">Streaming</button>
+                  <button type="button" class="filter-pill" data-backup-repl-pill="Not Streaming">Not Streaming</button>
                 </div>
 
                 <div class="backup-result-count" id="backupResultCountLabel">
-                  Menampilkan 42 Server Backup
+                  Menampilkan -- Server Backup
                 </div>
               </div>
 
@@ -1811,7 +1834,7 @@
               <div class="filter-bar-grid">
                 <!-- Filter Auto Promote -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Auto Promote:</span>
+                  <label for="backupAutoPromoteFilter" class="filter-group-label">Auto Promote:</label>
                   <select id="backupAutoPromoteFilter" class="filter-select">
                     <option value="all">Semua (Yes/No)</option>
                     <option value="Yes">Yes (Pawdog Aktif)</option>
@@ -1821,7 +1844,7 @@
 
                 <!-- Filter P2P -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Koneksi P2P:</span>
+                  <label for="backupP2PFilter" class="filter-group-label">Koneksi P2P:</label>
                   <select id="backupP2PFilter" class="filter-select">
                     <option value="all">Semua P2P</option>
                     <option value="Connected">Connected</option>
@@ -1831,7 +1854,7 @@
 
                 <!-- Filter Teleport -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Teleport Node:</span>
+                  <label for="backupTeleportFilter" class="filter-group-label">Teleport Node:</label>
                   <select id="backupTeleportFilter" class="filter-select">
                     <option value="all">Semua Node</option>
                     <option value="Yes">Yes (Online di Teleport)</option>
@@ -1841,7 +1864,7 @@
 
                 <!-- Filter Tipe Kabel -->
                 <div class="filter-group-item">
-                  <span class="filter-group-label">Kabel P2P:</span>
+                  <label for="backupCableFilter" class="filter-group-label">Kabel P2P:</label>
                   <select id="backupCableFilter" class="filter-select">
                     <option value="all">Semua Jenis Kabel</option>
                     <option value="cat7">After Market CAT7</option>
@@ -1849,7 +1872,7 @@
                   </select>
                 </div>
 
-                <button class="btn-reset-filters" id="backupResetFiltersBtn">
+                <button type="button" class="btn-reset-filters" id="backupResetFiltersBtn">
                   ↺ Reset Filter
                 </button>
               </div>
@@ -1858,20 +1881,21 @@
             <!-- Table Container -->
             <div class="table-responsive" style="margin-top: 0.85rem;">
               <table class="fleet-table backup-fleet-table" id="backupTable">
+                <caption class="sr-only">Tabel Status Server Backup dan Replikasi High Availability PARKEE</caption>
                 <thead>
                   <tr>
-                    <th class="sortable" data-backup-sort="loc" style="min-width: 230px;">Nama Lokasi ⇅</th>
-                    <th class="sortable" data-backup-sort="code" style="width: 100px; text-align: center;">Uniq Code ⇅</th>
-                    <th class="sortable" data-backup-sort="status" style="width: 130px; text-align: center;">Status ⇅</th>
-                    <th class="sortable" data-backup-sort="p2p" style="width: 140px; text-align: center;">P2P ⇅</th>
-                    <th class="sortable" data-backup-sort="cable_type" style="width: 155px; text-align: center;">Tipe Kabel P2P ⇅</th>
-                    <th class="sortable" data-backup-sort="teleport" style="width: 90px; text-align: center;">Teleport ⇅</th>
-                    <th style="width: 120px;">IP Local</th>
-                    <th style="width: 110px;">IP p2p</th>
-                    <th class="sortable" data-backup-sort="replication" style="width: 140px; text-align: center;">Replication ⇅</th>
-                    <th class="sortable" data-backup-sort="autopromote" style="width: 135px; text-align: center;">Auto Promote ⇅</th>
-                    <th class="sortable" data-backup-sort="replag" style="width: 95px; text-align: center;">Replag ⇅</th>
-                    <th style="min-width: 260px;">Keterangan</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="loc" style="min-width: 230px;"><button type="button" class="th-sort-btn"><span class="th-label">Nama Lokasi</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="code" style="width: 100px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Unique Code</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="status" style="width: 130px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Status</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="p2p" style="width: 140px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">P2P</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="cable_type" style="width: 155px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Tipe Kabel P2P</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="teleport" style="width: 90px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Teleport</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" style="width: 120px;">IP Local</th>
+                    <th scope="col" style="width: 110px;">IP p2p</th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="replication" style="width: 140px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Replication</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="autopromote" style="width: 135px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Auto Promote</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" class="sortable" aria-sort="none" data-backup-sort="replag" style="width: 95px; text-align: center;"><button type="button" class="th-sort-btn"><span class="th-label">Replag</span> <span class="sort-icon" aria-hidden="true">⇅</span></button></th>
+                    <th scope="col" style="min-width: 260px;">Keterangan</th>
                   </tr>
                 </thead>
                 <tbody id="backupTableBody">
@@ -1884,89 +1908,101 @@
             <div class="table-pagination">
               <span id="backupTableCountLabel">Memuat data server backup...</span>
               <div class="pagination-btn-group">
-                <button id="backupPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
+                <button type="button" id="backupPrevPageBtn" class="btn btn-outline" style="padding: 4px 10px;">◀ Sebelumnya</button>
                 <span id="backupCurrentPageLabel" style="font-weight: 600; color: var(--text-main); padding: 0 8px;">Halaman 1</span>
-                <button id="backupNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
+                <button type="button" id="backupNextPageBtn" class="btn btn-outline" style="padding: 4px 10px;">Selanjutnya ▶</button>
               </div>
             </div>
 
           </div>
         </section>
 
-      </div>
+      </main>
     </div>
   </div>
 
-  <!-- Device Detail Modal -->
-  <div id="deviceDetailModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modalDeviceTitle" class="modal-title">Detail Perangkat Server</h3>
-        <button id="modalCloseBtn" class="modal-close-btn" title="Tutup">✕</button>
+  <!-- Device & Location Detail Modal -->
+  <dialog id="deviceDetailModal" class="modal-dialog modal-dialog-native ticket-modal-dialog" closedby="any" aria-labelledby="modalDeviceTitle">
+    <div class="modal-header">
+      <h2 id="modalDeviceTitle" class="modal-title">Detail Perangkat Server</h2>
+      <button type="button" id="modalCloseBtn" class="modal-close-btn" title="Tutup (Esc)" aria-label="Tutup dialog detail perangkat">✕</button>
+    </div>
+    <div class="modal-body" id="modalDeviceBody">
+      <!-- Rendered dynamically -->
+    </div>
+    <div class="modal-footer ticket-modal-footer" id="modalDeviceFooter">
+      <div class="ticket-modal-footer-meta">
+        <span>Sinkronisasi:</span>
+        <strong id="modalDeviceLastSync">-</strong>
       </div>
-      <div class="modal-body" id="modalDeviceBody">
-        <!-- Rendered dynamically -->
+      <div class="ticket-modal-footer-actions" id="modalDeviceActions">
+        <button type="button" id="modalDeviceCopyBtn" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+          <span aria-hidden="true">📋</span>
+          <span>Salin Ringkasan</span>
+        </button>
+        <button type="button" id="modalDeviceCloseBtnBottom" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px;">
+          Tutup
+        </button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Ticket Detail Modal (GLPI Issue Popup) -->
-  <div id="ticketDetailModal" class="modal-backdrop">
-    <div class="modal-dialog ticket-modal-dialog">
-      <div class="modal-header ticket-modal-header">
-        <div class="ticket-modal-header-meta">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span id="modalTicketIdBadge" class="ticket-id-badge" style="font-size: 0.85rem; padding: 4px 10px;">#--</span>
-            <span id="modalTicketStatusPill" class="ticket-status-pill ticket-status-processing">⚙️ Processing</span>
-            <span id="modalTicketPrioBadge" class="ticket-prio-badge ticket-prio-p2">P2</span>
-          </div>
-          <button id="modalTicketCloseBtn" class="modal-close-btn" title="Tutup (Esc)">✕</button>
+  <dialog id="ticketDetailModal" class="modal-dialog modal-dialog-native ticket-modal-dialog" closedby="any" aria-labelledby="modalTicketTitle">
+    <div class="modal-header ticket-modal-header">
+      <div class="ticket-modal-header-meta">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span id="modalTicketIdBadge" class="ticket-id-badge" style="font-size: 0.85rem; padding: 4px 10px;">#--</span>
+          <span id="modalTicketStatusPill" class="ticket-status-pill ticket-status-processing">⚙️ Processing</span>
+          <span id="modalTicketPrioBadge" class="ticket-prio-badge ticket-prio-p2">P2</span>
         </div>
-        <div id="modalTicketTitle" class="ticket-modal-title">
-          Judul Kendala
-        </div>
+        <button type="button" id="modalTicketCloseBtn" class="modal-close-btn" title="Tutup (Esc)" aria-label="Tutup dialog detail tiket">✕</button>
       </div>
-      <div class="modal-body ticket-modal-body" id="modalTicketBody">
-        <!-- Rendered dynamically -->
+      <h2 id="modalTicketTitle" class="ticket-modal-title">
+        Judul Kendala
+      </h2>
+    </div>
+    <div class="modal-body ticket-modal-body" id="modalTicketBody">
+      <!-- Rendered dynamically -->
+    </div>
+    <div class="modal-footer ticket-modal-footer">
+      <div class="ticket-modal-footer-meta">
+        <span>Pembaruan:</span>
+        <strong id="modalTicketLastUpdate">-</strong>
       </div>
-      <div class="modal-footer ticket-modal-footer">
-        <div class="ticket-modal-footer-meta">
-          <span>Pembaruan:</span>
-          <strong id="modalTicketLastUpdate">-</strong>
-        </div>
-        <div class="ticket-modal-footer-actions">
-          <button id="modalTicketCopyBtn" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
-            <span>📋 Salin Ringkasan</span>
-          </button>
-          <a id="modalTicketGlpiLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="font-size: 0.76rem; padding: 5px 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-            <span>Buka di GLPI</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-          </a>
-          <button id="modalTicketCloseBtnBottom" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px;">
-            Tutup
-          </button>
-        </div>
+      <div class="ticket-modal-footer-actions">
+        <button type="button" id="modalTicketCopyBtn" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+          <span aria-hidden="true">📋</span>
+          <span>Salin Ringkasan</span>
+        </button>
+        <a id="modalTicketGlpiLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="font-size: 0.76rem; padding: 5px 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          <span>Buka di GLPI</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </a>
+        <button type="button" id="modalTicketCloseBtnBottom" class="btn btn-outline" style="font-size: 0.76rem; padding: 5px 12px;">
+          Tutup
+        </button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Floating Horizontal Scrollbar Component for all wide tables -->
-  <div id="floatingTableScrollbar" class="floating-table-scrollbar" aria-hidden="true">
+  <div id="floatingTableScrollbar" class="floating-table-scrollbar" inert>
     <div class="floating-scrollbar-inner">
       <button type="button" class="float-scroll-arrow float-scroll-left" id="floatScrollLeftBtn" title="Geser ke Kiri (Klik untuk step, Tahan untuk meluncur)" aria-label="Geser ke kiri">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
 
       <div class="float-scroll-track" id="floatScrollTrack" title="Geser horizontal (drag thumb atau klik track)">
-        <div class="float-scroll-thumb" id="floatScrollThumb" role="scrollbar" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"></div>
+        <div class="float-scroll-thumb" id="floatScrollThumb" role="scrollbar" aria-orientation="horizontal" aria-label="Geser posisi horizontal tabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"></div>
       </div>
 
       <button type="button" class="float-scroll-arrow float-scroll-right" id="floatScrollRightBtn" title="Geser ke Kanan (Klik untuk step, Tahan untuk meluncur)" aria-label="Geser ke kanan">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
 
       <div class="float-scroll-badge" id="floatScrollBadge" title="Posisi geser tabel horizontal">
@@ -1976,11 +2012,6 @@
   </div>
 
   <!-- Toast Notification Container -->
-  <div id="toastContainer" class="toast-container"></div>
-
-  <!-- Fallback Embedded Summary -->
-  <script src="js/summary-data.js?v=2.12.6"></script>
-  <!-- Application Controller -->
-  <script src="js/app.js?v=2.12.6"></script>
+  <div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 </body>
 </html>
