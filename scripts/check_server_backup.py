@@ -4,14 +4,14 @@ check_server_backup.py
 ======================
 Automated Diagnostic & Sync Engine for PARKEE Server Backups
 Performs:
-1. Fetch latest raw rows live from Google Sheet 'List Status Server Backup' via Composio (with local fallback).
+1. Fetch latest raw rows live from Google Sheet 'Tracker Server' (gid=412136763) via Composio (with local fallback).
 2. Concurrently audit each server backup:
    - Primary server SSH jump (tsh ssh support@server-<code_clean>)
    - Run repmgr cluster show to check standby replication status accurately per row
    - Probe backup server via P2P IP and Local IP
    - Check pawdog service status (Auto Promote)
    - Query PostgreSQL replag: select (extract(epoch from now()) - extract(epoch from pg_last_xact_replay_timestamp()))::int as lag;
-3. Update Google Sheet via Composio (account: googlesheets_mobile-median).
+3. Update Google Sheet via Composio (account: googlesheets_kaiser-chump).
 4. Save clean telemetry JSON atomically to data/server_backup.json for the dashboard.
 """
 
@@ -51,9 +51,10 @@ def load_dotenv():
 
 load_dotenv()
 
-SPREADSHEET_ID = "1PZUIHFkhWRO5PZGeNKGkAhGP7ouqeJhRbxySBkXvEFA"
-SHEET_NAME = "List Status Server Backup"
-COMPOSIO_ACCOUNT = "googlesheets_mobile-median"
+SPREADSHEET_ID = "1uA6XnukAPrX6Dl3EPRUuic_QADO2RILoU23XZRet-QE"
+SHEET_GID = 412136763
+DEFAULT_SHEET_NAME = "Sheet10"
+COMPOSIO_ACCOUNT = "googlesheets_kaiser-chump"
 JUMP_HOST = "admin-adg@100.123.138.90"
 
 COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
@@ -138,12 +139,25 @@ def call_composio(tool_slug, arguments):
     return None
 
 
-def fetch_sheet_rows():
+def resolve_sheet_name():
+    info = call_composio("GOOGLESHEETS_GET_SPREADSHEET_INFO", {
+        "spreadsheet_id": SPREADSHEET_ID,
+        "fields": "sheets.properties(sheetId,title)"
+    })
+    if info and isinstance(info.get("sheets"), list):
+        for s in info["sheets"]:
+            props = s.get("properties", {})
+            if props.get("sheetId") == SHEET_GID and props.get("title"):
+                return props["title"]
+    return DEFAULT_SHEET_NAME
+
+
+def fetch_sheet_rows(sheet_name):
     raw_path = os.path.join(DATA_DIR, "server_backup_raw.json")
-    print(f"[*] Fetching live sheet rows from '{SHEET_NAME}' via Composio...", flush=True)
+    print(f"[*] Fetching live sheet rows from '{sheet_name}' via Composio...", flush=True)
     live_data = call_composio("GOOGLESHEETS_BATCH_GET", {
         "spreadsheet_id": SPREADSHEET_ID,
-        "ranges": [f"'{SHEET_NAME}'!A3:S60"]
+        "ranges": [f"'{sheet_name}'!A3:S200"]
     })
     if live_data and isinstance(live_data.get("valueRanges"), list) and live_data["valueRanges"]:
         values = live_data["valueRanges"][0].get("values", [])
@@ -423,8 +437,8 @@ else:
     return result
 
 
-def update_google_sheet(audited_rows):
-    print(f"\n[*] Preparing batch updates for Google Sheet '{SHEET_NAME}'...", flush=True)
+def update_google_sheet(audited_rows, sheet_name):
+    print(f"\n[*] Preparing batch updates for Google Sheet '{sheet_name}'...", flush=True)
     sheet_values = []
     col_s_values = []
     for r in audited_rows:
@@ -447,8 +461,8 @@ def update_google_sheet(audited_rows):
 
     start_row = 4
     end_row = 4 + len(sheet_values) - 1
-    update_range = f"'{SHEET_NAME}'!A{start_row}:L{end_row}"
-    update_s_range = f"'{SHEET_NAME}'!S{start_row}:S{end_row}"
+    update_range = f"'{sheet_name}'!A{start_row}:L{end_row}"
+    update_s_range = f"'{sheet_name}'!S{start_row}:S{end_row}"
 
     print(f"[*] Pushing updates to Google Sheet range {update_range} and {update_s_range} via Composio ({COMPOSIO_ACCOUNT})...", flush=True)
     resp1 = call_composio("GOOGLESHEETS_VALUES_UPDATE", {
@@ -464,7 +478,7 @@ def update_google_sheet(audited_rows):
         "values": col_s_values
     })
     if resp1 is not None and resp2 is not None:
-        print(f"[✓] Google Sheet '{SHEET_NAME}' updated successfully!", flush=True)
+        print(f"[✓] Google Sheet '{sheet_name}' updated successfully!", flush=True)
         return True
     else:
         print(f"[!] Warning: Google Sheet update returned incomplete status.", flush=True)
@@ -515,7 +529,9 @@ def main():
     print("  PARKEE HIGH-AVAILABILITY SERVER BACKUP TELEMETRY SWEEP ENGINE   ", flush=True)
     print("==================================================================", flush=True)
 
-    raw_rows = fetch_sheet_rows()
+    sheet_name = resolve_sheet_name()
+    print(f"[*] Target Sheet (gid={SHEET_GID}): '{sheet_name}'", flush=True)
+    raw_rows = fetch_sheet_rows(sheet_name)
     if not raw_rows or len(raw_rows) <= 1:
         print("[-] No rows retrieved from sheet. Aborting.", flush=True)
         sys.exit(1)
@@ -573,7 +589,7 @@ def main():
 
     audited_rows = [audited_map[ro["row_idx"]] for ro in row_objects if ro["row_idx"] in audited_map]
 
-    update_google_sheet(audited_rows)
+    update_google_sheet(audited_rows, sheet_name)
     save_to_dashboard_json(audited_rows)
 
     print("\n[✓] ALL TASKS COMPLETED SUCCESSFULLY!", flush=True)
