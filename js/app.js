@@ -12,6 +12,8 @@ const App = {
   serverBackup: [],
   _backupLoaded: false,
   _inflight: {},
+  _copyFeedbackTimers: new WeakMap(),
+  _lastCopyStatusMsg: '',
 
   // Loading status per dataset: 'loading' | 'ready' | 'error'
   dataStatus: {
@@ -1563,11 +1565,20 @@ const App = {
 
   copyDeviceModalSummary() {
     if (!this._activeModalDeviceSummary) return;
-    navigator.clipboard.writeText(this._activeModalDeviceSummary).then(() => {
-      this.showToast('Ringkasan detail berhasil disalin ke clipboard!', 'success');
-    }).catch(() => {
-      this.showToast('Gagal menyalin ringkasan ke clipboard', 'warn');
-    });
+    const text = this._activeModalDeviceSummary;
+    const onSuccess = () => this.showToast('Ringkasan detail berhasil disalin ke clipboard!', 'success');
+    const onError = () => this.showToast('Gagal menyalin ringkasan ke clipboard', 'warn');
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+        if (this.legacyCopyText(text)) onSuccess();
+        else onError();
+      });
+    } else if (this.legacyCopyText(text)) {
+      onSuccess();
+    } else {
+      onError();
+    }
   },
 
   openLocationDetailModal(locName, locCode) {
@@ -1665,14 +1676,7 @@ const App = {
             Suhu Server: <strong>${this.escapeHtml(tempDisplay)}</strong> · Server Overheat: <strong style="color: ${srvOverheat > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">${srvOverheat}</strong> · Klien Overheat: <strong style="color: ${clOverheat > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">${clOverheat}</strong>
           </span>
         </div>
-        ${srv ? `
-          <div class="modal-spec-item full-width">
-            <span class="modal-spec-label">Spesifikasi Hardware Server Utama (${this.escapeHtml(srv.host || 'Server')})</span>
-            <span class="modal-spec-val">
-              CPU: ${this.escapeHtml(srv.cpu || '-')} · RAM: ${this.escapeHtml(this.formatRam(srv.ram, srv.ram_brand))} · MB: ${this.escapeHtml(srv.mb || srv.mb_brand || '-')} · Storage: ${this.escapeHtml(this.formatStorageSummary(srv.ssd_brand, srv.ssd_type, srv.ssd_size))} (Health: ${srv.ssd_health !== null && srv.ssd_health !== undefined ? this.escapeHtml(srv.ssd_health) + '%' : '-'}, Usage: ${srv.ssd_usage !== null && srv.ssd_usage !== undefined ? this.escapeHtml(srv.ssd_usage) + '%' : '-'})
-            </span>
-          </div>
-        ` : ''}
+        ${srv ? this.buildPrimarySpecBlockHtml(srv, { label: `Spesifikasi Utama (${srv.host || 'Server'})`, targetId: 'modalPrimarySpecText' }) : ''}
       `);
     }
 
@@ -1717,14 +1721,13 @@ Reader PARKEE: ${item.has_reader ? 'Ada' : 'Belum Ada'}`;
     const title = document.getElementById('modalDeviceTitle');
     const body = document.getElementById('modalDeviceBody');
 
-    if (title) title.textContent = `Detail Klien: ${dev.host} — ${dev.loc}`;
+    if (title) title.textContent = `Detail Klien: ${dev.host} · ${dev.loc}`;
 
     const hasReader = Boolean(dev.reader_ver || dev.reader_sn);
     const readerStatusText = hasReader ? `Terkoneksi (Firmware: ${dev.reader_ver || '-'}, SN: ${dev.reader_sn || '-'})` : 'Belum Terpasang';
     const fullOs = this.formatFullOs(dev.os);
     const fullAgent = this.formatFullVersion(dev.agent);
-    const fullCpu = dev.cpu && dev.cpu !== '-' ? dev.cpu : '-';
-    const fullMb = dev.mb && dev.mb !== '-' ? dev.mb : (dev.mb_brand || '-');
+    const primarySpecText = this.formatPrimarySpecText(dev);
 
     if (body) {
       this.setHtml(body, `
@@ -1753,31 +1756,16 @@ Reader PARKEE: ${item.has_reader ? 'Ada' : 'Belum Ada'}`;
           <span class="modal-spec-val mono">${this.escapeHtml(dev.zt || '-')}</span>
         </div>
         <div class="modal-spec-item">
-          <span class="modal-spec-label">Memori RAM</span>
-          <span class="modal-spec-val">${this.escapeHtml(this.formatRam(dev.ram, dev.ram_brand))}</span>
-        </div>
-        <div class="modal-spec-item">
           <span class="modal-spec-label">Suhu Operasional</span>
           <span class="modal-spec-val ${dev.temp !== null && dev.temp !== undefined && dev.temp >= 80 ? 'temp-hot' : ''}" style="display:inline-block;">${dev.temp !== null && dev.temp !== undefined ? this.escapeHtml(dev.temp) + '°C' : '-'}</span>
         </div>
-        <div class="modal-spec-item full-width">
+        <div class="modal-spec-item">
           <span class="modal-spec-label">Reader PARKEE</span>
           <span class="modal-spec-val" style="color: ${hasReader ? 'var(--color-success)' : 'var(--text-muted)'}; font-weight: 700;">
             ${hasReader ? '✓ ' : '✕ '}${this.escapeHtml(readerStatusText)}
           </span>
         </div>
-        <div class="modal-spec-item full-width">
-          <span class="modal-spec-label">Processor / CPU (Lengkap)</span>
-          <span class="modal-spec-val">${this.escapeHtml(fullCpu)}</span>
-        </div>
-        <div class="modal-spec-item full-width">
-          <span class="modal-spec-label">Motherboard (Lengkap)</span>
-          <span class="modal-spec-val">${this.escapeHtml(fullMb)}</span>
-        </div>
-        <div class="modal-spec-item full-width">
-          <span class="modal-spec-label">Storage SSD &amp; Kesehatan</span>
-          <span class="modal-spec-val">${this.escapeHtml(this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size))} · Health: ${dev.ssd_health !== null && dev.ssd_health !== undefined ? this.escapeHtml(dev.ssd_health) + '%' : '-'} · Disk Usage: ${dev.ssd_usage !== null && dev.ssd_usage !== undefined ? this.escapeHtml(dev.ssd_usage) + '%' : '-'}</span>
-        </div>
+        ${this.buildPrimarySpecBlockHtml(dev, { label: 'Spesifikasi Utama', targetId: 'modalPrimarySpecText' })}
         <div class="modal-spec-item full-width">
           <span class="modal-spec-label">Sistem Operasi / OS Version (Lengkap)</span>
           <span class="modal-spec-val mono">${this.escapeHtml(fullOs)}</span>
@@ -1791,10 +1779,7 @@ Hostname: ${dev.host || '-'}
 IP Local: ${dev.ip || '-'} | IP ZT: ${dev.zt || '-'}
 Agent: ${fullAgent}
 Reader PARKEE: ${readerStatusText}
-CPU: ${fullCpu}
-RAM: ${this.formatRam(dev.ram, dev.ram_brand)}
-Motherboard: ${fullMb}
-Storage: ${this.formatStorageSummary(dev.ssd_brand, dev.ssd_type, dev.ssd_size)} (Health: ${dev.ssd_health ?? '-'}%, Usage: ${dev.ssd_usage ?? '-'}%)
+${primarySpecText}${dev.ssd_usage !== null && dev.ssd_usage !== undefined ? `\nDisk Usage: ${dev.ssd_usage}%` : ''}
 Suhu: ${dev.temp != null ? dev.temp + '°C' : '-'}
 OS Version: ${fullOs}
 Last Sync: ${dev.sync || '-'}`;
@@ -1841,12 +1826,11 @@ Last Sync: ${dev.sync || '-'}`;
     const dispTier = dev.tier || locObj?.tier || 'Standard';
     const dispHost = dev.host || '-';
 
-    if (title) title.textContent = `Detail Server: ${dispHost} — ${dispLoc}`;
+    if (title) title.textContent = `Detail Server: ${dispHost} · ${dispLoc}`;
 
+    const specSource = srv || dev;
     const fullOs = this.formatFullOs(dev.os || locObj?.os);
-    const fullCpu = (srv?.cpu && srv.cpu !== '-') ? srv.cpu : (dev.cpu || '-');
-    const fullMb = (srv?.mb && srv.mb !== '-') ? srv.mb : (srv?.mb_brand || this.formatMb(dev.mb, dev.mb_brand));
-    const fullRam = this.formatRam(srv?.ram || dev.ram, srv?.ram_brand);
+    const primarySpecText = this.formatPrimarySpecText(specSource);
     const fullAgent = this.formatFullVersion(dev.agent || locObj?.agent);
     const fullFish = this.formatFullVersion(dev.fisherman || locObj?.fisherman);
     const fullWater = this.formatFullVersion(dev.watersheep || locObj?.watersheep);
@@ -1883,22 +1867,7 @@ Last Sync: ${dev.sync || '-'}`;
           <span class="modal-spec-label">IP ZeroTier</span>
           <span class="modal-spec-val mono">${this.escapeHtml(srv?.zt || locObj?.zt || dev.ip || '-')}</span>
         </div>
-        <div class="modal-spec-item">
-          <span class="modal-spec-label">Memori RAM</span>
-          <span class="modal-spec-val">${this.escapeHtml(fullRam)}</span>
-        </div>
-        <div class="modal-spec-item">
-          <span class="modal-spec-label">Storage SSD &amp; Kesehatan</span>
-          <span class="modal-spec-val">${this.escapeHtml(this.formatStorageSummary(srv?.ssd_brand, srv?.ssd_type, srv?.ssd_size))} · Health: ${srv?.ssd_health !== null && srv?.ssd_health !== undefined ? this.escapeHtml(srv.ssd_health) + '%' : '-'} · Usage: ${srv?.ssd_usage !== null && srv?.ssd_usage !== undefined ? this.escapeHtml(srv.ssd_usage) + '%' : '-'}</span>
-        </div>
-        <div class="modal-spec-item full-width">
-          <span class="modal-spec-label">Processor / CPU (Lengkap)</span>
-          <span class="modal-spec-val">${this.escapeHtml(fullCpu)}</span>
-        </div>
-        <div class="modal-spec-item full-width">
-          <span class="modal-spec-label">Motherboard (Lengkap)</span>
-          <span class="modal-spec-val">${this.escapeHtml(fullMb)}</span>
-        </div>
+        ${this.buildPrimarySpecBlockHtml(specSource, { label: 'Spesifikasi Utama', targetId: 'modalPrimarySpecText' })}
         <div class="modal-spec-item full-width">
           <span class="modal-spec-label">Sistem Operasi / OS Version (Lengkap)</span>
           <span class="modal-spec-val mono">${this.escapeHtml(fullOs)}</span>
@@ -1926,10 +1895,7 @@ Last Sync: ${dev.sync || '-'}`;
 Lokasi: ${dispLoc} (${dispCode} / ${dispTier})
 Hostname: ${dispHost}
 IP Local: ${srv?.ip || dev.ip || '-'} | IP ZT: ${srv?.zt || locObj?.zt || dev.ip || '-'}
-CPU: ${fullCpu}
-RAM: ${fullRam}
-Motherboard: ${fullMb}
-Storage: ${this.formatStorageSummary(srv?.ssd_brand, srv?.ssd_type, srv?.ssd_size)} (Health: ${srv?.ssd_health ?? '-'}%, Usage: ${srv?.ssd_usage ?? '-'}%)
+${primarySpecText}${specSource?.ssd_usage !== null && specSource?.ssd_usage !== undefined ? `\nDisk Usage: ${specSource.ssd_usage}%` : ''}
 Suhu: ${tempVal !== null ? tempVal + '°C' : '-'}
 OS Version: ${fullOs}
 Agent: ${fullAgent} | Fisherman: ${fullFish} | Watersheep: ${fullWater} | WBO: ${fullWbo}
@@ -6004,6 +5970,26 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
       });
       ticketModal.addEventListener('close', restoreFocus);
     }
+
+    // 3. Copy Invoker Commands (--copy) with progressive fallback
+    if (!this._copyCommandBound) {
+      this._copyCommandBound = true;
+      if ('CommandEvent' in window) {
+        document.addEventListener('command', (event) => {
+          if (event.command === '--copy' && event.source && event.target) {
+            this.copyFromInvoker(event.source, event.target);
+          }
+        }, true);
+      } else {
+        document.addEventListener('click', (event) => {
+          if (event.defaultPrevented) return;
+          const button = event.target.closest('button[command="--copy"]');
+          if (!button) return;
+          const target = document.getElementById(button.getAttribute('commandfor'));
+          if (target) this.copyFromInvoker(button, target);
+        });
+      }
+    }
   },
 
   formatCpu(raw) {
@@ -6108,6 +6094,226 @@ GLPI: https://parkee-ticket.nusa.technology/front/ticket.form.php?id=${t.id}`;
     if (t) parts.push(`(${t})`);
     if (s !== '-') parts.push(s);
     return parts.length > 0 ? parts.join(' ') : '-';
+  },
+
+  formatNominalRam(raw) {
+    if (raw === null || raw === undefined) return '-';
+    const s = String(raw).trim();
+    const low = s.toLowerCase();
+    if (!s || s === '-' || s === '0' || low === 'other' || low === 'other brand' || low === '- (other)' || low === 'none') {
+      return '-';
+    }
+
+    const m = s.replace(',', '.').match(/(\d+(?:\.\d+)?)\s*([TGMK]?i?B?)?/i);
+    if (!m) return s;
+    let gb = parseFloat(m[1]);
+    if (isNaN(gb) || gb <= 0) return s;
+
+    const unit = (m[2] || '').toUpperCase();
+    if (unit.startsWith('T')) gb *= 1024;
+    else if (unit.startsWith('M')) gb /= 1024;
+
+    if (gb >= 0.7 && gb <= 1.15) return '1GB';
+    if (gb >= 1.4 && gb <= 2.15) return '2GB';
+    if (gb >= 2.4 && gb <= 3.15) return '3GB';
+    if (gb > 3.15 && gb <= 4.15) return '4GB';
+    if (gb >= 4.4 && gb <= 5.15) return '5GB';
+    if (gb > 5.15 && gb <= 6.2) return '6GB';
+    if (gb >= 6.8 && gb <= 8.2) return '8GB';
+    if (gb >= 8.8 && gb <= 10.2) return '10GB';
+    if (gb >= 10.4 && gb <= 12.2) return '12GB';
+    if (gb >= 13.5 && gb <= 16.3) return '16GB';
+    if (gb >= 17.5 && gb <= 20.5) return '20GB';
+    if (gb >= 21.5 && gb <= 24.5) return '24GB';
+    if (gb >= 28.0 && gb <= 32.5) return '32GB';
+    if (gb >= 44.0 && gb <= 48.5) return '48GB';
+    if (gb >= 58.0 && gb <= 64.5) return '64GB';
+    if (gb >= 88.0 && gb <= 96.5) return '96GB';
+    if (gb >= 116.0 && gb <= 128.5) return '128GB';
+    if (gb >= 178.0 && gb <= 192.5) return '192GB';
+    if (gb >= 235.0 && gb <= 256.5) return '256GB';
+    if (gb >= 470.0 && gb <= 512.5) return '512GB';
+    return `${Math.round(gb)}GB`;
+  },
+
+  formatNominalStorageSize(sizeRaw) {
+    if (sizeRaw === null || sizeRaw === undefined) return '';
+    const s = String(sizeRaw).trim();
+    const low = s.toLowerCase();
+    if (!s || s === '-' || s === '0' || low === '0b' || low === 'other' || low === 'other brand' || low === 'none') {
+      return '';
+    }
+    const m = s.replace(',', '.').match(/^(\d+(?:\.\d+)?)\s*([TGMK]?i?B?)?$/i);
+    if (!m) return '';
+    let gb = parseFloat(m[1]);
+    if (isNaN(gb) || gb <= 0) return '';
+    const unit = (m[2] || '').toUpperCase();
+    if (unit.startsWith('T')) gb *= 1000;
+
+    if (gb >= 3500 && gb <= 4100) return '4TB';
+    if (gb >= 1700 && gb <= 2050) return '2TB';
+    if (gb >= 900 && gb <= 1050) return '1TB';
+    if (gb >= 470 && gb <= 515) return '512GB';
+    if (gb >= 455 && gb < 470) return '500GB';
+    if (gb >= 435 && gb < 455) return '480GB';
+    if (gb >= 235 && gb <= 260) return '256GB';
+    if (gb >= 228 && gb < 235) return '250GB';
+    if (gb >= 215 && gb < 228) return '240GB';
+    if (gb >= 115 && gb <= 130) return '128GB';
+    if (gb >= 105 && gb < 115) return '120GB';
+    return s.replace(',', '.');
+  },
+
+  formatPrimarySsdSpec(dev) {
+    let model = String(dev?.ssd_model || '').replace(/\s+/g, ' ').trim();
+    const modelLow = model.toLowerCase();
+    if (!model || model === '-' || modelLow === 'other' || modelLow === 'other brand' || modelLow === 'none' || modelLow === '0') {
+      model = '';
+    } else {
+      model = model.replace(/\s+with$/i, '').trim();
+    }
+
+    const nomSize = this.formatNominalStorageSize(dev?.ssd_size);
+    let ssdName = '-';
+
+    if (model) {
+      const hasCap = /(?:\b\d+(?:\.\d+)?\s*(?:TB|GB|MB)\b|(?:1TB|2TB|4TB|1000GB|512GB|500GB|480GB|256GB|250GB|240GB|128GB|120GB)|\b(?:1|2|4)T\b)/i.test(model);
+      ssdName = (!hasCap && nomSize) ? `${model} ${nomSize}` : model;
+    } else {
+      const brand = this.formatBrand(dev?.ssd_brand);
+      const type = (dev?.ssd_type && dev.ssd_type !== '-' && dev.ssd_type !== 'Other') ? dev.ssd_type : '';
+      const parts = [];
+      if (brand !== '-') parts.push(brand);
+      if (type) parts.push(type);
+      if (nomSize) parts.push(nomSize);
+      if (parts.length > 0) ssdName = parts.join(' ');
+    }
+
+    const hasHealth = dev?.ssd_health !== null && dev?.ssd_health !== undefined && String(dev.ssd_health).trim() !== '';
+    if (ssdName === '-' && !hasHealth) return '-';
+    if (ssdName === '-' && hasHealth) return `Health ${dev.ssd_health}%`;
+    return hasHealth ? `${ssdName} - Health ${dev.ssd_health}%` : ssdName;
+  },
+
+  formatPrimarySpecText(dev) {
+    const rawCpu = String(dev?.cpu || '').replace(/\s+/g, ' ').trim();
+    const cpuLow = rawCpu.toLowerCase();
+    const cpu = (rawCpu && rawCpu !== '-' && cpuLow !== 'other' && cpuLow !== 'other cpu') ? rawCpu : '-';
+
+    const rawMb = String(dev?.mb || '').replace(/\s+/g, ' ').trim();
+    const mbLow = rawMb.toLowerCase();
+    const mb = (rawMb && rawMb !== '-' && !mbLow.includes('default string') && mbLow !== 'other' && mbLow !== 'other brand')
+      ? rawMb
+      : (this.formatMb(dev?.mb, dev?.mb_brand) || '-');
+
+    const ram = this.formatNominalRam(dev?.ram);
+    const ssd = this.formatPrimarySsdSpec(dev);
+
+    return `* Processor: ${cpu}\n* Motherboard: ${mb}\n* RAM: ${ram}\n* SSD: ${ssd}`;
+  },
+
+  buildPrimarySpecBlockHtml(dev, options = {}) {
+    const label = options.label || 'Spesifikasi Utama';
+    const targetId = options.targetId || 'modalPrimarySpecText';
+    const specText = this.formatPrimarySpecText(dev);
+
+    const metaItems = [];
+    if (dev?.ssd_usage !== null && dev?.ssd_usage !== undefined && String(dev.ssd_usage).trim() !== '') {
+      metaItems.push(`Disk Usage: ${this.escapeHtml(dev.ssd_usage)}%`);
+    }
+    if (dev?.ssd_type && dev.ssd_type !== '-' && dev.ssd_type !== 'Other') {
+      metaItems.push(`Tipe SSD: ${this.escapeHtml(dev.ssd_type)}`);
+    }
+    const ramBrandRaw = String(dev?.ram_brand || '').trim();
+    const ramBrandLow = ramBrandRaw.toLowerCase();
+    if (ramBrandRaw && ramBrandRaw !== '-' && ramBrandLow !== 'other' && ramBrandLow !== 'other brand' && !ramBrandLow.startsWith('0x') && !ramBrandLow.includes('unknown')) {
+      metaItems.push(`Merek RAM: ${this.escapeHtml(ramBrandRaw)}`);
+    }
+
+    const metaHtml = metaItems.length > 0
+      ? `<div class="modal-primary-spec-meta">${metaItems.join(' · ')}</div>`
+      : '';
+
+    return `
+      <div class="modal-spec-item full-width modal-primary-spec-card">
+        <div class="modal-primary-spec-header">
+          <span class="modal-spec-label">${this.escapeHtml(label)}</span>
+          <span class="modal-spec-copy-wrap">
+            <button type="button" class="modal-spec-copy-btn" command="--copy" commandfor="${this.escapeHtml(targetId)}">
+              <svg class="copy-icon-default" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <svg class="copy-icon-done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Salin Spek</span>
+            </button>
+            <span class="modal-spec-copy-tip" role="status"></span>
+          </span>
+        </div>
+        <pre id="${this.escapeHtml(targetId)}" class="modal-primary-spec-pre">${this.escapeHtml(specText)}</pre>
+        ${metaHtml}
+      </div>
+    `;
+  },
+
+  legacyCopyText(text) {
+    const previousFocus = document.activeElement;
+    const field = Object.assign(document.createElement('textarea'), { value: text });
+    field.setAttribute('readonly', '');
+    field.style.cssText = 'position:fixed;inset-block-start:0;opacity:0';
+    document.body.append(field);
+    field.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      field.remove();
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        previousFocus.focus({ preventScroll: true });
+      }
+    }
+  },
+
+  async copyFromInvoker(button, target) {
+    const text = target.matches('input, textarea') ? target.value : target.innerText.trim();
+    if (!text) return;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+      } else if (!this.legacyCopyText(text)) {
+        throw new Error('Copy failed');
+      }
+      this.reportCopyFeedback(button, true);
+    } catch {
+      if (this.legacyCopyText(text)) {
+        this.reportCopyFeedback(button, true);
+      } else {
+        this.reportCopyFeedback(button, false);
+      }
+    }
+  },
+
+  reportCopyFeedback(button, ok) {
+    const tip = button.nextElementSibling;
+    if (!tip) return;
+    clearTimeout(this._copyFeedbackTimers.get(button));
+    button.removeAttribute('data-copied');
+    button.removeAttribute('data-failed');
+    let message = ok ? 'Tersalin' : 'Gagal salin';
+    if (message === this._lastCopyStatusMsg) message += '\u00A0';
+    this._lastCopyStatusMsg = message;
+    tip.textContent = '';
+    void button.offsetWidth;
+    button.setAttribute(ok ? 'data-copied' : 'data-failed', '');
+    requestAnimationFrame(() => { tip.textContent = message; });
+    this._copyFeedbackTimers.set(button, setTimeout(() => {
+      button.removeAttribute('data-copied');
+      button.removeAttribute('data-failed');
+      tip.textContent = '';
+    }, 2000));
   },
 
   copyToClipboard(text) {

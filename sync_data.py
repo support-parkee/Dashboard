@@ -133,6 +133,9 @@ for r in raw_rows:
     elif "adata" in ssd_brand_raw: ssd_brand = "ADATA"
     elif ssd_brand_raw and ssd_brand_raw not in ["other", "other brand", "-"]: ssd_brand = r.get("Merk SSD", "").strip()
 
+    ssd_model_raw = re.sub(r"\s+", " ", r.get("Merk SSD", "").strip())
+    ssd_model = "" if ssd_model_raw.lower() in ["other", "other brand", "-", "none", "0"] else ssd_model_raw
+
     ssd_size_raw = r.get("Size SSD", "").strip()
     ssd_size = "" if ssd_size_raw.lower() in ["0", "-", "0b", "other", "other brand", "none"] else ssd_size_raw
 
@@ -207,6 +210,7 @@ for r in raw_rows:
         "mb": mb_val,
         "mb_brand": mb_brand,
         "ssd_brand": ssd_brand,
+        "ssd_model": ssd_model,
         "ssd_type": ssd_type,
         "ssd_size": ssd_size,
         "ssd_health": ssd_h,
